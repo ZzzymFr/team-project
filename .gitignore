@@ -39,6 +39,7 @@ build/
 venv/
 __pycache__/
 *.py[cod]
+/src/neutral network/data/
 
 ### Mac OS ###
 .DS_Store
