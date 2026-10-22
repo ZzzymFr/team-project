@@ -1,5 +1,6 @@
 import argparse
 import html
+import hashlib
 import json
 import math
 import random
@@ -16,6 +17,7 @@ from PIL import Image, ImageDraw
 from torch.utils.data import DataLoader, Dataset, Sampler
 
 from model import vital_mini, load_vocab, vocab_size, pad_id, bos_id, eos_id, max_len
+from preprocess import load_formula_image
 
 Learning_rate = 8e-5
 minimum_learning_rate = 3e-6
@@ -106,25 +108,63 @@ def render(strokes: list[np.ndarray], stroke_px: float = 3.0, ss: int = 2) -> to
 
 # ---------- 数据集 ----------
 class MathWriting(Dataset):
-    """MathWriting 的 InkML 目录(含 train/ valid/ test/ synthetic/)。标签用 normalizedLabel"""
+    """兼容原 InkML 目录、混合 JSONL 清单及个人图片＋LaTeX 数据。"""
 
     def __init__(self, root: str, splits: list[str], vocab: dict[str, int], train: bool,
-                 oov: str = "skip", max_samples: int | None = None):
-        self.root, self.train = Path(root), train
+                 oov: str = "skip", max_samples: int | None = None,
+                 image_roots: list[str] | None = None, personal_train: Path | None = None):
+        self.root, self.train = Path(root).resolve(), train
+        if personal_train is not None:
+            personal_train = personal_train.resolve()
+        if (self.root / ".preparing").exists():
+            raise RuntimeError("混合数据还在准备中，请等待 data.py 完成")
         unk = vocab["<unk>"]
-        self.items: list[tuple[str, str, list[int]]] = []      # (split, 文件名, token id)
+        self.items: list[tuple[str, str, list[int]]] = []      # (format, 绝对路径, token id)
         total = too_long = has_oov = 0
-        for split in splits:
-            for name, label in build_index(self.root, split):
-                total += 1
-                toks = tokenize_label(label)
-                if len(toks) + 2 > max_len:                    # 加上 <bos>/<eos>
-                    too_long += 1
+        seen_paths: dict[str, str] = {}
+        roots = [self.root] + [Path(p).resolve() for p in (image_roots or [])]
+        if self.train and personal_train is not None:
+            if personal_train.is_dir() and any(
+                p.name == "labels.jsonl" or p.suffix.lower() in {".png", ".jpg", ".jpeg", ".bmp", ".webp", ".tif", ".tiff"}
+                for p in personal_train.rglob("*") if p.is_file()
+            ):
+                if not (personal_train / "labels.jsonl").is_file():
+                    raise FileNotFoundError(f"个人训练目录缺少标签文件: {personal_train / 'labels.jsonl'}")
+                roots.append(personal_train)
+        for dataset_root in dict.fromkeys(roots):
+            for split in splits:
+                manifest = dataset_root / f"{split}.jsonl"
+                if not manifest.is_file() and (dataset_root / split / "labels.jsonl").is_file():
+                    manifest = dataset_root / split / "labels.jsonl"
+                if dataset_root == personal_train:
+                    if split != "train":
+                        continue
+                    manifest = dataset_root / "labels.jsonl"
+                if manifest.is_file():
+                    records = read_manifest(manifest)
+                elif dataset_root == self.root:
+                    records = (("inkml", str((dataset_root / split / name).resolve()), label)
+                               for name, label in build_index(dataset_root, split))
+                else:
+                    # 个人数据可以只提供 train.jsonl；不擅自拿训练图片作验证。
+                    if split == "train":
+                        raise FileNotFoundError(f"个人训练清单不存在: {manifest}")
                     continue
-                if oov == "skip" and any(t not in vocab for t in toks):
-                    has_oov += 1
-                    continue
-                self.items.append((split, name, [vocab.get(t, unk) for t in toks]))
+                for kind, path, label in records:
+                    if path in seen_paths:
+                        if seen_paths[path] != label:
+                            raise ValueError(f"同一训练文件有不同标签: {path}")
+                        continue
+                    seen_paths[path] = label
+                    total += 1
+                    toks = tokenize_label(label)
+                    if len(toks) + 2 > max_len:                    # 加上 <bos>/<eos>
+                        too_long += 1
+                        continue
+                    if oov == "skip" and any(t not in vocab for t in toks):
+                        has_oov += 1
+                        continue
+                    self.items.append((kind, path, [vocab.get(t, unk) for t in toks]))
         if max_samples:
             random.Random(0).shuffle(self.items)
             self.items = self.items[:max_samples]
@@ -135,14 +175,39 @@ class MathWriting(Dataset):
         return len(self.items)
 
     def __getitem__(self, i: int) -> tuple[torch.Tensor, list[int]]:
-        split, name, ids = self.items[i]
-        strokes = read_strokes(self.root / split / name)
+        kind, path, ids = self.items[i]
+        if kind == "image":
+            return load_formula_image(Path(path)), ids
+        strokes = read_strokes(Path(path))
         stroke_px = 3.0
         if self.train:                                         # 训练时随机扰动笔迹形状和粗细,验证时不扰动
             rng = random.Random()
             strokes = augment_strokes(strokes, rng)
             stroke_px = rng.uniform(2.0, 4.0)
         return render(strokes, stroke_px), ids
+
+
+def read_manifest(path: Path):
+    """每行 {image/path, latex, format?}；文件路径相对于清单所在目录。"""
+    with path.open(encoding="utf-8") as stream:
+        for line_number, line in enumerate(stream, 1):
+            if not line.strip():
+                continue
+            try:
+                row = json.loads(line)
+                if not isinstance(row, dict):
+                    raise ValueError("每行必须是一个 JSON 对象")
+                filename = row.get("image") or row["path"]
+                label = row["latex"]
+                kind = row.get("format", "image")
+                if kind not in {"image", "inkml"} or not isinstance(label, str) or not label.strip():
+                    raise ValueError("format 必须为 image/inkml，latex 必须为非空字符串")
+                sample_path = (path.parent / filename).resolve()
+                if not sample_path.is_file():
+                    raise FileNotFoundError(sample_path)
+                yield kind, str(sample_path), label
+            except (KeyError, TypeError, ValueError, OSError) as error:
+                raise ValueError(f"无效数据清单 {path}:{line_number}: {error}") from error
 
 def convert(images: list[torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
     """B 张 [1,H,W_i] -> ([B,3,H,W_max], 每张的真实宽度 [B])
@@ -231,18 +296,24 @@ def exp_rate(model: vital_mini, dataset: MathWriting, device: str, n: int) -> fl
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--data", required=True, help="MathWriting 目录(里面有 train/ valid/ ...)")
+    ap.add_argument("--data", required=True, help="InkML 根目录或包含 train.jsonl/valid.jsonl 的混合数据目录")
+    ap.add_argument("--image-data", nargs="+", default=[], help="额外的个人图片数据目录（train.jsonl，可选 valid.jsonl）")
+    ap.add_argument("--personal-train", type=Path, default=Path(__file__).resolve().parent / "train",
+                    help="个人训练图片目录，读取其中 labels.jsonl；默认脚本旁的 train/")
+    ap.add_argument("--no-personal-train", action="store_true", help="不自动加入个人 train/ 目录")
     ap.add_argument("--splits", default="train", help="训练用的子目录,逗号分隔,如 train,synthetic")
     ap.add_argument("--epochs", type=int, default=EPOCHS)
     ap.add_argument("--batch-size", type=int, default=32)
     ap.add_argument("--workers", type=int, default=4)
     ap.add_argument("--oov", choices=["skip", "unk"], default="skip",
                     help="标签里有词表外的 token: skip=丢掉这条样本, unk=替换成 <unk>")
-    ap.add_argument("--max-samples", type=int, default=1000, help="只用前 N 条训练样本(调试用)")
+    ap.add_argument("--max-samples", type=int, default=0, help="限制训练/验证样本数用于调试，0=使用全部可用数据")
     ap.add_argument("--eval-n", type=int, default=100, help="计算整式正确率用的验证样本数")
     ap.add_argument("--out", default="checkpoints")
     ap.add_argument("--seed", type=int, default=0)
     args = ap.parse_args()
+    if args.max_samples < 0 or args.epochs < 1 or args.batch_size < 1 or args.eval_n < 1:
+        ap.error("max-samples 必须 >= 0；epochs、batch-size、eval-n 必须 >= 1")
 
     random.seed(args.seed)
     torch.manual_seed(args.seed)
@@ -251,9 +322,19 @@ def main():
 
     vocab = {t: i for i, t in enumerate(load_vocab())}
     train_ds = MathWriting(args.data, args.splits.split(","), vocab, train=True, oov=args.oov,
-                           max_samples=args.max_samples)
+                           max_samples=args.max_samples, image_roots=args.image_data,
+                           personal_train=None if args.no_personal_train else args.personal_train.resolve())
     val_ds = MathWriting(args.data, ["valid"], vocab, train=False, oov=args.oov,
-                         max_samples=args.max_samples)
+                         max_samples=args.max_samples, image_roots=args.image_data)
+    if not len(train_ds) or not len(val_ds):
+        raise ValueError("过滤后的训练集或验证集为空，请检查清单、词表和数据路径")
+    overlap = {item[1] for item in train_ds.items} & {item[1] for item in val_ds.items}
+    if overlap:
+        raise ValueError(f"训练和验证清单引用了相同文件，例如: {next(iter(overlap))}")
+    validation_hash = hashlib.sha256()
+    for item in val_ds.items:
+        validation_hash.update(json.dumps(item, ensure_ascii=False).encode("utf-8") + b"\n")
+    validation_signature = validation_hash.hexdigest()
     loader_args = dict(collate_fn=collate, num_workers=args.workers, pin_memory=device == "cuda",
                        persistent_workers=args.workers > 0)
     train_loader = DataLoader(train_ds, batch_sampler=BucketSampler(
@@ -270,8 +351,10 @@ def main():
         checkpoint = torch.load(weights_path, map_location="cpu", weights_only=True)
         state_dict = checkpoint["model"] if "model" in checkpoint else checkpoint
         model.load_state_dict(state_dict, strict=True)
-        if "model" in checkpoint:
+        if "model" in checkpoint and checkpoint.get("validation_signature") == validation_signature:
             best = float(checkpoint.get("val_loss", best))
+        else:
+            print("验证集已变化或旧权重未记录验证集信息，本次重新比较最佳验证损失")
         del state_dict, checkpoint
         print(f"已加载模型权重: {weights_path.resolve()} (优化器和学习率调度重新初始化)")
     else:
@@ -318,7 +401,8 @@ def main():
         print(f"epoch {epoch}/{args.epochs} | val loss {val_loss:.4f} | token acc {val_acc:.3f} | "
               f"ExpRate({args.eval_n}) {rate:.3f} | {time.time() - start:.0f}s")
 
-        ckpt = {"model": model.state_dict(), "epoch": epoch, "val_loss": val_loss, "exp_rate": rate}
+        ckpt = {"model": model.state_dict(), "epoch": epoch, "val_loss": val_loss, "exp_rate": rate,
+                "validation_signature": validation_signature}
         torch.save(ckpt, out / "last.pt")
         if val_loss < best:
             best = val_loss
