@@ -11,7 +11,8 @@ python "src/neutral network/train.py" --data "src/neutral network/data/mixed"
 `data.py` 默认准备三个数据源，原始数据保留在各自目录；混合清单位于
 `data/mixed/train.jsonl`、`valid.jsonl`、`test.jsonl`，实际条数与去重统计写入
 `data/mixed/summary.json`。`train.py` 默认使用全部可用样本；调试时可以传
-`--max-samples 1000`。
+`--max-samples 1000`。更换验证集时会重新比较最佳验证损失，仍然加载已有模型权重；
+优化器和学习率调度沿用原行为，每次运行重新初始化。
 
 ## 下载与复用
 

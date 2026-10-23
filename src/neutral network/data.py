@@ -423,7 +423,9 @@ def mix_manifests(sources: dict, output: Path) -> dict:
                 with manifest.open(encoding="utf-8") as stream:
                     for line in stream:
                         row = json.loads(line)
-                        sample_path = (manifest.parent / row["path"]).resolve()
+                        # 清单由上面的转换器从规范化路径生成；这里只需消除 ..，
+                        # 避免对百万条记录反复逐级解析同一批父目录。
+                        sample_path = Path(os.path.abspath(manifest.parent / row["path"]))
                         if not sample_path.is_file():
                             raise FileNotFoundError(f"缓存数据缺失: {sample_path}；请运行 data.py --rebuild")
                         if row["content_hash"] in seen_content:
