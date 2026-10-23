@@ -1,0 +1,4 @@
+--index-url https://pypi.org/simple
+huggingface_hub>=0.30,<2
+pyarrow>=20
+Pillow>=10
