@@ -7,6 +7,10 @@ import torch
 from PIL import Image, ImageOps
 
 
+class EmptyFormulaImageError(ValueError):
+    """图片中没有达到笔迹检测阈值的像素。"""
+
+
 def load_formula_image(path: Path, invert: bool | None = None) -> torch.Tensor:
     """单张公式图 -> [1, 128, W]；invert=None 自动判断，否则强制开/关反色。"""
     with Image.open(path) as source:
@@ -22,7 +26,7 @@ def load_formula_image(path: Path, invert: bool | None = None) -> torch.Tensor:
     foreground = ImageOps.invert(gray) if light_background else gray
     bounds = foreground.point(lambda p: 255 if p > 32 else 0).getbbox()
     if bounds is None:
-        raise ValueError("图片中没有可识别的笔迹")
+        raise EmptyFormulaImageError(f"图片中没有可识别的笔迹: {path}")
     ink = (ImageOps.invert(gray) if should_invert else gray).crop(bounds)
 
     # 对齐 train.py 的高度、边距、最大宽度以及横线的缩放规则。

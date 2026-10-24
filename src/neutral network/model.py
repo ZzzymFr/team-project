@@ -3,13 +3,12 @@ import math
 from dataclasses import dataclass, field
 from pathlib import Path
 import torch
-import torchvision
 import torch.nn as nn
 import torch.nn.functional as F
 
 d_model = 256
 attention_heads = 4
-vocab_size = 147                      # 必须等于 tokeniser.json 里 token 的个数(load_vocab 会检查)
+vocab_size = 148                      # 末尾追加空格；原有 0..146 的 token ID 不变
 pad_id, bos_id, eos_id = 67, 68, 69   # 与 tokeniser.json 中的特殊 token 对应
 max_len = 300                        # LaTeX token 序列的最大长度(含 <bos>/<eos>)
 
@@ -33,12 +32,34 @@ def load_vocab(path: Path = Path(__file__).with_name("tokeniser.json")) -> list[
     return table
 
 def ids_to_latex(ids: list[int], table: list[str]) -> str:
-    # \frac 这类命令是一个 token,后面补一个空格,避免和后面的字母粘在一起(\pi x 而不是 \pix)
+    # 仅在命令后紧接英文字母时补分隔符，保留 \text{...} 内真正的空格。
     out = []
-    for i in ids:
+    for position, i in enumerate(ids):
         t = table[i]
-        out.append(t + " " if t.startswith("\\") and len(t) > 1 else t)
+        next_token = table[ids[position + 1]] if position + 1 < len(ids) else ""
+        needs_separator = (t.startswith("\\") and t[1:].isascii() and t[1:].isalpha()
+                           and next_token and next_token[0].isascii() and next_token[0].isalpha())
+        out.append(t + " " if needs_separator else t)
     return "".join(out).strip()
+
+
+def load_training_weights(model: nn.Module, state_dict: dict) -> bool:
+    """兼容追加空格前的 147 词权重；只扩展共享词嵌入/输出矩阵的一行。"""
+    keys = ("token_embedding.weight", "head.weight")
+    expanded = all(state_dict[key].shape == (147, d_model) for key in keys)
+    if expanded:
+        if load_vocab()[147:] != [" "]:
+            raise ValueError("旧权重仅支持在原有词表末尾追加空格")
+        state_dict = dict(state_dict)
+        # 两个层共享权重；新行用原有字符嵌入均值初始化，之后参与训练。
+        if not torch.equal(state_dict[keys[0]], state_dict[keys[1]]):
+            raise ValueError("旧权重的词嵌入与输出层不一致")
+        old = state_dict[keys[0]]
+        extended = torch.cat((old, old[:67].mean(dim=0, keepdim=True)), dim=0)
+        for key in keys:
+            state_dict[key] = extended
+    model.load_state_dict(state_dict, strict=True)
+    return expanded
 
 @dataclass
 class BeamState:
@@ -280,7 +301,7 @@ class vital_mini(nn.Module):
     final_norm : nn.LayerNorm
     head : nn.Linear
 
-    def __init__(self):
+    def __init__(self, num_tokens: int = vocab_size):
         super(vital_mini, self).__init__()
         self.cnn = vital_pixel()
         self.decoder1 = decoder()
@@ -288,7 +309,7 @@ class vital_mini(nn.Module):
         self.decoder3 = decoder()
 
         # token id -> 向量; <pad> 对应的行保持为 0
-        self.token_embedding = nn.Embedding(vocab_size, d_model, padding_idx=pad_id)
+        self.token_embedding = nn.Embedding(num_tokens, d_model, padding_idx=pad_id)
         nn.init.normal_(self.token_embedding.weight, mean=0.0, std=d_model ** -0.5)  # 配合 forward 里乘 sqrt(d)
         with torch.no_grad():
             self.token_embedding.weight[pad_id].zero_()
@@ -297,7 +318,7 @@ class vital_mini(nn.Module):
         self.register_buffer("token_pos", self.build_token_pos(max_len), persistent=False)
 
         self.final_norm = nn.LayerNorm(d_model)
-        self.head = nn.Linear(d_model, vocab_size, bias=False)
+        self.head = nn.Linear(d_model, num_tokens, bias=False)
         self.head.weight = self.token_embedding.weight
 
     @staticmethod

@@ -5,6 +5,7 @@ import json
 import math
 import random
 import re
+import sys
 import time
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -16,8 +17,8 @@ import torch.nn.functional as F
 from PIL import Image, ImageDraw
 from torch.utils.data import DataLoader, Dataset, Sampler
 
-from model import vital_mini, load_vocab, vocab_size, pad_id, bos_id, eos_id, max_len
-from preprocess import load_formula_image
+from model import vital_mini, load_vocab, load_training_weights, vocab_size, pad_id, bos_id, eos_id, max_len
+from preprocess import EmptyFormulaImageError, load_formula_image
 
 Learning_rate = 8e-5
 minimum_learning_rate = 3e-6
@@ -26,6 +27,7 @@ EPOCHS = 5
 IMG_H = 128                  # 图像统一高度;vital_pixel 总步长 16,所以是 8 行格子
 STRIDE = 16                  # vital_pixel 的总下采样倍数,图像宽度要补成它的倍数
 MARGIN, MAX_W, MIN_W = 8, 1024, 64
+IMAGE_INVERT = False                 # 图片保留原始明暗，不自动反色。
 INKML = "{http://www.w3.org/2003/InkML}"
 
 # ---------- 标签 -> token ----------
@@ -34,10 +36,34 @@ TOKEN_RE = re.compile(r"\\[a-zA-Z]+|\\.|\S", re.S)             # \frac 这类命
 FUNC_RE = re.compile(r"(?<![a-zA-Z\\])(sin|cos|tan|log|ln|lim)")
 ALIASES = {r"\le": r"\leq", r"\ge": r"\geq", r"\ne": r"\neq", r"\to": r"\rightarrow"}   # 同义写法统一成词表里的那个
 LABEL_RE = re.compile(r'<annotation type="normalizedLabel">(.*?)</annotation>', re.S)
+TEXT_START_RE = re.compile(r"\\text\s*\{")
+TEXT_TOKEN_RE = re.compile(r"\\[a-zA-Z]+|\\.|\s+|\S", re.S)
 
 def tokenize_label(label: str) -> list[str]:
-    label = FUNC_RE.sub(lambda m: "\\" + m.group(1) + " ", label)   # 补空格,避免 sinx 变成 \sinx 一个命令
-    return [ALIASES.get(t, t) for t in TOKEN_RE.findall(label)]
+    def math_tokens(text: str) -> list[str]:
+        text = FUNC_RE.sub(lambda m: "\\" + m.group(1) + " ", text)
+        return [ALIASES.get(t, t) for t in TOKEN_RE.findall(text)]
+
+    result, position = [], 0
+    while match := TEXT_START_RE.search(label, position):
+        result.extend(math_tokens(label[position:match.start()]))
+        result.extend([r"\text", "{"])
+        depth = 1
+        for token_match in TEXT_TOKEN_RE.finditer(label, match.end()):
+            token = token_match.group()
+            if token == "{":
+                depth += 1
+            elif token == "}":
+                depth -= 1
+            # LaTeX 文字区域中的连续空白表示一个词间空格。
+            result.append(" " if token.isspace() else token)
+            if depth == 0:
+                position = token_match.end()
+                break
+        else:
+            raise ValueError(f"标签的 \\text 区域缺少右花括号: {label}")
+    result.extend(math_tokens(label[position:]))
+    return result
 
 def build_index(root: Path, split: str) -> list[tuple[str, str]]:
     """扫描 split 目录,返回 [(文件名, normalizedLabel)];文件有几十万个,只扫一次,之后读缓存"""
@@ -136,6 +162,9 @@ class MathWriting(Dataset):
                 manifest = dataset_root / f"{split}.jsonl"
                 if not manifest.is_file() and (dataset_root / split / "labels.jsonl").is_file():
                     manifest = dataset_root / split / "labels.jsonl"
+                # 本地识别目录名为 val；保留原有 valid.jsonl / valid/ 的优先级。
+                if split == "valid" and not manifest.is_file() and (dataset_root / "val" / "labels.jsonl").is_file():
+                    manifest = dataset_root / "val" / "labels.jsonl"
                 if dataset_root == personal_train:
                     if split != "train":
                         continue
@@ -168,8 +197,28 @@ class MathWriting(Dataset):
         if max_samples:
             random.Random(0).shuffle(self.items)
             self.items = self.items[:max_samples]
+        # 在创建 sampler、验证集签名和启动 worker 前排除无效图片。
+        # 保留抽样结果，不用其他样本替换坏图，以免悄悄改变验证集抽样规则。
+        self.invalid_images: list[tuple[str, str]] = []
+        image_count = sum(kind == "image" for kind, _, _ in self.items)
+        if image_count:
+            print(f"{'train' if train else 'eval '} {splits}: 检查 {image_count} 张图片...", flush=True)
+        usable = []
+        for item in self.items:
+            kind, path, _ = item
+            if kind == "image":
+                try:
+                    load_formula_image(Path(path), invert=IMAGE_INVERT)
+                except (EmptyFormulaImageError, OSError) as error:
+                    self.invalid_images.append((path, str(error)))
+                    if len(self.invalid_images) <= 5:
+                        print(f"跳过无效图片: {path} ({error})", flush=True)
+                    continue
+            usable.append(item)
+        self.items = usable
         print(f"{'train' if train else 'eval '} {splits}: {len(self.items)}/{total} samples used "
-              f"(too long: {too_long}, tokens outside tokeniser.json: {has_oov}, oov={oov})")
+              f"(too long: {too_long}, tokens outside tokeniser.json: {has_oov}, "
+              f"invalid images: {len(self.invalid_images)}, oov={oov})")
 
     def __len__(self) -> int:
         return len(self.items)
@@ -177,7 +226,7 @@ class MathWriting(Dataset):
     def __getitem__(self, i: int) -> tuple[torch.Tensor, list[int]]:
         kind, path, ids = self.items[i]
         if kind == "image":
-            return load_formula_image(Path(path)), ids
+            return load_formula_image(Path(path), invert=IMAGE_INVERT), ids
         strokes = read_strokes(Path(path))
         stroke_px = 3.0
         if self.train:                                         # 训练时随机扰动笔迹形状和粗细,验证时不扰动
@@ -211,10 +260,12 @@ def read_manifest(path: Path):
 
 def convert(images: list[torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
     """B 张 [1,H,W_i] -> ([B,3,H,W_max], 每张的真实宽度 [B])
-    宽度不同的用 0(背景)补到最宽;灰度复制成 3 通道,因为 vital_pixel 第一层是 3 通道"""
+    宽度不同的沿用各自背景色补到最宽;灰度复制成 3 通道,因为 vital_pixel 第一层是 3 通道"""
     widths = torch.tensor([im.size(-1) for im in images])
     batch = torch.zeros(len(images), 1, IMG_H, int(widths.max()))
     for i, im in enumerate(images):
+        # 两条预处理路径都留有纯色边距，左上角就是该样本的补边颜色。
+        batch[i].fill_(im[0, 0, 0].item())
         batch[i, :, :, :im.size(-1)] = im
     return batch.expand(-1, 3, -1, -1).contiguous(), widths
 
@@ -294,9 +345,22 @@ def exp_rate(model: vital_mini, dataset: MathWriting, device: str, n: int) -> fl
         ok += pred == dataset.items[i][2]
     return ok / n
 
+def resolve_data_root(value: str) -> Path:
+    """相对路径优先使用工作目录，不存在时再查找脚本所在目录。"""
+    path = Path(value).expanduser()
+    if path.is_absolute():
+        return path.resolve()
+    working_path = (Path.cwd() / path).resolve()
+    script_path = (Path(__file__).resolve().parent / path).resolve()
+    if not working_path.exists() and script_path.is_dir():
+        return script_path
+    return working_path
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--data", required=True, help="InkML 根目录或包含 train.jsonl/valid.jsonl 的混合数据目录")
+    ap.add_argument("--data", default=str(Path(__file__).resolve().parent),
+                    help="默认读取脚本旁 train/labels.jsonl 和 val/labels.jsonl；相对路径先查工作目录，再查脚本目录")
     ap.add_argument("--image-data", nargs="+", default=[], help="额外的个人图片数据目录（train.jsonl，可选 valid.jsonl）")
     ap.add_argument("--personal-train", type=Path, default=Path(__file__).resolve().parent / "train",
                     help="个人训练图片目录，读取其中 labels.jsonl；默认脚本旁的 train/")
@@ -304,7 +368,8 @@ def main():
     ap.add_argument("--splits", default="train", help="训练用的子目录,逗号分隔,如 train,synthetic")
     ap.add_argument("--epochs", type=int, default=EPOCHS)
     ap.add_argument("--batch-size", type=int, default=32)
-    ap.add_argument("--workers", type=int, default=4)
+    ap.add_argument("--workers", type=int, default=0 if sys.platform == "win32" else 4,
+                    help="数据加载子进程数；Windows 默认 0，避免复制大数据集导致系统内存耗尽")
     ap.add_argument("--oov", choices=["skip", "unk"], default="skip",
                     help="标签里有词表外的 token: skip=丢掉这条样本, unk=替换成 <unk>")
     ap.add_argument("--max-samples", type=int, default=0, help="限制训练/验证样本数用于调试，0=使用全部可用数据")
@@ -312,8 +377,10 @@ def main():
     ap.add_argument("--out", default="checkpoints")
     ap.add_argument("--seed", type=int, default=0)
     args = ap.parse_args()
-    if args.max_samples < 0 or args.epochs < 1 or args.batch_size < 1 or args.eval_n < 1:
-        ap.error("max-samples 必须 >= 0；epochs、batch-size、eval-n 必须 >= 1")
+    if args.max_samples < 0 or args.workers < 0 or args.epochs < 1 or args.batch_size < 1 or args.eval_n < 1:
+        ap.error("max-samples、workers 必须 >= 0；epochs、batch-size、eval-n 必须 >= 1")
+    args.data = str(resolve_data_root(args.data))
+    print(f"数据目录: {args.data} | batch_size={args.batch_size} | workers={args.workers}", flush=True)
 
     random.seed(args.seed)
     torch.manual_seed(args.seed)
@@ -332,11 +399,15 @@ def main():
     if overlap:
         raise ValueError(f"训练和验证清单引用了相同文件，例如: {next(iter(overlap))}")
     validation_hash = hashlib.sha256()
+    validation_hash.update(json.dumps({"image_invert": IMAGE_INVERT}).encode("utf-8"))
+    validation_hash.update(json.dumps(load_vocab(), ensure_ascii=False).encode("utf-8"))
     for item in val_ds.items:
         validation_hash.update(json.dumps(item, ensure_ascii=False).encode("utf-8") + b"\n")
     validation_signature = validation_hash.hexdigest()
-    loader_args = dict(collate_fn=collate, num_workers=args.workers, pin_memory=device == "cuda",
-                       persistent_workers=args.workers > 0)
+    # 不让训练、验证的两组 worker 常驻；显式启用多进程时也限制预取数量。
+    loader_args = dict(collate_fn=collate, num_workers=args.workers, pin_memory=device == "cuda")
+    if args.workers > 0:
+        loader_args["prefetch_factor"] = 1
     train_loader = DataLoader(train_ds, batch_sampler=BucketSampler(
         [len(x[2]) for x in train_ds.items], args.batch_size, shuffle=True), **loader_args)
     val_loader = DataLoader(val_ds, batch_sampler=BucketSampler(
@@ -350,7 +421,8 @@ def main():
         # 只恢复模型权重;优化器、学习率调度和训练轮数仍从本次运行开始。
         checkpoint = torch.load(weights_path, map_location="cpu", weights_only=True)
         state_dict = checkpoint["model"] if "model" in checkpoint else checkpoint
-        model.load_state_dict(state_dict, strict=True)
+        if load_training_weights(model, state_dict):
+            print("已兼容旧的 147 词权重；新增空格嵌入将在本次训练中学习")
         if "model" in checkpoint and checkpoint.get("validation_signature") == validation_signature:
             best = float(checkpoint.get("val_loss", best))
         else:
@@ -402,7 +474,7 @@ def main():
               f"ExpRate({args.eval_n}) {rate:.3f} | {time.time() - start:.0f}s")
 
         ckpt = {"model": model.state_dict(), "epoch": epoch, "val_loss": val_loss, "exp_rate": rate,
-                "validation_signature": validation_signature}
+                "validation_signature": validation_signature, "image_invert": IMAGE_INVERT}
         torch.save(ckpt, out / "last.pt")
         if val_loss < best:
             best = val_loss

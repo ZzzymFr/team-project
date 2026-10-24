@@ -38,8 +38,16 @@ def main():
 
     # train.py 保存的是含 model、epoch 等字段的 checkpoint。
     checkpoint = torch.load(WEIGHTS_PATH, map_location="cpu", weights_only=True)
-    model = vital_mini()
-    model.load_state_dict(checkpoint["model"], strict=True)
+    # 新权重记录训练时的反色设置；旧权重仍默认自动判断，显式参数始终优先。
+    image_invert = args.invert if args.invert is not None else checkpoint.get("image_invert")
+    state_dict = checkpoint["model"] if "model" in checkpoint else checkpoint
+    num_tokens = state_dict["token_embedding.weight"].shape[0]
+    if num_tokens not in (147, len(load_vocab())):
+        raise ValueError(f"权重词表大小不兼容: {num_tokens}")
+    model = vital_mini(num_tokens=num_tokens)
+    model.load_state_dict(state_dict, strict=True)
+    if num_tokens == 147:
+        print("当前是旧词表权重，尚不能生成词间空格；请用新版 train.py 继续训练文字样本")
     model = model.to(device)
     model.eval()
     print(f"已加载模型权重: {WEIGHTS_PATH} | device: {device}")
@@ -47,7 +55,7 @@ def main():
     with torch.inference_mode():
         for path in image_paths:
             try:
-                image = load_image(path, invert=args.invert)
+                image = load_image(path, invert=image_invert)
             except (OSError, ValueError) as error:
                 print(f"{path.name}: 跳过，{error}", flush=True)
                 continue
