@@ -3,6 +3,10 @@ package entity.node;
 import entity.Context;
 import entity.UncalculableException;
 import entity.value.BooleanValue;
+import entity.value.FiniteSetValue;
+import entity.value.NumberSetValue;
+import entity.value.VectorValue;
+import entity.value.NumberValue;
 import entity.value.Value;
 import entity.value.Values;
 
@@ -65,9 +69,66 @@ public class RelationNode extends Node {
                 return Values.toNumber(left) > Values.toNumber(right) || almostEqual(left, right);
             case "\\approx":
                 return approximately(Values.toNumber(left), Values.toNumber(right), leftNode, rightNode);
+            case "\\in":
+                return isMember(left, right, leftNode);
+            case "\\notin":
+                return !isMember(left, right, leftNode);
+            case "\\subset":
+                return isSubset(left, right);
             default:
                 throw new UncalculableException();
         }
+    }
+
+    private boolean isMember(Value element, Value set, Node elementNode) {
+        if (element instanceof NumberValue && set instanceof FiniteSetValue) {
+            return ((FiniteSetValue) set).contains(((NumberValue) element).getValue());
+        }
+        if (set instanceof NumberSetValue) {
+            NumberSetValue numbers = (NumberSetValue) set;
+            if (element instanceof VectorValue) {
+                return numbers.containsVector((VectorValue) element);
+            }
+            double number = Values.toNumber(element);
+            if (numbers.getKind() == NumberSetValue.Kind.RATIONAL && numbers.getDimension() == 1
+                    && !Double.isNaN(number) && !Double.isInfinite(number)
+                    && number != Math.floor(number)) {
+                if (isLiteral(elementNode)) {
+                    return true;
+                }
+                throw new UncalculableException();
+            }
+            return numbers.containsNumber(number);
+        }
+        throw new UncalculableException();
+    }
+
+    private boolean isLiteral(Node node) {
+        if (node instanceof UnaryNode && ((UnaryNode) node).getOp() == UnaryNode.Op.NEGATE) {
+            return isLiteral(((UnaryNode) node).getOperand());
+        }
+        return node instanceof NumberNode;
+    }
+
+    private boolean isSubset(Value left, Value right) {
+        if (left instanceof FiniteSetValue && right instanceof FiniteSetValue) {
+            return ((FiniteSetValue) left).isSubsetOf((FiniteSetValue) right);
+        }
+        if (left instanceof FiniteSetValue && right instanceof NumberSetValue) {
+            for (double element : ((FiniteSetValue) left).getElements()) {
+                if (!((NumberSetValue) right).containsNumber(element)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        if (left instanceof NumberSetValue && right instanceof NumberSetValue) {
+            return ((NumberSetValue) left).isSubsetOf((NumberSetValue) right);
+        }
+        if (left instanceof NumberSetValue && right instanceof FiniteSetValue) {
+            return false;
+        }
+        throw new UncalculableException();
     }
 
     private boolean almostEqual(Value left, Value right) {

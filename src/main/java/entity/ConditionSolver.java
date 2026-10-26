@@ -1,7 +1,11 @@
 package entity;
 
+import entity.node.LiteralNode;
 import entity.node.Node;
 import entity.node.RelationNode;
+import entity.value.FiniteSetValue;
+import entity.value.NumberValue;
+import entity.value.Value;
 import entity.value.Values;
 
 import java.math.BigDecimal;
@@ -244,9 +248,14 @@ public class ConditionSolver {
     private void collectRoots(Node node) {
         if (node instanceof RelationNode && isSolvable(node)) {
             List<Node> operands = ((RelationNode) node).getOperands();
+            List<String> operators = ((RelationNode) node).getOperators();
             for (int i = 0; i + 1 < operands.size(); i++) {
                 Node left = operands.get(i);
                 Node right = operands.get(i + 1);
+                if (isSetOperator(operators.get(i))) {
+                    addMembershipRoots(left, right);
+                    continue;
+                }
                 for (double value : new EquationSolver(left, right, variable, context, step).solve()) {
                     roots.add(new Root(value, left, right));
                 }
@@ -254,6 +263,33 @@ public class ConditionSolver {
         }
         for (Node child : node.children()) {
             collectRoots(child);
+        }
+    }
+
+    private boolean isSetOperator(String operator) {
+        return operator.equals("\\in") || operator.equals("\\notin") || operator.equals("\\subset");
+    }
+
+    private void addMembershipRoots(Node left, Node right) {
+        Set<String> names = new HashSet<>();
+        right.collectFreeVariables(names);
+        if (names.contains(variable)) {
+            return;
+        }
+        try {
+            Value set = right.evaluate(context);
+            if (set instanceof FiniteSetValue) {
+                for (double element : ((FiniteSetValue) set).getElements()) {
+                    Node target = new LiteralNode(new NumberValue(element), false);
+                    for (double value : new EquationSolver(left, target, variable, context, step).solve()) {
+                        roots.add(new Root(value, left, target));
+                    }
+                }
+            }
+        } catch (BudgetExceededException e) {
+            throw e;
+        } catch (UncalculableException e) {
+            // no roots here
         }
     }
 

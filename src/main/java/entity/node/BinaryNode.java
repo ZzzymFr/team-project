@@ -3,6 +3,7 @@ package entity.node;
 import entity.Context;
 import entity.UncalculableException;
 import entity.value.BooleanValue;
+import entity.value.FiniteSetValue;
 import entity.value.NumberValue;
 import entity.value.Value;
 import entity.value.Values;
@@ -11,7 +12,7 @@ import java.util.Arrays;
 import java.util.List;
 
 public class BinaryNode extends Node {
-    public enum Op { ADD, SUBTRACT, MULTIPLY, DOT, CROSS, DIVIDE, POWER, AND, OR, XOR, IMPLIES, IFF }
+    public enum Op { ADD, SUBTRACT, MULTIPLY, DOT, CROSS, DIVIDE, POWER, AND, OR, XOR, IMPLIES, IFF, UNION, INTERSECT }
 
     private final Op op;
     private final Node left;
@@ -58,6 +59,15 @@ public class BinaryNode extends Node {
         }
         Value a = left.evaluate(context);
         Value b = right.evaluate(context);
+        if (op == Op.UNION || op == Op.INTERSECT) {
+            if (!(a instanceof FiniteSetValue) || !(b instanceof FiniteSetValue)) {
+                throw new UncalculableException();
+            }
+            if (op == Op.UNION) {
+                return ((FiniteSetValue) a).union((FiniteSetValue) b);
+            }
+            return ((FiniteSetValue) a).intersect((FiniteSetValue) b);
+        }
         return new NumberValue(calculate(Values.toNumber(a), Values.toNumber(b)));
     }
 

@@ -23,4 +23,38 @@ public final class FiniteSetValue extends Value {
     public List<Double> getElements() {
         return elements;
     }
+
+    public boolean contains(double number) {
+        for (double element : elements) {
+            if (Values.areAlmostEqual(element, number)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public FiniteSetValue union(FiniteSetValue other) {
+        List<Double> all = new ArrayList<>(elements);
+        all.addAll(other.elements);
+        return new FiniteSetValue(all);
+    }
+
+    public FiniteSetValue intersect(FiniteSetValue other) {
+        List<Double> common = new ArrayList<>();
+        for (double element : elements) {
+            if (other.contains(element)) {
+                common.add(element);
+            }
+        }
+        return new FiniteSetValue(common);
+    }
+
+    public boolean isSubsetOf(FiniteSetValue other) {
+        for (double element : elements) {
+            if (!other.contains(element)) {
+                return false;
+            }
+        }
+        return true;
+    }
 }

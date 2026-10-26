@@ -8,9 +8,11 @@ import entity.node.Node;
 import entity.node.NumberNode;
 import entity.node.PlusMinusNode;
 import entity.node.RelationNode;
+import entity.node.SetLiteralNode;
 import entity.node.UnaryNode;
 import entity.node.VariableNode;
 import entity.value.BooleanValue;
+import entity.value.NumberSetValue;
 import entity.value.NumberValue;
 
 import java.util.ArrayList;
@@ -111,7 +113,15 @@ public final class MathParser {
     }
 
     private Node parseSetExpression() {
-        return parseAdditive();
+        Node result = parseAdditive();
+        while (peekIs("\\cup") || peekIs("\\cap")) {
+            if (next().equals("\\cup")) {
+                result = new BinaryNode(BinaryNode.Op.UNION, result, parseAdditive());
+            } else {
+                result = new BinaryNode(BinaryNode.Op.INTERSECT, result, parseAdditive());
+            }
+        }
+        return result;
     }
 
     private Node parseAdditive() {
@@ -214,6 +224,12 @@ public final class MathParser {
         if (token.equals("|")) {
             return new UnaryNode(UnaryNode.Op.ABSOLUTE, parseRestOfGroup("|"));
         }
+        if (token.equals("\\{")) {
+            return parseSetLiteral();
+        }
+        if (token.equals("\\mathbb")) {
+            return parseNumberSet();
+        }
         if (token.equals("\\pi")) {
             return new LiteralNode(new NumberValue(Math.PI), false);
         }
@@ -259,6 +275,72 @@ public final class MathParser {
             throw new MathSyntaxException("\"" + token + "\" is not supported.");
         }
         throw new MathSyntaxException("Unexpected \"" + token + "\".");
+    }
+
+    private Node parseSetLiteral() {
+        List<Node> elements = new ArrayList<>();
+        if (peekIs("\\}")) {
+            next();
+            return new SetLiteralNode(elements);
+        }
+        elements.add(parseStatement());
+        while (peekIs(",")) {
+            next();
+            elements.add(parseStatement());
+        }
+        expect("\\}");
+        return new SetLiteralNode(elements);
+    }
+
+    private Node parseNumberSet() {
+        expect("{");
+        String letter = next();
+        expect("}");
+        NumberSetValue.Kind kind;
+        switch (letter) {
+            case "N":
+                kind = NumberSetValue.Kind.NATURAL;
+                break;
+            case "Z":
+                kind = NumberSetValue.Kind.INTEGER;
+                break;
+            case "Q":
+                kind = NumberSetValue.Kind.RATIONAL;
+                break;
+            case "R":
+                kind = NumberSetValue.Kind.REAL;
+                break;
+            case "C":
+                kind = NumberSetValue.Kind.COMPLEX;
+                break;
+            default:
+                throw new MathSyntaxException("\"\\mathbb{" + letter + "}\" is not supported.");
+        }
+        int dimension = 1;
+        if (peekIs("^")) {
+            next();
+            boolean braced = peekIs("{");
+            if (braced) {
+                next();
+            }
+            dimension = parseDimension(next());
+            if (braced) {
+                expect("}");
+            }
+        }
+        return new LiteralNode(new NumberSetValue(kind, dimension), false);
+    }
+
+    private int parseDimension(String token) {
+        try {
+            int dimension = Integer.parseInt(token);
+            if (dimension >= 1) {
+                return dimension;
+            }
+        } catch (NumberFormatException e) {
+            // reported below
+        }
+        throw new MathSyntaxException("The dimension of a number set must be a positive integer.");
     }
 
     private String parseName(String letter) {
@@ -372,7 +454,8 @@ public final class MathParser {
     private boolean isRelationOperator(String token) {
         return "=".equals(token) || "<".equals(token) || ">".equals(token)
                 || "\\leq".equals(token) || "\\geq".equals(token)
-                || "\\neq".equals(token) || "\\approx".equals(token);
+                || "\\neq".equals(token) || "\\approx".equals(token)
+                || "\\in".equals(token) || "\\notin".equals(token) || "\\subset".equals(token);
     }
 
     private boolean startsValue(String token) {

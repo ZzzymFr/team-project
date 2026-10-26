@@ -3,6 +3,7 @@ package entity.node;
 import entity.Context;
 import entity.UncalculableException;
 import entity.value.BooleanValue;
+import entity.value.FiniteSetValue;
 import entity.value.NumberValue;
 import entity.value.Value;
 import entity.value.Values;
@@ -44,7 +45,11 @@ public class UnaryNode extends Node {
         if (op == Op.NOT) {
             return BooleanValue.of(!Values.toBoolean(operand.evaluate(context)));
         }
-        double value = Values.toNumber(operand.evaluate(context));
+        Value operandValue = operand.evaluate(context);
+        if (op == Op.ABSOLUTE && operandValue instanceof FiniteSetValue) {
+            return new NumberValue(((FiniteSetValue) operandValue).getElements().size());
+        }
+        double value = Values.toNumber(operandValue);
         switch (op) {
             case NEGATE:
                 return new NumberValue(-value);
