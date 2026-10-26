@@ -3,7 +3,7 @@ from pathlib import Path
 
 import torch
 
-from model import ids_to_latex, load_vocab, vital_mini
+from model import ids_to_latex, legacy_vocab_sizes, load_vocab, vital_mini, complete_judge_weights
 from preprocess import load_formula_image
 
 # 使用脚本位置定位项目根目录，避免 IDE 的工作目录影响权重路径。
@@ -42,12 +42,15 @@ def main():
     image_invert = args.invert if args.invert is not None else checkpoint.get("image_invert")
     state_dict = checkpoint["model"] if "model" in checkpoint else checkpoint
     num_tokens = state_dict["token_embedding.weight"].shape[0]
-    if num_tokens not in (147, len(load_vocab())):
+    if num_tokens not in (*legacy_vocab_sizes, len(load_vocab())):
         raise ValueError(f"权重词表大小不兼容: {num_tokens}")
     model = vital_mini(num_tokens=num_tokens)
-    model.load_state_dict(state_dict, strict=True)
+    model.load_state_dict(complete_judge_weights(model, state_dict), strict=True)
     if num_tokens == 147:
         print("当前是旧词表权重，尚不能生成词间空格；请用新版 train.py 继续训练文字样本")
+    if num_tokens < len(load_vocab()):
+        missing = "、".join(load_vocab()[num_tokens:])
+        print(f"当前旧权重尚不能生成新增符号 {missing}；请用含相应标签的数据继续训练")
     model = model.to(device)
     model.eval()
     print(f"已加载模型权重: {WEIGHTS_PATH} | device: {device}")

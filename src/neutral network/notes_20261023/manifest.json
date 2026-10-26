@@ -1,0 +1,568 @@
+{
+  "seed": 20261023,
+  "split_unit": "crop",
+  "train": 25,
+  "val": 10,
+  "samples": [
+    {
+      "source": "codex-clipboard-cbcd38b3-cd67-42fc-8875-0854dbedb145.png",
+      "box": [
+        18,
+        5,
+        460,
+        63
+      ],
+      "reference_size": [
+        600,
+        220
+      ],
+      "latex": "\\text{Assume }Ax=b\\text{. Then}",
+      "image": "notes_20261023_01.png",
+      "split": "val"
+    },
+    {
+      "source": "codex-clipboard-cbcd38b3-cd67-42fc-8875-0854dbedb145.png",
+      "box": [
+        20,
+        63,
+        491,
+        123
+      ],
+      "reference_size": [
+        600,
+        220
+      ],
+      "latex": "A(x+v)=b\\text{ iff }Av=0",
+      "image": "notes_20261023_02.png",
+      "split": "train"
+    },
+    {
+      "source": "codex-clipboard-cbcd38b3-cd67-42fc-8875-0854dbedb145.png",
+      "box": [
+        12,
+        124,
+        600,
+        166
+      ],
+      "reference_size": [
+        600,
+        220
+      ],
+      "latex": "\\text{Since, }A(x+v)=Ax+Av=b+Av\\text{.}",
+      "image": "notes_20261023_03.png",
+      "split": "val"
+    },
+    {
+      "source": "codex-clipboard-cbcd38b3-cd67-42fc-8875-0854dbedb145.png",
+      "box": [
+        535,
+        170,
+        581,
+        212
+      ],
+      "reference_size": [
+        600,
+        220
+      ],
+      "latex": "\\square",
+      "image": "notes_20261023_04.png",
+      "split": "train"
+    },
+    {
+      "source": "3e24f6112341e639090e2df0cd5cb14b.jpg",
+      "box": [
+        7,
+        45,
+        474,
+        145
+      ],
+      "reference_size": [
+        512,
+        170
+      ],
+      "latex": "f'(x)=\\lim_{n\\rightarrow\\infty}f_n'(x)",
+      "image": "notes_20261023_05.png",
+      "split": "train"
+    },
+    {
+      "source": "4970021d29a3f597a5ef53ab4cf4c03a.jpg",
+      "box": [
+        55,
+        52,
+        722,
+        182
+      ],
+      "reference_size": [
+        2048,
+        429
+      ],
+      "latex": "\\text{More specifically:}",
+      "image": "notes_20261023_06.png",
+      "split": "train"
+    },
+    {
+      "source": "4970021d29a3f597a5ef53ab4cf4c03a.jpg",
+      "box": [
+        61,
+        174,
+        1053,
+        246
+      ],
+      "reference_size": [
+        2048,
+        429
+      ],
+      "latex": "\\text{Let }A\\text{ be a }m\\times n\\text{ matrix.}",
+      "image": "notes_20261023_07.png",
+      "split": "train"
+    },
+    {
+      "source": "4970021d29a3f597a5ef53ab4cf4c03a.jpg",
+      "box": [
+        65,
+        246,
+        982,
+        337
+      ],
+      "reference_size": [
+        2048,
+        429
+      ],
+      "latex": "\\text{An }n\\text{-dimension vector }v\\text{ is}",
+      "image": "notes_20261023_08.png",
+      "split": "val"
+    },
+    {
+      "source": "4970021d29a3f597a5ef53ab4cf4c03a.jpg",
+      "box": [
+        1000,
+        244,
+        1970,
+        351
+      ],
+      "reference_size": [
+        2048,
+        429
+      ],
+      "latex": "\\text{turned into an }m\\text{-dimensional}",
+      "image": "notes_20261023_09.png",
+      "split": "train"
+    },
+    {
+      "source": "4970021d29a3f597a5ef53ab4cf4c03a.jpg",
+      "box": [
+        66,
+        341,
+        451,
+        416
+      ],
+      "reference_size": [
+        2048,
+        429
+      ],
+      "latex": "\\text{vector }Av",
+      "image": "notes_20261023_10.png",
+      "split": "train"
+    },
+    {
+      "source": "ad2dffc50cc0d9afeb326f797b3769e7.jpg",
+      "box": [
+        13,
+        19,
+        1368,
+        94
+      ],
+      "reference_size": [
+        1486,
+        245
+      ],
+      "latex": "\\text{b). Let }P_{4,a}(x)=f(a)+f'(a)(x-a)+\\frac{f''(a)}{4}(x-a)^2+\\frac{f'''(a)}{3!}(x-a)^3+\\frac{f^{(4)}(a)}{4!}(x-a)^4",
+      "image": "notes_20261023_11.png",
+      "split": "train"
+    },
+    {
+      "source": "ad2dffc50cc0d9afeb326f797b3769e7.jpg",
+      "box": [
+        350,
+        96,
+        722,
+        163
+      ],
+      "reference_size": [
+        1486,
+        245
+      ],
+      "latex": "=f(a)+\\frac{f^{(4)}(a)}{4!}(x-a)^4",
+      "image": "notes_20261023_12.png",
+      "split": "val"
+    },
+    {
+      "source": "ad2dffc50cc0d9afeb326f797b3769e7.jpg",
+      "box": [
+        795,
+        108,
+        1326,
+        178
+      ],
+      "reference_size": [
+        1486,
+        245
+      ],
+      "latex": "\\text{be the Taylor polynomial of }f\\text{.}",
+      "image": "notes_20261023_13.png",
+      "split": "val"
+    },
+    {
+      "source": "ad2dffc50cc0d9afeb326f797b3769e7.jpg",
+      "box": [
+        40,
+        163,
+        600,
+        238
+      ],
+      "reference_size": [
+        1486,
+        245
+      ],
+      "latex": "\\text{Then }\\lim_{x\\rightarrow a}f(x)-P_{4,a}(x)=0",
+      "image": "notes_20261023_14.png",
+      "split": "val"
+    },
+    {
+      "source": "f965f80643ff4109128003ee0f787abd.jpg",
+      "box": [
+        4,
+        20,
+        626,
+        96
+      ],
+      "reference_size": [
+        1792,
+        338
+      ],
+      "latex": "\\text{Theorem 4 (Weierstrass M-Test)}",
+      "image": "notes_20261023_15.png",
+      "split": "train"
+    },
+    {
+      "source": "f965f80643ff4109128003ee0f787abd.jpg",
+      "box": [
+        636,
+        18,
+        1300,
+        96
+      ],
+      "reference_size": [
+        1792,
+        338
+      ],
+      "latex": "\\text{Let }\\{f_n\\}\\text{ be a sequence of functions}",
+      "image": "notes_20261023_16.png",
+      "split": "train"
+    },
+    {
+      "source": "f965f80643ff4109128003ee0f787abd.jpg",
+      "box": [
+        1306,
+        20,
+        1772,
+        100
+      ],
+      "reference_size": [
+        1792,
+        338
+      ],
+      "latex": "\\text{defined on }A\\text{ and suppose}",
+      "image": "notes_20261023_17.png",
+      "split": "val"
+    },
+    {
+      "source": "f965f80643ff4109128003ee0f787abd.jpg",
+      "box": [
+        7,
+        100,
+        970,
+        170
+      ],
+      "reference_size": [
+        1792,
+        338
+      ],
+      "latex": "\\text{that }\\{M_n\\}\\text{ is a sequence of numbers such that}",
+      "image": "notes_20261023_18.png",
+      "split": "train"
+    },
+    {
+      "source": "f965f80643ff4109128003ee0f787abd.jpg",
+      "box": [
+        94,
+        168,
+        683,
+        236
+      ],
+      "reference_size": [
+        1792,
+        338
+      ],
+      "latex": "|f_n(x)|<M_n\\text{ for all }x\\text{ in }A",
+      "image": "notes_20261023_19.png",
+      "split": "val"
+    },
+    {
+      "source": "f965f80643ff4109128003ee0f787abd.jpg",
+      "box": [
+        13,
+        235,
+        864,
+        328
+      ],
+      "reference_size": [
+        1792,
+        338
+      ],
+      "latex": "\\text{Suppose moreover that }\\sum_{n=1}^{\\infty}M_n\\text{ converges.}",
+      "image": "notes_20261023_20.png",
+      "split": "train"
+    },
+    {
+      "source": "f965f80643ff4109128003ee0f787abd.jpg",
+      "box": [
+        872,
+        232,
+        1296,
+        326
+      ],
+      "reference_size": [
+        1792,
+        338
+      ],
+      "latex": "\\text{Then for each }x\\text{ in}",
+      "image": "notes_20261023_21.png",
+      "split": "train"
+    },
+    {
+      "source": "cb162a8eac1b93099b88b83d49b81b17.jpg",
+      "box": [
+        102,
+        4,
+        514,
+        106
+      ],
+      "reference_size": [
+        754,
+        311
+      ],
+      "latex": "\\int_a^x g=\\lim_{n\\rightarrow\\infty}\\int_a^x f_n'",
+      "image": "notes_20261023_22.png",
+      "split": "train"
+    },
+    {
+      "source": "cb162a8eac1b93099b88b83d49b81b17.jpg",
+      "box": [
+        224,
+        108,
+        744,
+        207
+      ],
+      "reference_size": [
+        754,
+        311
+      ],
+      "latex": "=\\lim_{n\\rightarrow\\infty}f_n(x)-f_n(a)\\text{.}",
+      "image": "notes_20261023_23.png",
+      "split": "val"
+    },
+    {
+      "source": "cb162a8eac1b93099b88b83d49b81b17.jpg",
+      "box": [
+        221,
+        196,
+        500,
+        286
+      ],
+      "reference_size": [
+        754,
+        311
+      ],
+      "latex": "=f(x)-f(a)",
+      "image": "notes_20261023_24.png",
+      "split": "train"
+    },
+    {
+      "source": "f9fe2085a0a2e050cfcf1595c7369184.jpg",
+      "box": [
+        88,
+        91,
+        440,
+        164
+      ],
+      "reference_size": [
+        1722,
+        1188
+      ],
+      "latex": "120\\times5=600",
+      "image": "notes_20261023_25.png",
+      "split": "train"
+    },
+    {
+      "source": "f9fe2085a0a2e050cfcf1595c7369184.jpg",
+      "box": [
+        77,
+        200,
+        543,
+        266
+      ],
+      "reference_size": [
+        1722,
+        1188
+      ],
+      "latex": "1000+1000=2000",
+      "image": "notes_20261023_26.png",
+      "split": "train"
+    },
+    {
+      "source": "f9fe2085a0a2e050cfcf1595c7369184.jpg",
+      "box": [
+        73,
+        289,
+        362,
+        371
+      ],
+      "reference_size": [
+        1722,
+        1188
+      ],
+      "latex": "2^{2\\times3}=64",
+      "image": "notes_20261023_27.png",
+      "split": "train"
+    },
+    {
+      "source": "f9fe2085a0a2e050cfcf1595c7369184.jpg",
+      "box": [
+        70,
+        435,
+        550,
+        552
+      ],
+      "reference_size": [
+        1722,
+        1188
+      ],
+      "latex": "\\frac{5\\times6\\times7\\times8}{2}=840",
+      "image": "notes_20261023_28.png",
+      "split": "train"
+    },
+    {
+      "source": "f9fe2085a0a2e050cfcf1595c7369184.jpg",
+      "box": [
+        99,
+        613,
+        395,
+        703
+      ],
+      "reference_size": [
+        1722,
+        1188
+      ],
+      "latex": "80\\times9=720",
+      "image": "notes_20261023_29.png",
+      "split": "train"
+    },
+    {
+      "source": "f9fe2085a0a2e050cfcf1595c7369184.jpg",
+      "box": [
+        53,
+        733,
+        401,
+        843
+      ],
+      "reference_size": [
+        1722,
+        1188
+      ],
+      "latex": "\\lim_{x\\rightarrow\\infty}8x+3=\\infty",
+      "image": "notes_20261023_30.png",
+      "split": "train"
+    },
+    {
+      "source": "f9fe2085a0a2e050cfcf1595c7369184.jpg",
+      "box": [
+        51,
+        855,
+        432,
+        990
+      ],
+      "reference_size": [
+        1722,
+        1188
+      ],
+      "latex": "\\lim_{x\\rightarrow\\infty}\\frac{1}{8x+3}=0",
+      "image": "notes_20261023_31.png",
+      "split": "train"
+    },
+    {
+      "source": "f9fe2085a0a2e050cfcf1595c7369184.jpg",
+      "box": [
+        743,
+        69,
+        1715,
+        176
+      ],
+      "reference_size": [
+        1722,
+        1188
+      ],
+      "latex": "\\sum_{i=1}^{25}ix_i=x_1+2x_2+...+24x_{24}+25x_{25}",
+      "image": "notes_20261023_32.png",
+      "split": "train"
+    },
+    {
+      "source": "f9fe2085a0a2e050cfcf1595c7369184.jpg",
+      "box": [
+        742,
+        267,
+        1289,
+        417
+      ],
+      "reference_size": [
+        1722,
+        1188
+      ],
+      "latex": "\\sum_{i=1}^{\\infty}x_i=\\lim_{n\\rightarrow\\infty}\\int_1^n f(x)",
+      "image": "notes_20261023_33.png",
+      "split": "train"
+    },
+    {
+      "source": "f9fe2085a0a2e050cfcf1595c7369184.jpg",
+      "box": [
+        754,
+        461,
+        1070,
+        528
+      ],
+      "reference_size": [
+        1722,
+        1188
+      ],
+      "latex": "54\\times8=432",
+      "image": "notes_20261023_34.png",
+      "split": "train"
+    },
+    {
+      "source": "f9fe2085a0a2e050cfcf1595c7369184.jpg",
+      "box": [
+        755,
+        555,
+        1065,
+        629
+      ],
+      "reference_size": [
+        1722,
+        1188
+      ],
+      "latex": "77\\times5=385",
+      "image": "notes_20261023_35.png",
+      "split": "val"
+    }
+  ]
+}

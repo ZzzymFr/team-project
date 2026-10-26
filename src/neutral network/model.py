@@ -8,7 +8,8 @@ import torch.nn.functional as F
 
 d_model = 256
 attention_heads = 4
-vocab_size = 148                      # 末尾追加空格；原有 0..146 的 token ID 不变
+vocab_size = 186                      # 末尾追加希腊字母及集合括号；原有 0..153 的 token ID 不变
+legacy_vocab_sizes = (147, 148, 149, 154)
 pad_id, bos_id, eos_id = 67, 68, 69   # 与 tokeniser.json 中的特殊 token 对应
 max_len = 300                        # LaTeX token 序列的最大长度(含 <bos>/<eos>)
 
@@ -43,19 +44,52 @@ def ids_to_latex(ids: list[int], table: list[str]) -> str:
     return "".join(out).strip()
 
 
+def complete_judge_weights(model: nn.Module, state_dict: dict) -> dict:
+    """迁移旧词表分数检测头；本体不变，新版检测头缺损或形状错误仍报错。"""
+    state_dict = dict(state_dict)
+    prefixes = ("judge_decoder.", "judge_norm.", "process.", "test.")
+    defaults = {key: value for key, value in model.state_dict().items() if key.startswith(prefixes)}
+    if any(key.startswith(("judge_decoder.", "judge_norm.")) for key in state_dict):
+        missing = defaults.keys() - state_dict.keys()
+        if missing:
+            raise ValueError(f"新版检测头权重不完整: {sorted(missing)}")
+        return state_dict
+
+    # 历史版本可能没有检测头、只有 test，或同时有 process/test。
+    old_size = state_dict["token_embedding.weight"].shape[0]
+    for name, shapes in (("test", ((2, old_size), (2,))),
+                         ("process", ((old_size, old_size), (old_size,)))):
+        keys = (f"{name}.weight", f"{name}.bias")
+        present = set(keys) & state_dict.keys()
+        if present and present != set(keys):
+            raise ValueError(f"旧判断层 {name} 权重不完整")
+        for key, shape in zip(keys, shapes):
+            if key in state_dict and tuple(state_dict[key].shape) != shape:
+                raise ValueError(f"旧判断层 {key} 形状不兼容: {tuple(state_dict[key].shape)}")
+    if "process.weight" in state_dict and "test.weight" not in state_dict:
+        raise ValueError("旧判断层 process 存在但 test 缺失")
+    # 旧分数空间与新的图片/前缀表示不同，整个检测分支重新初始化。
+    state_dict = {key: value for key, value in state_dict.items() if not key.startswith(prefixes)}
+    state_dict.update({key: value.detach().clone() for key, value in defaults.items()})
+    return state_dict
+
+
 def load_training_weights(model: nn.Module, state_dict: dict) -> bool:
-    """兼容追加空格前的 147 词权重；只扩展共享词嵌入/输出矩阵的一行。"""
+    """兼容历史词表和检测结构，保留生成本体及新版检测头的已有参数。"""
+    state_dict = complete_judge_weights(model, state_dict)
     keys = ("token_embedding.weight", "head.weight")
-    expanded = all(state_dict[key].shape == (147, d_model) for key in keys)
+    old = state_dict[keys[0]]
+    old_size = old.shape[0]
+    expanded = old_size in legacy_vocab_sizes and all(
+        state_dict[key].shape == (old_size, d_model) for key in keys)
     if expanded:
-        if load_vocab()[147:] != [" "]:
-            raise ValueError("旧权重仅支持在原有词表末尾追加空格")
-        state_dict = dict(state_dict)
+        if load_vocab()[147:154] != [" ", r"\square", r"\langle", r"\rangle", r"\perp", r"\overline", r"\bar"]:
+            raise ValueError("旧权重仅支持在原有词表末尾追加符号，不支持修改旧 token 编号")
         # 两个层共享权重；新行用原有字符嵌入均值初始化，之后参与训练。
         if not torch.equal(state_dict[keys[0]], state_dict[keys[1]]):
             raise ValueError("旧权重的词嵌入与输出层不一致")
-        old = state_dict[keys[0]]
-        extended = torch.cat((old, old[:67].mean(dim=0, keepdim=True)), dim=0)
+        new_rows = old[:67].mean(dim=0, keepdim=True).expand(vocab_size - old_size, -1)
+        extended = torch.cat((old, new_rows), dim=0)
         for key in keys:
             state_dict[key] = extended
     model.load_state_dict(state_dict, strict=True)
@@ -111,8 +145,9 @@ def parse_tokens(logits: torch.Tensor, state: BeamState | None = None, beam_widt
     logp[:, [pad_id, bos_id]] = float("-inf")      # 这两个只用于输入,不允许被生成
     cand = (state.scores[:, None] + logp).reshape(-1)
     top_scores, top_idx = cand.topk(min(2 * beam_width, cand.numel()))   # 多取一倍,用来补 <eos> 占掉的名额
-    src = (top_idx // vocab_size).tolist()         # 这个候选来自第几条假设
-    tok = (top_idx % vocab_size).tolist()          # 这个候选选了哪个 token
+    output_size = logits.size(-1)                 # 旧权重推理可能使用更小的词表
+    src = (top_idx // output_size).tolist()        # 这个候选来自第几条假设
+    tok = (top_idx % output_size).tolist()         # 这个候选选了哪个 token
     sc = top_scores.tolist()
 
     # 2) 按得分从高到低扫描: <eos> 放进完成列表,其余的补满 beam_width 条活跃假设
@@ -155,14 +190,14 @@ class vital_pixel(nn.Module):
 
     def __init__(self):
         super(vital_pixel, self).__init__()
-        self.conv = nn.Conv2d(3, 16, kernel_size=5, stride=1, padding=2, bias=False)
+        self.conv = nn.Conv2d(3, 16, kernel_size=5, stride=1, padding=2, padding_mode="replicate")
         self.norm = nn.BatchNorm2d(16)
-        self.conv2 = nn.Conv2d(16, 32, kernel_size=5, stride=1, padding=2, bias=False)
+        self.conv2 = nn.Conv2d(16, 32, kernel_size=5, stride=1, padding=2)
         self.norm2 = nn.BatchNorm2d(32)
-        self.conv3 = nn.Conv2d(32, 64, kernel_size=5, stride=1, padding=2, bias=False)
+        self.conv3 = nn.Conv2d(32, 64, kernel_size=5, stride=1, padding=2, padding_mode="replicate")
         self.norm3 = nn.BatchNorm2d(64)
-        self.con4 = nn.Conv2d(64, 128, kernel_size=5, stride=2, padding=2, bias=False)
-        self.con5 = nn.Conv2d(128, d_model, kernel_size=3, stride=1, padding=1, bias=False)
+        self.con4 = nn.Conv2d(64, 128, kernel_size=5, stride=2, padding=2)
+        self.con5 = nn.Conv2d(128, d_model, kernel_size=3, stride=1, padding=1)
         self.norm4 = nn.BatchNorm2d(128)
         self.norm5 = nn.BatchNorm2d(d_model)
 
@@ -300,6 +335,10 @@ class vital_mini(nn.Module):
     token_embedding : nn.Embedding
     final_norm : nn.LayerNorm
     head : nn.Linear
+    judge_decoder : decoder
+    judge_norm : nn.LayerNorm
+    process : nn.Linear
+    test :nn.Linear
 
     def __init__(self, num_tokens: int = vocab_size):
         super(vital_mini, self).__init__()
@@ -320,6 +359,12 @@ class vital_mini(nn.Module):
         self.final_norm = nn.LayerNorm(d_model)
         self.head = nn.Linear(d_model, num_tokens, bias=False)
         self.head.weight = self.token_embedding.weight
+
+        # 检测分支直接核对前缀与图片，不再使用下一 token 的词表分数。
+        self.judge_decoder = decoder()
+        self.judge_norm = nn.LayerNorm(d_model)
+        self.process = nn.Linear(d_model, d_model)
+        self.test = nn.Linear(d_model, 2)
 
     @staticmethod
     def build_token_pos(n: int) -> torch.Tensor:  # -> [1, n, d_model]
@@ -358,9 +403,37 @@ class vital_mini(nn.Module):
         # 训练(teacher forcing): tokens 是 <bos> y1..yn,logits[:, t] 预测的是 y_{t+1}
         memory = self.encode_image(image)
         decoded = self.decode(tokens, memory, tgt_key_padding_mask, memory_key_padding_mask)
-        return decoded 
+        return decoded
+
+    def judge_modules(self):
+        return (self.judge_decoder, self.judge_norm, self.process, self.test)
+
+    def judge_parameters(self):
+        """判断器的全部参数，供冻结、优化器和梯度裁剪共用。"""
+        for module in self.judge_modules():
+            yield from module.parameters()
+
+    def judge_prefix(self, image: torch.Tensor, tokens: torch.Tensor,
+                     tgt_key_padding_mask: torch.Tensor | None = None,
+                     memory_key_padding_mask: torch.Tensor | None = None,
+                     *, return_logits: bool = False) -> torch.Tensor:
+        """图片 [B,3,H,W] + 前缀 [B,T] -> [B,T,2]；内部编码图片，位置 t 只看 0..t。"""
+        if tokens.ndim != 2 or not 1 <= tokens.size(1) <= max_len:
+            raise ValueError(f"前缀必须为 [B,T]，且 1 <= T <= {max_len}")
+        if image.ndim != 4 or image.size(0) != tokens.size(0) or image.size(1) != 3:
+            raise ValueError("图片必须为与前缀批量对齐的 [B,3,H,W]")
+        memory = self.encode_image(image)
+        if tgt_key_padding_mask is None:
+            tgt_key_padding_mask = tokens.eq(pad_id)
+        x = self.token_embedding(tokens) * math.sqrt(d_model) + self.token_pos[:, :tokens.size(1)]
+        x = self.judge_decoder(x, memory, tgt_key_padding_mask, memory_key_padding_mask)
+        logits = self.test(F.silu(self.process(self.judge_norm(x))))
+        return logits if return_logits else F.softmax(logits, dim=-1)
 
 
+
+    #todo: reconsiderate searching method to avoid missing the correct sequence as much as possible
+    #note: Dijkstra's algorithm might be a good choice
     @torch.no_grad()
     def generate(self, image: torch.Tensor, beam_width: int = 3, max_steps: int = max_len,
                  length_alpha: float = 0.7) -> list[list[int]]:

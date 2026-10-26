@@ -54,9 +54,26 @@ class ImageDatasetTests(unittest.TestCase):
                 self.assertEqual(tuple(batches[0][0].shape[:3]), (2, 3, 128))
 
     def test_unexpected_preprocessing_errors_are_not_hidden(self):
-        with patch("train.load_formula_image", side_effect=ValueError("unexpected")):
+        with patch("train.check_formula_image", side_effect=ValueError("unexpected")):
             with self.assertRaisesRegex(ValueError, "unexpected"):
                 MathWriting(str(self.root), ["valid"], self.vocab, train=False)
+
+    def test_image_check_cache_skips_unchanged_files(self):
+        first = MathWriting(str(self.root), ["train"], self.vocab, train=True)
+        self.assertTrue((self.root / "image_check_cache.json").is_file())
+        with patch("train.check_formula_image", side_effect=AssertionError("should be cached")):
+            second = MathWriting(str(self.root), ["train"], self.vocab, train=True)
+        self.assertEqual(second.items, first.items)
+        self.assertEqual(sorted(second.invalid_images), sorted(first.invalid_images))
+
+    def test_image_check_cache_rechecks_modified_files(self):
+        MathWriting(str(self.root), ["train"], self.vocab, train=True)
+        # 把无效的 blank.png 换成有笔迹的图片，缓存必须按大小/mtime 失效并重新检查。
+        with Image.open(self.root / "light.png") as image:
+            image.save(self.root / "blank.png")
+        updated = MathWriting(str(self.root), ["train"], self.vocab, train=True)
+        self.assertEqual(len(updated), 3)
+        self.assertEqual(len(updated.invalid_images), 2)
 
     def test_direct_labels_are_reread_after_updates(self):
         for split in ("train", "valid"):

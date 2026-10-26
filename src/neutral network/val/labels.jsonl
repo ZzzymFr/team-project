@@ -3,3 +3,13 @@
 {"image": "03.png", "latex": "y=ax+b"}
 {"image": "04.png", "latex": "\\forall x\\in\\mathbb{R}^{n}"}
 {"image": "05.png", "latex": "y=\\sin(x-\\frac{\\pi}{2})+1"}
+{"image": "notes_20261023_01.png", "latex": "\\text{Assume }Ax=b\\text{. Then}"}
+{"image": "notes_20261023_03.png", "latex": "\\text{Since, }A(x+v)=Ax+Av=b+Av\\text{.}"}
+{"image": "notes_20261023_08.png", "latex": "\\text{An }n\\text{-dimension vector }v\\text{ is}"}
+{"image": "notes_20261023_12.png", "latex": "=f(a)+\\frac{f^{(4)}(a)}{4!}(x-a)^4"}
+{"image": "notes_20261023_13.png", "latex": "\\text{be the Taylor polynomial of }f\\text{.}"}
+{"image": "notes_20261023_14.png", "latex": "\\text{Then }\\lim_{x\\rightarrow a}f(x)-P_{4,a}(x)=0"}
+{"image": "notes_20261023_17.png", "latex": "\\text{defined on }A\\text{ and suppose}"}
+{"image": "notes_20261023_19.png", "latex": "|f_n(x)|<M_n\\text{ for all }x\\text{ in }A"}
+{"image": "notes_20261023_23.png", "latex": "=\\lim_{n\\rightarrow\\infty}f_n(x)-f_n(a)\\text{.}"}
+{"image": "notes_20261023_35.png", "latex": "77\\times5=385"}

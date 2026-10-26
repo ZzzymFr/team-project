@@ -11,6 +11,22 @@ class EmptyFormulaImageError(ValueError):
     """图片中没有达到笔迹检测阈值的像素。"""
 
 
+def check_formula_image(path: Path) -> None:
+    """只做 load_formula_image 中会抛错的部分(解码、找笔迹)，不缩放、不生成张量。
+    图片无法解码时抛 OSError，没有笔迹时抛 EmptyFormulaImageError。"""
+    with Image.open(path) as source:
+        rgba = ImageOps.exif_transpose(source).convert("RGBA")
+        background = Image.new("RGBA", rgba.size, "white")
+        gray = Image.alpha_composite(background, rgba).convert("L")
+
+    pixels = np.asarray(gray)
+    border = np.concatenate((pixels[0], pixels[-1], pixels[:, 0], pixels[:, -1]))
+    light_background = bool(np.median(border) >= 128)
+    foreground = 255 - pixels if light_background else pixels
+    if not (foreground > 32).any():
+        raise EmptyFormulaImageError(f"图片中没有可识别的笔迹: {path}")
+
+
 def load_formula_image(path: Path, invert: bool | None = None) -> torch.Tensor:
     """单张公式图 -> [1, 128, W]；invert=None 自动判断，否则强制开/关反色。"""
     with Image.open(path) as source:
