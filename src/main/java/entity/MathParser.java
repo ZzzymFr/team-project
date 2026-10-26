@@ -5,6 +5,7 @@ import entity.node.BinaryNode;
 import entity.node.CallNode;
 import entity.node.DerivativeNode;
 import entity.node.FunctionNode;
+import entity.node.LimitNode;
 import entity.node.LiteralNode;
 import entity.node.Node;
 import entity.node.NumberNode;
@@ -257,6 +258,9 @@ public final class MathParser {
         }
         if (token.equals("\\sqrt")) {
             return parseSqrt();
+        }
+        if (token.equals("\\lim")) {
+            return parseLimit();
         }
         if (token.equals("\\log")) {
             return parseLog();
@@ -517,6 +521,71 @@ public final class MathParser {
         return parseCall(function, order, parameter);
     }
 
+    // \lim_{x\to a}, ^+ / ^- makes it one sided
+    private Node parseLimit() {
+        expect("_");
+        expect("{");
+        String letter = next();
+        if (!MathLexer.isLetter(letter)) {
+            throw new MathSyntaxException("Unexpected \"" + letter + "\".");
+        }
+        String variable = parseName(letter);
+        expect("\\rightarrow");
+        int start = position;
+        int end = closingBrace(start);
+        int targetEnd = end;
+        int side = 0;
+        if (endsWith(start, end, "^", "{", "+", "}")) {
+            side = 1;
+        } else if (endsWith(start, end, "^", "{", "-", "}")) {
+            side = -1;
+        } else if (endsWith(start, end, "^", "+")) {
+            side = 1;
+        } else if (endsWith(start, end, "^", "-")) {
+            side = -1;
+        }
+        if (side != 0) {
+            targetEnd = tokens.get(end - 1).equals("}") ? end - 4 : end - 2;
+        }
+        if (targetEnd == start) {
+            throw new MathSyntaxException("Unexpected \"" + tokens.get(targetEnd) + "\".");
+        }
+        MathParser targetParser = new MathParser(tokens.subList(start, targetEnd), functions);
+        Node target = targetParser.parse();
+        if (targetParser.getPlusMinusCount() > 0) {
+            throw new UncalculableException();
+        }
+        position = end + 1;
+        return new LimitNode(variable, target, side, parseAdditive());
+    }
+
+    private int closingBrace(int start) {
+        int depth = 1;
+        for (int i = start; i < tokens.size(); i++) {
+            if (tokens.get(i).equals("{")) {
+                depth++;
+            } else if (tokens.get(i).equals("}")) {
+                depth--;
+                if (depth == 0) {
+                    return i;
+                }
+            }
+        }
+        throw new MathSyntaxException("Expected \"}\".");
+    }
+
+    private boolean endsWith(int start, int end, String... suffix) {
+        if (end - start < suffix.length) {
+            return false;
+        }
+        for (int i = 0; i < suffix.length; i++) {
+            if (!tokens.get(end - suffix.length + i).equals(suffix[i])) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private int readDerivativeOrder() {
         if (peekIs("^") && orderOf(tokenAt(position + 1)) >= 0) {
             next();
@@ -605,7 +674,7 @@ public final class MathParser {
         return isNumber(token) || MathLexer.isLetter(token)
                 || token.equals("(") || token.equals("{") || token.equals("[")
                 || token.equals("\\pi") || token.equals("\\frac") || token.equals("\\sqrt")
-                || token.equals("\\log") || token.equals("\\ln")
+                || token.equals("\\log") || token.equals("\\ln") || token.equals("\\lim")
                 || token.equals("\\infty") || token.equals("\\top") || token.equals("\\bot")
                 || token.equals("\\vec") || token.equals("\\hat") || token.equals("\\bar")
                 || token.equals("\\overline")
