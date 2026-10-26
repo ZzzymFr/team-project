@@ -1,5 +1,7 @@
 package entity;
 
+import entity.node.Node;
+import entity.node.NumberNode;
 import entity.value.BooleanValue;
 import entity.value.FiniteSetValue;
 import entity.value.NumberValue;
@@ -10,8 +12,10 @@ import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
+import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -202,5 +206,34 @@ class MathParserTest {
         assertFalse(Values.areAlmostEqual(Double.POSITIVE_INFINITY, 1e308));
         assertFalse(Values.areAlmostEqual(Double.NaN, Double.NaN));
         assertThrows(UncalculableException.class, () -> Values.toNumber(BooleanValue.of(true)));
+    }
+
+    private Node parse(String text, Map<String, UserFunction> functions) {
+        return new MathParser(MathLexer.tokenize(text), functions).parse();
+    }
+
+    private UserFunction function(String name, String parameter, String body, Map<String, UserFunction> functions) {
+        return new UserFunction(name, Collections.singletonList(parameter), parse(body, functions), body);
+    }
+
+    @Test
+    void userFunctions() {
+        Map<String, UserFunction> functions = new HashMap<>();
+        functions.put("f", function("f", "x", "x^2+1", functions));
+        double result = Values.toNumber(parse("f(3)+f(0)", functions).evaluate(new Context(functions)));
+        assertEquals(11, result, DELTA);
+        assertEquals("Write f(...) to use the function f.",
+                assertThrows(MathSyntaxException.class, () -> parse("f+1", functions)).getMessage());
+    }
+
+    @Test
+    void functionThatCallsItselfStops() {
+        Map<String, UserFunction> functions = new HashMap<>();
+        functions.put("f", new UserFunction("f", Collections.singletonList("x"), new NumberNode(0, 0), "0"));
+        functions.put("f", function("f", "x", "f(x)+1", functions));
+        Node call = parse("f(1)", functions);
+        MathSyntaxException error = assertThrows(MathSyntaxException.class,
+                () -> call.evaluate(new Context(functions)));
+        assertEquals("The function f keeps calling itself, so it cannot be calculated.", error.getMessage());
     }
 }

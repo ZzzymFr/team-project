@@ -39,8 +39,16 @@ public final class Context {
     }
 
     public Context forFunctionBody() {
+        return enterFunctionBody("A function");
+    }
+
+    public Context forFunctionBody(String functionName) {
+        return enterFunctionBody("The function " + functionName);
+    }
+
+    private Context enterFunctionBody(String subject) {
         if (depth >= MAX_FUNCTION_DEPTH) {
-            throw new MathSyntaxException("A function keeps calling itself, so it cannot be calculated.");
+            throw new MathSyntaxException(subject + " keeps calling itself, so it cannot be calculated.");
         }
         return new Context(functions, null, signMask, depth + 1, budget);
     }

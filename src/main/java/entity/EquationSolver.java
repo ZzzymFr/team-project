@@ -1,9 +1,11 @@
 package entity;
 
+import entity.node.Node;
+import entity.value.NumberValue;
+import entity.value.Value;
+
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 public class EquationSolver {
     public static final double SEARCH_START = -100;
@@ -12,25 +14,30 @@ public class EquationSolver {
 
     private static final double ZERO = 1e-9;
 
-    private final List<String> left;
-    private final List<String> right;
+    private final Node left;
+    private final Node right;
     private final String variable;
-    private final Map<String, UserFunction> functions;
+    private final Context context;
+    private final double step;
 
-    public EquationSolver(List<String> left, List<String> right, String variable,
-                          Map<String, UserFunction> functions) {
+    public EquationSolver(Node left, Node right, String variable, Context context) {
+        this(left, right, variable, context, STEP);
+    }
+
+    public EquationSolver(Node left, Node right, String variable, Context context, double step) {
         this.left = left;
         this.right = right;
         this.variable = variable;
-        this.functions = functions;
+        this.context = context;
+        this.step = step;
     }
 
     public List<Double> solve() {
-        int count = (int) Math.round((SEARCH_END - SEARCH_START) / STEP) + 1;
+        int count = (int) Math.round((SEARCH_END - SEARCH_START) / step) + 1;
         double[] xs = new double[count];
         double[] ds = new double[count];
         for (int i = 0; i < count; i++) {
-            xs[i] = SEARCH_START + i * STEP;
+            xs[i] = SEARCH_START + i * step;
             ds[i] = difference(xs[i]);
         }
 
@@ -61,11 +68,19 @@ public class EquationSolver {
     }
 
     private double difference(double x) {
-        Map<String, Double> values = new HashMap<>();
-        values.put(variable, x);
-        double leftValue = new MathEvaluator(left, values, functions).evaluate();
-        double rightValue = new MathEvaluator(right, values, functions).evaluate();
-        return leftValue - rightValue;
+        Context withX = context.withVariable(variable, x);
+        try {
+            Value leftValue = left.evaluate(withX);
+            Value rightValue = right.evaluate(withX);
+            if (!(leftValue instanceof NumberValue) || !(rightValue instanceof NumberValue)) {
+                return Double.NaN;
+            }
+            return ((NumberValue) leftValue).getValue() - ((NumberValue) rightValue).getValue();
+        } catch (BudgetExceededException e) {
+            throw e;
+        } catch (UncalculableException e) {
+            return Double.NaN;
+        }
     }
 
     private double bisect(double low, double high, double dLow) {

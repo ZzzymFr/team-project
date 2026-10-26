@@ -1,6 +1,9 @@
 package use_case.evaluate;
 
 import data_access.InMemoryFunctionDataAccessObject;
+import entity.Interval;
+import entity.value.Value;
+import entity.value.Values;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -16,27 +19,30 @@ class EvaluateInteractorTest {
 
     private static class FakePresenter implements EvaluateOutputBoundary {
         String kind = "";
-        double value;
-        boolean isCorrect;
+        List<Value> values;
         List<Double> solutions;
         String text;
 
         @Override
-        public void prepareNumberView(double value) {
-            kind = "number";
-            this.value = value;
-        }
-
-        @Override
-        public void prepareCheckView(boolean isCorrect, double leftValue, double rightValue) {
-            kind = "check";
-            this.isCorrect = isCorrect;
+        public void prepareValuesView(List<Value> values) {
+            kind = "values";
+            this.values = values;
         }
 
         @Override
         public void prepareSolutionsView(String variable, List<Double> solutions) {
             kind = "solutions";
             this.solutions = solutions;
+        }
+
+        @Override
+        public void prepareIntervalsView(String variable, List<Interval> intervals) {
+            kind = "intervals";
+        }
+
+        @Override
+        public void prepareExcludedView(String variable, List<Double> excluded) {
+            kind = "excluded";
         }
 
         @Override
@@ -73,28 +79,28 @@ class EvaluateInteractorTest {
     @Test
     void calculatesExpression() {
         run("1+1=");
-        assertEquals("number", presenter.kind);
-        assertEquals(2, presenter.value, DELTA);
+        assertEquals("values", presenter.kind);
+        assertEquals(2, Values.toNumber(presenter.values.get(0)), DELTA);
     }
 
     @Test
     void checksCorrectEquation() {
         run("5+7=12");
-        assertEquals("check", presenter.kind);
-        assertTrue(presenter.isCorrect);
+        assertEquals("values", presenter.kind);
+        assertTrue(Values.toBoolean(presenter.values.get(0)));
     }
 
     @Test
     void checksWrongEquation() {
         run("5+7=13");
-        assertEquals("check", presenter.kind);
-        assertFalse(presenter.isCorrect);
+        assertEquals("values", presenter.kind);
+        assertFalse(Values.toBoolean(presenter.values.get(0)));
     }
 
     @Test
     void roundingErrorsStillCountAsEqual() {
         run("0.1+0.2=0.3");
-        assertTrue(presenter.isCorrect);
+        assertTrue(Values.toBoolean(presenter.values.get(0)));
     }
 
     @Test
@@ -160,13 +166,13 @@ class EvaluateInteractorTest {
         assertEquals("f(x) = x^2+1", presenter.text);
 
         run("f(3)");
-        assertEquals("number", presenter.kind);
-        assertEquals(10, presenter.value, DELTA);
+        assertEquals("values", presenter.kind);
+        assertEquals(10, Values.toNumber(presenter.values.get(0)), DELTA);
 
         run("f(x)=10");
         assertEquals("defined", presenter.kind);
         run("f(5)=10");
-        assertTrue(presenter.isCorrect);
+        assertTrue(Values.toBoolean(presenter.values.get(0)));
     }
 
     @Test
@@ -207,11 +213,51 @@ class EvaluateInteractorTest {
     void badInput() {
         run("");
         assertEquals("fail", presenter.kind);
-        run("1=2=3");
+        run("1=x=3");
         assertEquals("fail", presenter.kind);
         run("=5");
         assertEquals("fail", presenter.kind);
         run("2x+=7");
         assertEquals("fail", presenter.kind);
+    }
+
+    @Test
+    void showsMathAnswersOnly() {
+        assertEquals("true", Calc.once("5+7=12"));
+        assertEquals("false", Calc.once("5+7=13"));
+        assertEquals("= 2", Calc.once("1+1="));
+        assertEquals("= undefined", Calc.once("1/0"));
+        assertEquals("Uncalculable", Calc.once("10^{400}"));
+        assertEquals("Uncalculable", Calc.once("200!"));
+        assertEquals("no solution", Calc.once("x^2=-1"));
+        assertEquals("true for all x", Calc.once("2(x+1)=2x+2"));
+        assertEquals("Uncalculable", Calc.once("\\text{hi}"));
+    }
+
+    @Test
+    void keepsExistingMessages() {
+        assertEquals("Please enter an expression.", Calc.once(""));
+        assertEquals("Please enter an expression.", Calc.once("="));
+        assertEquals("There is nothing on the left of \"=\".", Calc.once("=5"));
+        assertEquals("There is nothing on the right of \"=\".", Calc.once("5=="));
+        assertEquals("Please use only one \"=\".", Calc.once("1=x=3"));
+        assertEquals("false", Calc.once("1=2=3"));
+        assertEquals("Unknown variable \"x\". To solve for it, write an equation such as x+1=3.",
+                Calc.once("x+1"));
+        assertEquals("This equation has more than one unknown (x, y). Only one unknown is supported.",
+                Calc.once("x+y=3"));
+        assertEquals("Please write a formula after \"f(x)=\".", Calc.once("f(x)=="));
+        assertEquals("The formula of f(x) can only use the variable x, but it uses y.", Calc.once("f(x)=x+y"));
+        assertEquals("x = -2 or x = 2", Calc.once("x^2=4"));
+    }
+
+    @Test
+    void functionsWorkThroughCalc() {
+        Calc calc = new Calc();
+        assertEquals("Defined f(x) = x^2+1", calc.show("f(x)=x^2+1"));
+        assertEquals("= 10", calc.show("f(3)"));
+        assertEquals("Write f(...) to use the function f.", calc.show("f+1"));
+        assertEquals("The formula of f(x) can only use the variable x, but it uses f.", calc.show("f(x)=f(x)+1"));
+        assertEquals("x = -3 or x = 3", calc.show("f(x)+1=11"));
     }
 }

@@ -1,6 +1,7 @@
 package entity;
 
 import entity.node.BinaryNode;
+import entity.node.CallNode;
 import entity.node.FunctionNode;
 import entity.node.LiteralNode;
 import entity.node.Node;
@@ -11,6 +12,7 @@ import entity.node.VariableNode;
 import entity.value.NumberValue;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -171,12 +173,24 @@ public final class MathParser {
             return new FunctionNode(token, parseFunctionArgument(), null);
         }
         if (MathLexer.isLetter(token)) {
+            if (functions.containsKey(token)) {
+                return parseCall(token);
+            }
             return new VariableNode(token);
         }
         if (token.startsWith("\\") && token.length() > 1) {
             throw new MathSyntaxException("\"" + token + "\" is not supported.");
         }
         throw new MathSyntaxException("Unexpected \"" + token + "\".");
+    }
+
+    private Node parseCall(String name) {
+        if (!peekIs("(")) {
+            throw new MathSyntaxException("Write " + name + "(...) to use the function " + name + ".");
+        }
+        next();
+        Node argument = parseRestOfGroup(")");
+        return new CallNode(name, Collections.singletonList(argument), 0, 0);
     }
 
     private Node parseSqrt() {

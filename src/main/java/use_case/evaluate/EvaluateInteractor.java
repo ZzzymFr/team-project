@@ -1,15 +1,25 @@
 package use_case.evaluate;
 
+import entity.Context;
 import entity.EquationSolver;
-import entity.MathEvaluator;
 import entity.MathLexer;
+import entity.MathParser;
 import entity.MathSyntaxException;
+import entity.UncalculableException;
 import entity.UserFunction;
+import entity.node.Node;
+import entity.node.RelationNode;
+import entity.value.NumberSetValue;
+import entity.value.NumberValue;
+import entity.value.Value;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class EvaluateInteractor implements EvaluateInputBoundary {
     private final FunctionDataAccessInterface functionDataAccess;
@@ -34,129 +44,137 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
                 presenter.prepareFailView("Please enter an expression.");
                 return;
             }
-
-            int equalsIndex = tokens.indexOf("=");
-            if (equalsIndex == -1) {
-                calculateExpression(tokens);
+            if (isFunctionDefinition(tokens)) {
+                defineFunction(tokens, expression);
                 return;
             }
-            if (equalsIndex != tokens.lastIndexOf("=")) {
-                presenter.prepareFailView("Please use only one \"=\".");
-                return;
-            }
-
-            List<String> left = new ArrayList<>(tokens.subList(0, equalsIndex));
-            List<String> right = new ArrayList<>(tokens.subList(equalsIndex + 1, tokens.size()));
-            if (left.isEmpty()) {
+            if (tokens.get(0).equals("=")) {
                 presenter.prepareFailView("There is nothing on the left of \"=\".");
-            } else if (isFunctionDefinition(left)) {
-                defineFunction(left, right, expression);
-            } else {
-                checkOrSolveEquation(left, right);
+                return;
             }
+            if (tokens.get(tokens.size() - 1).equals("=")) {
+                presenter.prepareFailView("There is nothing on the right of \"=\".");
+                return;
+            }
+            evaluate(tokens);
         } catch (MathSyntaxException e) {
             presenter.prepareFailView(e.getMessage());
+        } catch (RuntimeException | StackOverflowError e) {
+            presenter.prepareFailView("Uncalculable");
         }
     }
 
-    private void calculateExpression(List<String> tokens) {
+    private void evaluate(List<String> tokens) {
         Map<String, UserFunction> functions = functionDataAccess.getAllFunctions();
-        List<String> unknowns = findVariables(tokens, functions);
-        if (!unknowns.isEmpty()) {
+        Node node = new MathParser(tokens, functions).parse();
+        Set<String> freeVariables = new LinkedHashSet<>();
+        node.collectFreeVariables(freeVariables);
+        List<String> unknowns = new ArrayList<>(freeVariables);
+
+        if (unknowns.isEmpty()) {
+            presenter.prepareValuesView(Collections.singletonList(calculate(node, new Context(functions))));
+        } else if (countEquals(node) > 1) {
+            presenter.prepareFailView("Please use only one \"=\".");
+        } else if (!node.isCondition()) {
             String name = unknowns.get(0);
             presenter.prepareFailView("Unknown variable \"" + name + "\". To solve for it, write an equation such as "
                     + name + "+1=3.");
-            return;
+        } else if (unknowns.size() > 1) {
+            presenter.prepareFailView("This equation has more than one unknown (" + String.join(", ", unknowns)
+                    + "). Only one unknown is supported.");
+        } else {
+            solveCondition(node, unknowns.get(0), new Context(functions));
         }
-        double value = new MathEvaluator(tokens, new HashMap<>(), functions).evaluate();
-        presenter.prepareNumberView(value);
     }
 
-    private void defineFunction(List<String> left, List<String> right, String expression) {
-        String name = left.get(0);
-        String parameter = left.get(2);
+    private Value calculate(Node node, Context context) {
+        Value value = node.evaluate(context);
+        if (value instanceof NumberValue && Double.isInfinite(((NumberValue) value).getValue())
+                && !node.canBeInfinite()) {
+            throw new UncalculableException();
+        }
+        if (value instanceof NumberSetValue) {
+            throw new UncalculableException();
+        }
+        return value;
+    }
+
+    private void solveCondition(Node node, String variable, Context context) {
+        if (isSingleEquation(node)) {
+            List<Node> sides = ((RelationNode) node).getOperands();
+            EquationSolver solver = new EquationSolver(sides.get(0), sides.get(1), variable, context);
+            if (solver.isAlwaysTrue()) {
+                presenter.prepareAlwaysTrueView(variable);
+            } else {
+                presenter.prepareSolutionsView(variable, solver.solve());
+            }
+            return;
+        }
+        presenter.prepareFailView("Unknown variable \"" + variable + "\". To solve for it, write an equation such as "
+                + variable + "+1=3.");
+    }
+
+    private void defineFunction(List<String> tokens, String expression) {
+        int equalsIndex = tokens.indexOf("=");
+        String name = tokens.get(0);
+        List<String> parameters = new ArrayList<>();
+        for (int i = 2; i < equalsIndex; i += 2) {
+            parameters.add(tokens.get(i));
+        }
+        String header = name + "(" + String.join(", ", parameters) + ")";
+        List<String> right = new ArrayList<>(tokens.subList(equalsIndex + 1, tokens.size()));
         if (right.isEmpty()) {
-            presenter.prepareFailView("Please write a formula after \"" + name + "(" + parameter + ")=\".");
+            presenter.prepareFailView("Please write a formula after \"" + header + "=\".");
             return;
         }
 
         Map<String, UserFunction> functions = new HashMap<>(functionDataAccess.getAllFunctions());
         functions.remove(name);
 
-        for (String variable : findVariables(right, functions)) {
-            if (!variable.equals(parameter)) {
-                presenter.prepareFailView("The formula of " + name + "(" + parameter + ") can only use the variable "
-                        + parameter + ", but it uses " + variable + ".");
+        Node body = new MathParser(right, functions).parse();
+        Set<String> variables = new LinkedHashSet<>();
+        body.collectFreeVariables(variables);
+        for (String variable : variables) {
+            if (!parameters.contains(variable)) {
+                presenter.prepareFailView("The formula of " + header + " can only use the variable "
+                        + String.join(", ", parameters) + ", but it uses " + variable + ".");
                 return;
             }
         }
 
-        Map<String, Double> testValues = new HashMap<>();
-        testValues.put(parameter, 1.0);
-        new MathEvaluator(right, testValues, functions).evaluate();
+        Context testContext = new Context(functions);
+        for (String parameter : parameters) {
+            testContext = testContext.withVariable(parameter, 1.0);
+        }
+        body.evaluate(testContext);
 
         String formulaText = textAfterEquals(expression);
-        functionDataAccess.saveFunction(new UserFunction(name, parameter, right, formulaText));
-        presenter.prepareFunctionDefinedView(name + "(" + parameter + ") = " + formulaText);
+        functionDataAccess.saveFunction(new UserFunction(name, parameters, body, formulaText));
+        presenter.prepareFunctionDefinedView(header + " = " + formulaText);
     }
 
-    private void checkOrSolveEquation(List<String> left, List<String> right) {
-        if (right.isEmpty()) {
-            presenter.prepareFailView("There is nothing on the right of \"=\".");
-            return;
-        }
-        Map<String, UserFunction> functions = functionDataAccess.getAllFunctions();
-
-        List<String> unknowns = findVariables(left, functions);
-        for (String variable : findVariables(right, functions)) {
-            if (!unknowns.contains(variable)) {
-                unknowns.add(variable);
-            }
-        }
-
-        if (unknowns.isEmpty()) {
-            double leftValue = new MathEvaluator(left, new HashMap<>(), functions).evaluate();
-            double rightValue = new MathEvaluator(right, new HashMap<>(), functions).evaluate();
-            presenter.prepareCheckView(isAlmostEqual(leftValue, rightValue), leftValue, rightValue);
-        } else if (unknowns.size() == 1) {
-            String variable = unknowns.get(0);
-            EquationSolver solver = new EquationSolver(left, right, variable, functions);
-            if (solver.isAlwaysTrue()) {
-                presenter.prepareAlwaysTrueView(variable);
-            } else {
-                presenter.prepareSolutionsView(variable, solver.solve());
-            }
-        } else {
-            presenter.prepareFailView("This equation has more than one unknown (" + String.join(", ", unknowns)
-                    + "). Only one unknown is supported.");
-        }
-    }
-
-    private boolean isFunctionDefinition(List<String> left) {
-        if (left.size() != 4) {
+    private boolean isFunctionDefinition(List<String> tokens) {
+        int equalsIndex = tokens.indexOf("=");
+        if (equalsIndex != 4 || equalsIndex != tokens.lastIndexOf("=")) {
             return false;
         }
-        String name = left.get(0);
-        String parameter = left.get(2);
-        return MathLexer.isLetter(name) && left.get(1).equals("(")
-                && MathLexer.isLetter(parameter) && left.get(3).equals(")")
+        String name = tokens.get(0);
+        String parameter = tokens.get(2);
+        return MathLexer.isLetter(name) && tokens.get(1).equals("(")
+                && MathLexer.isLetter(parameter) && tokens.get(3).equals(")")
                 && !name.equals(parameter) && !name.equals("e") && !parameter.equals("e");
     }
 
-    private List<String> findVariables(List<String> tokens, Map<String, UserFunction> functions) {
-        List<String> names = new ArrayList<>();
-        for (String token : tokens) {
-            if (MathLexer.isLetter(token) && !token.equals("e")
-                    && !functions.containsKey(token) && !names.contains(token)) {
-                names.add(token);
-            }
-        }
-        return names;
+    private boolean isSingleEquation(Node node) {
+        return node instanceof RelationNode
+                && ((RelationNode) node).getOperators().equals(Collections.singletonList("="));
     }
 
-    private boolean isAlmostEqual(double a, double b) {
-        double size = Math.max(1, Math.max(Math.abs(a), Math.abs(b)));
-        return Math.abs(a - b) <= 1e-9 * size;
+    private int countEquals(Node node) {
+        if (!(node instanceof RelationNode)) {
+            return 0;
+        }
+        return Collections.frequency(((RelationNode) node).getOperators(), "=");
     }
 
     private String textAfterEquals(String expression) {
