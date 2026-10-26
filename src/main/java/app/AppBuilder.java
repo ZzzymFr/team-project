@@ -56,6 +56,11 @@ public class AppBuilder {
         return this;
     }
 
+    /** The expression panel built by addExpressionView, e.g. to place it in another window. */
+    public ExpressionView getExpressionView() {
+        return expressionView;
+    }
+
     public JFrame build() {
         JFrame frame = new JFrame("Math Lab");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);

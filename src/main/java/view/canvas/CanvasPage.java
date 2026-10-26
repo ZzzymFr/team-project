@@ -14,6 +14,8 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Component;
+import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.Graphics;
@@ -63,6 +65,7 @@ public abstract class CanvasPage extends JPanel {
     /** Puts this page's own controls at the top of the page. */
     protected final void setFunctionArea(JComponent component) {
         functionArea.removeAll();
+        clearPanelBackgrounds(component);  // panels inside blend into the white page
         functionArea.add(component, BorderLayout.CENTER);
         functionArea.revalidate();
         functionArea.repaint();
@@ -93,6 +96,17 @@ public abstract class CanvasPage extends JPanel {
         label.setForeground(HINT);
         label.setBorder(BorderFactory.createEmptyBorder(6, 0, 6, 0));
         return label;
+    }
+
+    private static void clearPanelBackgrounds(Component component) {
+        if (component instanceof JPanel) {
+            ((JPanel) component).setOpaque(false);
+        }
+        if (component instanceof Container) {
+            for (Component child : ((Container) component).getComponents()) {
+                clearPanelBackgrounds(child);
+            }
+        }
     }
 
     JPanel getCanvasSlot() {
