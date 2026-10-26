@@ -1,0 +1,41 @@
+{"image": "notes_e1698661_01.png", "latex": "1+1="}
+{"image": "notes_e1698661_02.png", "latex": "5+7=12"}
+{"image": "notes_e1698661_03.png", "latex": "4\\times3=12"}
+{"image": "notes_e1698661_04.png", "latex": "5\\div5=1"}
+{"image": "notes_e1698661_05.png", "latex": "\\frac{6}{5}=1.2"}
+{"image": "notes_e1698661_06.png", "latex": "483+1000=1483"}
+{"image": "notes_e1698661_07.png", "latex": "78\\times7=546"}
+{"image": "notes_e1698661_08.png", "latex": "f:\\mathbb{R}^{2}\\rightarrow\\mathbb{R}^{3}"}
+{"image": "notes_e1698661_09.png", "latex": "g:\\mathbb{N}\\rightarrow\\mathbb{R}"}
+{"image": "notes_e1698661_10.png", "latex": "T(x,y)=3x+4y"}
+{"image": "notes_e1698661_11.png", "latex": "f(x)=3x+8"}
+{"image": "notes_e1698661_12.png", "latex": "f'(x)=\\cos(e^{x})"}
+{"image": "notes_e1698661_13.png", "latex": "v\\in V"}
+{"image": "notes_e1698661_14.png", "latex": "v=(x_1,...x_n)"}
+{"image": "notes_e1698661_15.png", "latex": "\\sum_{i=1}^{n}kx"}
+{"image": "notes_e1698661_16.png", "latex": "\\text{let }v\\in V\\text{ be arbitrary, }v=(x_1,...x_n)"}
+{"image": "notes_20261023_02.png", "latex": "A(x+v)=b\\text{ iff }Av=0"}
+{"image": "notes_20261023_04.png", "latex": "\\square"}
+{"image": "notes_20261023_05.png", "latex": "f'(x)=\\lim_{n\\rightarrow\\infty}f_n'(x)"}
+{"image": "notes_20261023_06.png", "latex": "\\text{More specifically:}"}
+{"image": "notes_20261023_07.png", "latex": "\\text{Let }A\\text{ be a }m\\times n\\text{ matrix.}"}
+{"image": "notes_20261023_09.png", "latex": "\\text{turned into an }m\\text{-dimensional}"}
+{"image": "notes_20261023_10.png", "latex": "\\text{vector }Av"}
+{"image": "notes_20261023_11.png", "latex": "\\text{b). Let }P_{4,a}(x)=f(a)+f'(a)(x-a)+\\frac{f''(a)}{4}(x-a)^2+\\frac{f'''(a)}{3!}(x-a)^3+\\frac{f^{(4)}(a)}{4!}(x-a)^4"}
+{"image": "notes_20261023_15.png", "latex": "\\text{Theorem 4 (Weierstrass M-Test)}"}
+{"image": "notes_20261023_16.png", "latex": "\\text{Let }\\{f_n\\}\\text{ be a sequence of functions}"}
+{"image": "notes_20261023_18.png", "latex": "\\text{that }\\{M_n\\}\\text{ is a sequence of numbers such that}"}
+{"image": "notes_20261023_20.png", "latex": "\\text{Suppose moreover that }\\sum_{n=1}^{\\infty}M_n\\text{ converges.}"}
+{"image": "notes_20261023_21.png", "latex": "\\text{Then for each }x\\text{ in}"}
+{"image": "notes_20261023_22.png", "latex": "\\int_a^x g=\\lim_{n\\rightarrow\\infty}\\int_a^x f_n'"}
+{"image": "notes_20261023_24.png", "latex": "=f(x)-f(a)"}
+{"image": "notes_20261023_25.png", "latex": "120\\times5=600"}
+{"image": "notes_20261023_26.png", "latex": "1000+1000=2000"}
+{"image": "notes_20261023_27.png", "latex": "2^{2\\times3}=64"}
+{"image": "notes_20261023_28.png", "latex": "\\frac{5\\times6\\times7\\times8}{2}=840"}
+{"image": "notes_20261023_29.png", "latex": "80\\times9=720"}
+{"image": "notes_20261023_30.png", "latex": "\\lim_{x\\rightarrow\\infty}8x+3=\\infty"}
+{"image": "notes_20261023_31.png", "latex": "\\lim_{x\\rightarrow\\infty}\\frac{1}{8x+3}=0"}
+{"image": "notes_20261023_32.png", "latex": "\\sum_{i=1}^{25}ix_i=x_1+2x_2+...+24x_{24}+25x_{25}"}
+{"image": "notes_20261023_33.png", "latex": "\\sum_{i=1}^{\\infty}x_i=\\lim_{n\\rightarrow\\infty}\\int_1^n f(x)"}
+{"image": "notes_20261023_34.png", "latex": "54\\times8=432"}
