@@ -1,6 +1,7 @@
 package entity.node;
 
 import entity.Context;
+import entity.value.BooleanValue;
 import entity.value.Value;
 
 public class LiteralNode extends Node {
@@ -24,5 +25,10 @@ public class LiteralNode extends Node {
     @Override
     public boolean canBeInfinite() {
         return infinite;
+    }
+
+    @Override
+    public boolean isCondition() {
+        return value instanceof BooleanValue;
     }
 }

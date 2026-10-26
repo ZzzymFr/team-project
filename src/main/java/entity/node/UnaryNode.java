@@ -10,7 +10,7 @@ import java.util.Collections;
 import java.util.List;
 
 public class UnaryNode extends Node {
-    public enum Op { NEGATE, FACTORIAL, ABSOLUTE }
+    public enum Op { NEGATE, FACTORIAL, ABSOLUTE, PERCENT }
 
     private final Op op;
     private final Node operand;
@@ -43,6 +43,8 @@ public class UnaryNode extends Node {
                 return new NumberValue(factorial(value));
             case ABSOLUTE:
                 return new NumberValue(Math.abs(value));
+            case PERCENT:
+                return new NumberValue(value / 100);
             default:
                 throw new UncalculableException();
         }

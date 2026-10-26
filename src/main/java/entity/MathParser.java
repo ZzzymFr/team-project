@@ -6,9 +6,11 @@ import entity.node.FunctionNode;
 import entity.node.LiteralNode;
 import entity.node.Node;
 import entity.node.NumberNode;
+import entity.node.PlusMinusNode;
 import entity.node.RelationNode;
 import entity.node.UnaryNode;
 import entity.node.VariableNode;
+import entity.value.BooleanValue;
 import entity.value.NumberValue;
 
 import java.util.ArrayList;
@@ -67,8 +69,14 @@ public final class MathParser {
 
     private Node parseAdditive() {
         Node result = parseTerm();
-        while (peekIs("+") || peekIs("-")) {
+        while (peekIs("+") || peekIs("-") || peekIs("\\pm")) {
             String operator = next();
+            if (operator.equals("\\pm")) {
+                int signIndex = plusMinusCount;
+                plusMinusCount++;
+                result = new PlusMinusNode(signIndex, result, parseTerm());
+                continue;
+            }
             Node right = parseTerm();
             if (operator.equals("+")) {
                 result = new BinaryNode(BinaryNode.Op.ADD, result, right);
@@ -111,6 +119,12 @@ public final class MathParser {
             next();
             return parseUnary();
         }
+        if (peekIs("\\pm")) {
+            next();
+            int signIndex = plusMinusCount;
+            plusMinusCount++;
+            return new PlusMinusNode(signIndex, null, parseUnary());
+        }
         return parsePower();
     }
 
@@ -125,9 +139,12 @@ public final class MathParser {
 
     private Node parsePostfix() {
         Node value = parsePrimary();
-        while (peekIs("!")) {
-            next();
-            value = new UnaryNode(UnaryNode.Op.FACTORIAL, value);
+        while (peekIs("!") || peekIs("%")) {
+            if (next().equals("!")) {
+                value = new UnaryNode(UnaryNode.Op.FACTORIAL, value);
+            } else {
+                value = new UnaryNode(UnaryNode.Op.PERCENT, value);
+            }
         }
         return value;
     }
@@ -172,16 +189,80 @@ public final class MathParser {
         if (token.equals("\\sin") || token.equals("\\cos") || token.equals("\\tan") || token.equals("\\ln")) {
             return new FunctionNode(token, parseFunctionArgument(), null);
         }
+        if (token.equals("\\infty")) {
+            return new LiteralNode(new NumberValue(Double.POSITIVE_INFINITY), true);
+        }
+        if (token.equals("\\top")) {
+            return new LiteralNode(BooleanValue.of(true), false);
+        }
+        if (token.equals("\\bot")) {
+            return new LiteralNode(BooleanValue.of(false), false);
+        }
+        if (token.equals("\\vec") || token.equals("\\hat") || token.equals("\\bar")
+                || token.equals("\\overline")) {
+            return parseDecorated(token);
+        }
         if (MathLexer.isLetter(token)) {
-            if (functions.containsKey(token)) {
+            if (functions.containsKey(token) && !peekIs("_")) {
                 return parseCall(token);
             }
-            return new VariableNode(token);
+            return new VariableNode(parseName(token));
         }
         if (token.startsWith("\\") && token.length() > 1) {
             throw new MathSyntaxException("\"" + token + "\" is not supported.");
         }
         throw new MathSyntaxException("Unexpected \"" + token + "\".");
+    }
+
+    private String parseName(String letter) {
+        if (!peekIs("_")) {
+            return letter;
+        }
+        next();
+        List<String> subscript = new ArrayList<>();
+        if (peekIs("{")) {
+            next();
+            int depth = 1;
+            while (true) {
+                String token = next();
+                if (token.equals("{")) {
+                    depth++;
+                } else if (token.equals("}")) {
+                    depth--;
+                    if (depth == 0) {
+                        break;
+                    }
+                }
+                subscript.add(token);
+            }
+        } else {
+            subscript.add(next());
+        }
+        if (subscript.isEmpty()) {
+            throw new MathSyntaxException("The subscript of \"" + letter + "\" is empty.");
+        }
+        if (subscript.size() == 1) {
+            return letter + "_" + subscript.get(0);
+        }
+        return letter + "_{" + String.join("", subscript) + "}";
+    }
+
+    private Node parseDecorated(String command) {
+        if (peekIs("{") && position + 1 < tokens.size() && MathLexer.isLetter(tokens.get(position + 1))) {
+            int start = position;
+            next();
+            String name = parseName(next());
+            if (peekIs("}")) {
+                next();
+                return new VariableNode(command + "{" + name + "}");
+            }
+            position = start;
+        }
+        Node argument = parseFunctionArgument();
+        if (command.equals("\\vec")) {
+            return argument;
+        }
+        throw new UncalculableException();
     }
 
     private Node parseCall(String name) {
@@ -190,7 +271,7 @@ public final class MathParser {
         }
         next();
         Node argument = parseRestOfGroup(")");
-        return new CallNode(name, Collections.singletonList(argument), 0, 0);
+        return new CallNode(name, Collections.singletonList(argument), 0, 0, functions);
     }
 
     private Node parseSqrt() {
@@ -253,6 +334,9 @@ public final class MathParser {
                 || token.equals("(") || token.equals("{") || token.equals("[")
                 || token.equals("\\pi") || token.equals("\\frac") || token.equals("\\sqrt")
                 || token.equals("\\log") || token.equals("\\ln")
+                || token.equals("\\infty") || token.equals("\\top") || token.equals("\\bot")
+                || token.equals("\\vec") || token.equals("\\hat") || token.equals("\\bar")
+                || token.equals("\\overline")
                 || token.equals("\\sin") || token.equals("\\cos") || token.equals("\\tan");
     }
 

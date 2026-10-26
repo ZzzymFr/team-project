@@ -10,18 +10,23 @@ import entity.value.Values;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 public class CallNode extends Node {
     private final String name;
     private final List<Node> arguments;
     private final int derivativeOrder;
     private final int derivativeParameter;
+    private final Map<String, UserFunction> functions;
+    private boolean checkingInfinity = false;
 
-    public CallNode(String name, List<Node> arguments, int derivativeOrder, int derivativeParameter) {
+    public CallNode(String name, List<Node> arguments, int derivativeOrder, int derivativeParameter,
+                    Map<String, UserFunction> functions) {
         this.name = name;
         this.arguments = Collections.unmodifiableList(new ArrayList<>(arguments));
         this.derivativeOrder = derivativeOrder;
         this.derivativeParameter = derivativeParameter;
+        this.functions = functions;
     }
 
     public String getName() {
@@ -43,6 +48,23 @@ public class CallNode extends Node {
     @Override
     public List<Node> children() {
         return arguments;
+    }
+
+    @Override
+    public boolean canBeInfinite() {
+        if (super.canBeInfinite()) {
+            return true;
+        }
+        UserFunction function = functions.get(name);
+        if (function == null || checkingInfinity) {
+            return false;
+        }
+        checkingInfinity = true;
+        try {
+            return function.getBody().canBeInfinite();
+        } finally {
+            checkingInfinity = false;
+        }
     }
 
     @Override

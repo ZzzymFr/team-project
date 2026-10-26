@@ -12,6 +12,7 @@ import entity.node.RelationNode;
 import entity.value.NumberSetValue;
 import entity.value.NumberValue;
 import entity.value.Value;
+import entity.value.Values;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -22,6 +23,8 @@ import java.util.Map;
 import java.util.Set;
 
 public class EvaluateInteractor implements EvaluateInputBoundary {
+    private static final int MAX_PLUS_MINUS = 4;
+
     private final FunctionDataAccessInterface functionDataAccess;
     private final EvaluateOutputBoundary presenter;
 
@@ -66,24 +69,25 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
 
     private void evaluate(List<String> tokens) {
         Map<String, UserFunction> functions = functionDataAccess.getAllFunctions();
-        Node node = new MathParser(tokens, functions).parse();
+        MathParser parser = new MathParser(tokens, functions);
+        Node node = parser.parse();
+        int masks = signMaskCount(parser);
         Set<String> freeVariables = new LinkedHashSet<>();
         node.collectFreeVariables(freeVariables);
         List<String> unknowns = new ArrayList<>(freeVariables);
 
         if (unknowns.isEmpty()) {
-            presenter.prepareValuesView(Collections.singletonList(calculate(node, new Context(functions))));
+            presenter.prepareValuesView(calculateAll(node, functions, masks));
         } else if (countEquals(node) > 1) {
             presenter.prepareFailView("Please use only one \"=\".");
         } else if (!node.isCondition()) {
             String name = unknowns.get(0);
-            presenter.prepareFailView("Unknown variable \"" + name + "\". To solve for it, write an equation such as "
-                    + name + "+1=3.");
+            presenter.prepareFailView(unknownVariableMessage(name));
         } else if (unknowns.size() > 1) {
             presenter.prepareFailView("This equation has more than one unknown (" + String.join(", ", unknowns)
                     + "). Only one unknown is supported.");
         } else {
-            solveCondition(node, unknowns.get(0), new Context(functions));
+            solveCondition(node, unknowns.get(0), functions, masks);
         }
     }
 
@@ -99,19 +103,58 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
         return value;
     }
 
-    private void solveCondition(Node node, String variable, Context context) {
-        if (isSingleEquation(node)) {
-            List<Node> sides = ((RelationNode) node).getOperands();
+    private int signMaskCount(MathParser parser) {
+        if (parser.getPlusMinusCount() > MAX_PLUS_MINUS) {
+            throw new UncalculableException();
+        }
+        return 1 << parser.getPlusMinusCount();
+    }
+
+    private List<Value> calculateAll(Node node, Map<String, UserFunction> functions, int masks) {
+        List<Value> values = new ArrayList<>();
+        for (int mask = 0; mask < masks; mask++) {
+            Value value = calculate(node, new Context(functions).withSigns(mask));
+            boolean seen = false;
+            for (Value existing : values) {
+                if (Values.areEqual(existing, value)) {
+                    seen = true;
+                }
+            }
+            if (!seen) {
+                values.add(value);
+            }
+        }
+        return values;
+    }
+
+    private void solveCondition(Node node, String variable, Map<String, UserFunction> functions, int masks) {
+        if (!isSingleEquation(node)) {
+            presenter.prepareFailView(unknownVariableMessage(variable));
+            return;
+        }
+        List<Node> sides = ((RelationNode) node).getOperands();
+        List<Double> all = new ArrayList<>();
+        for (int mask = 0; mask < masks; mask++) {
+            Context context = new Context(functions).withSigns(mask);
             EquationSolver solver = new EquationSolver(sides.get(0), sides.get(1), variable, context);
             if (solver.isAlwaysTrue()) {
                 presenter.prepareAlwaysTrueView(variable);
-            } else {
-                presenter.prepareSolutionsView(variable, solver.solve());
+                return;
             }
-            return;
+            all.addAll(solver.solve());
         }
-        presenter.prepareFailView("Unknown variable \"" + variable + "\". To solve for it, write an equation such as "
-                + variable + "+1=3.");
+        Collections.sort(all);
+        List<Double> solutions = new ArrayList<>();
+        for (double solution : all) {
+            if (solutions.isEmpty() || Math.abs(solution - solutions.get(solutions.size() - 1)) >= 1e-6) {
+                solutions.add(solution);
+            }
+        }
+        presenter.prepareSolutionsView(variable, solutions);
+    }
+
+    private String unknownVariableMessage(String name) {
+        return "Unknown variable \"" + name + "\". To solve for it, write an equation such as " + name + "+1=3.";
     }
 
     private void defineFunction(List<String> tokens, String expression) {
@@ -131,7 +174,11 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
         Map<String, UserFunction> functions = new HashMap<>(functionDataAccess.getAllFunctions());
         functions.remove(name);
 
-        Node body = new MathParser(right, functions).parse();
+        MathParser parser = new MathParser(right, functions);
+        Node body = parser.parse();
+        if (parser.getPlusMinusCount() > 0) {
+            throw new UncalculableException();
+        }
         Set<String> variables = new LinkedHashSet<>();
         body.collectFreeVariables(variables);
         for (String variable : variables) {
