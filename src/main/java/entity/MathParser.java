@@ -498,7 +498,8 @@ public final class MathParser {
         return "=".equals(token) || "<".equals(token) || ">".equals(token)
                 || "\\leq".equals(token) || "\\geq".equals(token)
                 || "\\neq".equals(token) || "\\approx".equals(token)
-                || "\\in".equals(token) || "\\perp".equals(token) || "\\notin".equals(token) || "\\subset".equals(token);
+                || "\\in".equals(token) || "\\perp".equals(token)
+                || "\\notin".equals(token) || "\\subset".equals(token);
     }
 
     private boolean startsValue(String token) {

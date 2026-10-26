@@ -43,6 +43,12 @@ class VectorTest {
         assertEquals("Uncalculable", Calc.once("(1,2)\\times(3,4)"));
         assertEquals("Uncalculable", Calc.once("(1,0/0)"));
         assertEquals("Uncalculable", Calc.once("0/0\\in\\mathbb{R}"));
+        assertEquals("= (1, 2)", Calc.once("(2,4)/2"));
+        assertEquals("Uncalculable", Calc.once("(2,4)/0"));
+        assertEquals("Uncalculable", Calc.once("(1,2)^2"));
+        assertEquals("Uncalculable", Calc.once("2/(1,2)"));
+        assertEquals("Uncalculable", Calc.once("10^{308}(10,1)"));
+        assertEquals("Uncalculable", Calc.once("10^{308}(1,0,0)\\times(0,10^{308},0)+(1,1,1)"));
         assertEquals("= 12", Calc.once("3\\cdot4"));
         assertEquals("= 12", Calc.once("3\\times4"));
         assertEquals("= 3", Calc.once("(3)"));

@@ -93,12 +93,24 @@ public class BinaryNode extends Node {
                     throw new UncalculableException();
             }
         }
+        boolean scalarOnRight = a instanceof VectorValue;
+        if (op == Op.DIVIDE && scalarOnRight) {
+            double divisor = Values.toNumber(b);
+            if (divisor == 0 || Double.isNaN(divisor) || Double.isInfinite(divisor)) {
+                throw new UncalculableException();
+            }
+            List<Double> divided = new ArrayList<>();
+            for (double component : ((VectorValue) a).getComponents()) {
+                divided.add(component / divisor);
+            }
+            return finiteVector(divided);
+        }
         if (op != Op.MULTIPLY && op != Op.DOT && op != Op.CROSS) {
             throw new UncalculableException();
         }
         double factor;
         List<Double> components;
-        if (a instanceof VectorValue) {
+        if (scalarOnRight) {
             components = ((VectorValue) a).getComponents();
             factor = Values.toNumber(b);
         } else {
@@ -109,7 +121,16 @@ public class BinaryNode extends Node {
         for (double component : components) {
             scaled.add(component * factor);
         }
-        return new VectorValue(scaled);
+        return finiteVector(scaled);
+    }
+
+    public static VectorValue finiteVector(List<Double> components) {
+        for (double component : components) {
+            if (Double.isNaN(component) || Double.isInfinite(component)) {
+                throw new UncalculableException();
+            }
+        }
+        return new VectorValue(components);
     }
 
     private Value combine(List<Double> x, List<Double> y) {
@@ -120,7 +141,7 @@ public class BinaryNode extends Node {
         for (int i = 0; i < x.size(); i++) {
             result.add(op == Op.ADD ? x.get(i) + y.get(i) : x.get(i) - y.get(i));
         }
-        return new VectorValue(result);
+        return finiteVector(result);
     }
 
     public static double dot(List<Double> x, List<Double> y) {
@@ -138,7 +159,7 @@ public class BinaryNode extends Node {
         if (x.size() != 3 || y.size() != 3) {
             throw new UncalculableException();
         }
-        return new VectorValue(Arrays.asList(
+        return finiteVector(Arrays.asList(
                 x.get(1) * y.get(2) - x.get(2) * y.get(1),
                 x.get(2) * y.get(0) - x.get(0) * y.get(2),
                 x.get(0) * y.get(1) - x.get(1) * y.get(0)));

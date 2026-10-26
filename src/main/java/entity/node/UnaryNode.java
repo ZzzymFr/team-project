@@ -85,7 +85,7 @@ public class UnaryNode extends Node {
                 for (double component : vector.getComponents()) {
                     scaled.add(-component);
                 }
-                return new VectorValue(scaled);
+                return BinaryNode.finiteVector(scaled);
             case UNIT:
                 if (norm == 0 || Double.isInfinite(norm)) {
                     throw new UncalculableException();
@@ -93,7 +93,7 @@ public class UnaryNode extends Node {
                 for (double component : vector.getComponents()) {
                     scaled.add(component / norm);
                 }
-                return new VectorValue(scaled);
+                return BinaryNode.finiteVector(scaled);
             default:
                 throw new UncalculableException();
         }
