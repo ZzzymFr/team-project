@@ -522,6 +522,11 @@ public final class MathParser {
             next();
             return orderOf(next());
         }
+        if (peekIs("^") && "{".equals(tokenAt(position + 1)) && orderOf(tokenAt(position + 2)) >= 0
+                && "}".equals(tokenAt(position + 3))) {
+            position = position + 4;
+            return orderOf(tokenAt(position - 2));
+        }
         return 1;
     }
 

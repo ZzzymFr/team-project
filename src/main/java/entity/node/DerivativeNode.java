@@ -7,6 +7,7 @@ import entity.value.Value;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 public class DerivativeNode extends Node {
     private final String variable;
@@ -34,6 +35,12 @@ public class DerivativeNode extends Node {
     @Override
     public List<Node> children() {
         return Collections.singletonList(body);
+    }
+
+    @Override
+    public void collectFreeVariables(Set<String> names) {
+        body.collectFreeVariables(names);
+        names.add(variable);
     }
 
     @Override

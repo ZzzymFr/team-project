@@ -72,4 +72,35 @@ class FunctionAndDerivativeTest {
         c.show("p(x)=e^{x}");
         assertEquals("= 2.71828183", c.show("p'(1)"));
     }
+
+    @Test
+    void largeFunctionValuesDoNotHideDerivatives() {
+        Calc c = new Calc();
+        c.show("g(x)=x^2+1000000");
+        assertEquals("= 0.6", c.show("g'(0.3)"));
+        c.show("m(x)=x^3+10^{9}");
+        // m only good to ~1e-7 so roots are too
+        String[] roots = c.show("m'(x)=0.03").split(" or ");
+        assertEquals(2, roots.length);
+        assertEquals(-0.1, Double.parseDouble(roots[0].substring(4)), 1e-6);
+        assertEquals(0.1, Double.parseDouble(roots[1].substring(4)), 1e-6);
+        c.show("s(x)=1000000\\sin(x)");
+        assertEquals("= 0", c.show("s'(\\frac{\\pi}{2})"));
+        String sRoots = c.show("s'(x)=0");
+        assertTrue(sRoots.startsWith("x = -98.96016859 or x = -95.81857593 or "), sRoots);
+        assertTrue(sRoots.endsWith("(and 54 more)"), sRoots);
+        c.show("u(x)=10^{8}\\sin(x)");
+        String uRoots = c.show("u'(x)=0");
+        assertTrue(uRoots.startsWith("x = -98.96016859 or x = -95.81857593 or "), uRoots);
+        assertTrue(uRoots.endsWith("(and 54 more)"), uRoots);
+        c.show("h(x)=|x|");
+        assertEquals("= undefined", c.show("h'(0)"));
+    }
+
+    @Test
+    void derivativeVariableStaysFree() {
+        assertEquals("true for all x", Calc.once("\\frac{d}{dx}5=0"));
+        assertTrue(Calc.once("\\frac{d}{dx}x^2").startsWith("Unknown variable"));
+        assertEquals("x = 2", Calc.once("\\frac{d^{2}}{dx^{2}}x^3=12"));
+    }
 }

@@ -11,8 +11,13 @@ public final class DerivativeCalculator {
     private static final double SHRINK = 1.4;
     private static final double SAFE = 2.0;
     private static final double ONE_SIDED_TOLERANCE = 1e-4;
+    private static final double ROUND_OFF = 1e-14;
     private static final double NOISE_FACTOR = 10;
     private static final double CONVERGED = 1e-9;
+    private static final double MACHINE_EPSILON = 2.2e-16;
+    private static final double[] STENCIL_WEIGHT = {0, 1, 4, 3, 16};
+    // small steps for poles, big ones when f is huge vs slope
+    private static final double[] OTHER_STARTS = {0.1, 0.01, 10, 100};
 
     private DerivativeCalculator() {
     }
@@ -26,11 +31,11 @@ public final class DerivativeCalculator {
         }
         double step = Math.max(0.1, Math.abs(x) * 1e-3);
         double[] best = extrapolate(f, x, order, step);
-        for (int start = 1; start <= 2 && !isConverged(best); start++) {
-            step = step / 10;
-            double[] smaller = extrapolate(f, x, order, step);
-            if (smaller[1] < best[1] || (Double.isNaN(best[0]) && !Double.isNaN(smaller[0]))) {
-                best = smaller;
+        for (int i = 0; i < OTHER_STARTS.length && !isConverged(best); i++) {
+            double[] other = extrapolate(f, x, order, step * OTHER_STARTS[i]);
+            boolean better = relativeError(other) < relativeError(best);
+            if (better || (Double.isNaN(best[0]) && !Double.isNaN(other[0]))) {
+                best = other;
             }
         }
         double result = best[0];
@@ -47,7 +52,11 @@ public final class DerivativeCalculator {
     }
 
     private static boolean isConverged(double[] estimate) {
-        return estimate[1] <= CONVERGED * Math.max(1, Math.abs(estimate[0]));
+        return relativeError(estimate) <= CONVERGED;
+    }
+
+    private static double relativeError(double[] estimate) {
+        return estimate[1] / Math.max(1, Math.abs(estimate[0]));
     }
 
     // ridders: shrink steps + extrapolate to 0
@@ -63,6 +72,8 @@ public final class DerivativeCalculator {
         if (!isFinite(first)) {
             return new double[] {Double.NaN, Double.POSITIVE_INFINITY};
         }
+        double value = Math.abs(f.applyAsDouble(x));
+        double size = isFinite(value) ? value : 0;
         double[][] table = new double[LEVELS][LEVELS];
         table[0][0] = first;
         double answer = first;
@@ -73,12 +84,14 @@ public final class DerivativeCalculator {
             if (!isFinite(table[0][i])) {
                 break;
             }
+            // cant beat the roundoff in f
+            double floor = MACHINE_EPSILON * STENCIL_WEIGHT[order] * size / Math.pow(h, order);
             double factor = SHRINK * SHRINK;
             for (int j = 1; j <= i; j++) {
                 table[j][i] = (table[j - 1][i] * factor - table[j - 1][i - 1]) / (factor - 1);
                 factor = factor * SHRINK * SHRINK;
-                double estimate = Math.max(Math.abs(table[j][i] - table[j - 1][i]),
-                        Math.abs(table[j][i] - table[j - 1][i - 1]));
+                double estimate = Math.max(floor, Math.max(Math.abs(table[j][i] - table[j - 1][i]),
+                        Math.abs(table[j][i] - table[j - 1][i - 1])));
                 if (estimate <= error) {
                     error = estimate;
                     answer = table[j][i];
@@ -109,12 +122,20 @@ public final class DerivativeCalculator {
     private static boolean sidesAgree(DoubleUnaryOperator f, double x, double derivative) {
         double h = 1e-6 * Math.max(1, Math.abs(x));
         double here = f.applyAsDouble(x);
-        double right = (-3 * here + 4 * f.applyAsDouble(x + h) - f.applyAsDouble(x + 2 * h)) / (2 * h);
-        double left = (3 * here - 4 * f.applyAsDouble(x - h) + f.applyAsDouble(x - 2 * h)) / (2 * h);
+        double right1 = f.applyAsDouble(x + h);
+        double right2 = f.applyAsDouble(x + 2 * h);
+        double left1 = f.applyAsDouble(x - h);
+        double left2 = f.applyAsDouble(x - 2 * h);
+        double right = (-3 * here + 4 * right1 - right2) / (2 * h);
+        double left = (3 * here - 4 * left1 + left2) / (2 * h);
         if (!isFinite(right) || !isFinite(left)) {
             return false;
         }
-        return Math.abs(right - left) <= ONE_SIDED_TOLERANCE * Math.max(1, Math.abs(derivative));
+        double size = Math.max(Math.max(Math.abs(here), Math.abs(right1)),
+                Math.max(Math.abs(right2), Math.max(Math.abs(left1), Math.abs(left2))));
+        // roundoff gets blown up by 1/h
+        double noise = ROUND_OFF * size / h;
+        return Math.abs(right - left) <= ONE_SIDED_TOLERANCE * Math.max(1, Math.abs(derivative)) + noise;
     }
 
     private static boolean isFinite(double value) {

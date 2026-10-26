@@ -102,6 +102,11 @@ public class EquationSolver {
         if (isNumber(dRoot) && Math.abs(dRoot) < 1e-6) {
             return root;
         }
+        // root can sit at edge of a flat bit where diff is exactly 0
+        double dHigh = difference(high);
+        if (isNumber(dHigh) && Math.abs(dHigh) < 1e-6) {
+            return high;
+        }
         return Double.NaN;
     }
 
