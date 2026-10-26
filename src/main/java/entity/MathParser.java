@@ -10,6 +10,7 @@ import entity.node.PlusMinusNode;
 import entity.node.RelationNode;
 import entity.node.SetLiteralNode;
 import entity.node.UnaryNode;
+import entity.node.VectorNode;
 import entity.node.VariableNode;
 import entity.value.BooleanValue;
 import entity.value.NumberSetValue;
@@ -213,7 +214,13 @@ public final class MathParser {
             return parseNumber(token);
         }
         if (token.equals("(")) {
-            return parseRestOfGroup(")");
+            return parseParenthesized();
+        }
+        if (token.equals("\\langle")) {
+            return parseAngleVector();
+        }
+        if (token.equals("\\|")) {
+            return new UnaryNode(UnaryNode.Op.NORM, parseRestOfGroup("\\|"));
         }
         if (token.equals("{")) {
             return parseRestOfGroup("}");
@@ -275,6 +282,39 @@ public final class MathParser {
             throw new MathSyntaxException("\"" + token + "\" is not supported.");
         }
         throw new MathSyntaxException("Unexpected \"" + token + "\".");
+    }
+
+    private Node parseParenthesized() {
+        Node first = parseStatement();
+        if (!peekIs(",")) {
+            expect(")");
+            return first;
+        }
+        List<Node> components = new ArrayList<>();
+        components.add(first);
+        while (peekIs(",")) {
+            next();
+            components.add(parseStatement());
+        }
+        expect(")");
+        return new VectorNode(components);
+    }
+
+    private Node parseAngleVector() {
+        List<Node> components = new ArrayList<>();
+        components.add(parseStatement());
+        expect(",");
+        components.add(parseStatement());
+        while (peekIs(",")) {
+            next();
+            components.add(parseStatement());
+        }
+        expect("\\rangle");
+        if (components.size() == 2 && components.get(0) instanceof VectorNode
+                && components.get(1) instanceof VectorNode) {
+            return new BinaryNode(BinaryNode.Op.DOT, components.get(0), components.get(1));
+        }
+        return new VectorNode(components);
     }
 
     private Node parseSetLiteral() {
@@ -391,6 +431,9 @@ public final class MathParser {
         if (command.equals("\\vec")) {
             return argument;
         }
+        if (command.equals("\\hat")) {
+            return new UnaryNode(UnaryNode.Op.UNIT, argument);
+        }
         throw new UncalculableException();
     }
 
@@ -455,7 +498,7 @@ public final class MathParser {
         return "=".equals(token) || "<".equals(token) || ">".equals(token)
                 || "\\leq".equals(token) || "\\geq".equals(token)
                 || "\\neq".equals(token) || "\\approx".equals(token)
-                || "\\in".equals(token) || "\\notin".equals(token) || "\\subset".equals(token);
+                || "\\in".equals(token) || "\\perp".equals(token) || "\\notin".equals(token) || "\\subset".equals(token);
     }
 
     private boolean startsValue(String token) {

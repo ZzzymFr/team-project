@@ -7,12 +7,14 @@ import entity.value.FiniteSetValue;
 import entity.value.NumberValue;
 import entity.value.Value;
 import entity.value.Values;
+import entity.value.VectorValue;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
 public class UnaryNode extends Node {
-    public enum Op { NEGATE, FACTORIAL, ABSOLUTE, PERCENT, NOT }
+    public enum Op { NEGATE, FACTORIAL, ABSOLUTE, PERCENT, NOT, NORM, UNIT }
 
     private final Op op;
     private final Node operand;
@@ -49,6 +51,12 @@ public class UnaryNode extends Node {
         if (op == Op.ABSOLUTE && operandValue instanceof FiniteSetValue) {
             return new NumberValue(((FiniteSetValue) operandValue).getElements().size());
         }
+        if (operandValue instanceof VectorValue) {
+            return vectorOperate((VectorValue) operandValue);
+        }
+        if (op == Op.UNIT) {
+            throw new UncalculableException();
+        }
         double value = Values.toNumber(operandValue);
         switch (op) {
             case NEGATE:
@@ -56,9 +64,36 @@ public class UnaryNode extends Node {
             case FACTORIAL:
                 return new NumberValue(factorial(value));
             case ABSOLUTE:
+            case NORM:
                 return new NumberValue(Math.abs(value));
             case PERCENT:
                 return new NumberValue(value / 100);
+            default:
+                throw new UncalculableException();
+        }
+    }
+
+    private Value vectorOperate(VectorValue vector) {
+        double norm = BinaryNode.dot(vector.getComponents(), vector.getComponents());
+        norm = Math.sqrt(norm);
+        List<Double> scaled = new ArrayList<>();
+        switch (op) {
+            case ABSOLUTE:
+            case NORM:
+                return new NumberValue(norm);
+            case NEGATE:
+                for (double component : vector.getComponents()) {
+                    scaled.add(-component);
+                }
+                return new VectorValue(scaled);
+            case UNIT:
+                if (norm == 0 || Double.isInfinite(norm)) {
+                    throw new UncalculableException();
+                }
+                for (double component : vector.getComponents()) {
+                    scaled.add(component / norm);
+                }
+                return new VectorValue(scaled);
             default:
                 throw new UncalculableException();
         }

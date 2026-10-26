@@ -7,7 +7,9 @@ import entity.value.FiniteSetValue;
 import entity.value.NumberValue;
 import entity.value.Value;
 import entity.value.Values;
+import entity.value.VectorValue;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -68,7 +70,78 @@ public class BinaryNode extends Node {
             }
             return ((FiniteSetValue) a).intersect((FiniteSetValue) b);
         }
+        if (a instanceof VectorValue || b instanceof VectorValue) {
+            return vectorCalculate(a, b);
+        }
         return new NumberValue(calculate(Values.toNumber(a), Values.toNumber(b)));
+    }
+
+    private Value vectorCalculate(Value a, Value b) {
+        if (a instanceof VectorValue && b instanceof VectorValue) {
+            List<Double> x = ((VectorValue) a).getComponents();
+            List<Double> y = ((VectorValue) b).getComponents();
+            switch (op) {
+                case ADD:
+                case SUBTRACT:
+                    return combine(x, y);
+                case MULTIPLY:
+                case DOT:
+                    return new NumberValue(dot(x, y));
+                case CROSS:
+                    return cross(x, y);
+                default:
+                    throw new UncalculableException();
+            }
+        }
+        if (op != Op.MULTIPLY && op != Op.DOT && op != Op.CROSS) {
+            throw new UncalculableException();
+        }
+        double factor;
+        List<Double> components;
+        if (a instanceof VectorValue) {
+            components = ((VectorValue) a).getComponents();
+            factor = Values.toNumber(b);
+        } else {
+            components = ((VectorValue) b).getComponents();
+            factor = Values.toNumber(a);
+        }
+        List<Double> scaled = new ArrayList<>();
+        for (double component : components) {
+            scaled.add(component * factor);
+        }
+        return new VectorValue(scaled);
+    }
+
+    private Value combine(List<Double> x, List<Double> y) {
+        if (x.size() != y.size()) {
+            throw new UncalculableException();
+        }
+        List<Double> result = new ArrayList<>();
+        for (int i = 0; i < x.size(); i++) {
+            result.add(op == Op.ADD ? x.get(i) + y.get(i) : x.get(i) - y.get(i));
+        }
+        return new VectorValue(result);
+    }
+
+    public static double dot(List<Double> x, List<Double> y) {
+        if (x.size() != y.size()) {
+            throw new UncalculableException();
+        }
+        double sum = 0;
+        for (int i = 0; i < x.size(); i++) {
+            sum += x.get(i) * y.get(i);
+        }
+        return sum;
+    }
+
+    private Value cross(List<Double> x, List<Double> y) {
+        if (x.size() != 3 || y.size() != 3) {
+            throw new UncalculableException();
+        }
+        return new VectorValue(Arrays.asList(
+                x.get(1) * y.get(2) - x.get(2) * y.get(1),
+                x.get(2) * y.get(0) - x.get(0) * y.get(2),
+                x.get(0) * y.get(1) - x.get(1) * y.get(0)));
     }
 
     private boolean logic(boolean p, boolean q) {

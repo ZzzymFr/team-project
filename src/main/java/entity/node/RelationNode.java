@@ -69,6 +69,8 @@ public class RelationNode extends Node {
                 return Values.toNumber(left) > Values.toNumber(right) || almostEqual(left, right);
             case "\\approx":
                 return approximately(Values.toNumber(left), Values.toNumber(right), leftNode, rightNode);
+            case "\\perp":
+                return isPerpendicular(left, right);
             case "\\in":
                 return isMember(left, right, leftNode);
             case "\\notin":
@@ -80,7 +82,19 @@ public class RelationNode extends Node {
         }
     }
 
+    private boolean isPerpendicular(Value left, Value right) {
+        if (!(left instanceof VectorValue) || !(right instanceof VectorValue)) {
+            throw new UncalculableException();
+        }
+        double product = BinaryNode.dot(((VectorValue) left).getComponents(),
+                ((VectorValue) right).getComponents());
+        return Values.areAlmostEqual(product, 0);
+    }
+
     private boolean isMember(Value element, Value set, Node elementNode) {
+        if (element instanceof NumberValue && Double.isNaN(((NumberValue) element).getValue())) {
+            throw new UncalculableException();
+        }
         if (element instanceof NumberValue && set instanceof FiniteSetValue) {
             return ((FiniteSetValue) set).contains(((NumberValue) element).getValue());
         }
