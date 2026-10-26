@@ -140,7 +140,7 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
             EquationSolver solver = new EquationSolver(sides.get(0), sides.get(1), variable, context);
             if (solver.isAlwaysTrue()) {
                 if (excluding) {
-                    presenter.prepareFailView("Uncalculable");
+                    presenter.prepareSolutionsView(variable, new ArrayList<Double>());
                 } else {
                     presenter.prepareAlwaysTrueView(variable);
                 }

@@ -38,6 +38,8 @@ class RelationTest {
         assertEquals("x ≠ 3", Calc.once("x\\neq3"));
         assertEquals("x ≠ -2 and x ≠ 2", Calc.once("x^2\\neq4"));
         assertEquals("true for all x", Calc.once("x^2\\neq-1"));
+        assertEquals("no solution", Calc.once("x\\neq x"));
+        assertEquals("x = 3", Calc.once("x\\approx3"));
     }
 
     @Test
