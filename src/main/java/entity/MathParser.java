@@ -45,6 +45,53 @@ public final class MathParser {
     }
 
     private Node parseStatement() {
+        return parseIff();
+    }
+
+    private Node parseIff() {
+        Node result = parseImplies();
+        while (peekIs("\\Leftrightarrow") || peekIs("\\leftrightarrow")) {
+            next();
+            result = new BinaryNode(BinaryNode.Op.IFF, result, parseImplies());
+        }
+        return result;
+    }
+
+    private Node parseImplies() {
+        Node left = parseOr();
+        if (peekIs("\\Rightarrow") || peekIs("\\rightarrow")) {
+            next();
+            return new BinaryNode(BinaryNode.Op.IMPLIES, left, parseImplies());
+        }
+        return left;
+    }
+
+    private Node parseOr() {
+        Node result = parseAnd();
+        while (peekIs("\\lor") || peekIs("\\oplus")) {
+            if (next().equals("\\lor")) {
+                result = new BinaryNode(BinaryNode.Op.OR, result, parseAnd());
+            } else {
+                result = new BinaryNode(BinaryNode.Op.XOR, result, parseAnd());
+            }
+        }
+        return result;
+    }
+
+    private Node parseAnd() {
+        Node result = parseNot();
+        while (peekIs("\\land")) {
+            next();
+            result = new BinaryNode(BinaryNode.Op.AND, result, parseNot());
+        }
+        return result;
+    }
+
+    private Node parseNot() {
+        if (peekIs("\\neg")) {
+            next();
+            return new UnaryNode(UnaryNode.Op.NOT, parseNot());
+        }
         return parseRelation();
     }
 

@@ -2,6 +2,7 @@ package entity.node;
 
 import entity.Context;
 import entity.UncalculableException;
+import entity.value.BooleanValue;
 import entity.value.NumberValue;
 import entity.value.Value;
 import entity.value.Values;
@@ -10,7 +11,7 @@ import java.util.Collections;
 import java.util.List;
 
 public class UnaryNode extends Node {
-    public enum Op { NEGATE, FACTORIAL, ABSOLUTE, PERCENT }
+    public enum Op { NEGATE, FACTORIAL, ABSOLUTE, PERCENT, NOT }
 
     private final Op op;
     private final Node operand;
@@ -34,7 +35,15 @@ public class UnaryNode extends Node {
     }
 
     @Override
+    public boolean isCondition() {
+        return op == Op.NOT;
+    }
+
+    @Override
     public Value evaluate(Context context) {
+        if (op == Op.NOT) {
+            return BooleanValue.of(!Values.toBoolean(operand.evaluate(context)));
+        }
         double value = Values.toNumber(operand.evaluate(context));
         switch (op) {
             case NEGATE:

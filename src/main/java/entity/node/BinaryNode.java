@@ -2,6 +2,7 @@ package entity.node;
 
 import entity.Context;
 import entity.UncalculableException;
+import entity.value.BooleanValue;
 import entity.value.NumberValue;
 import entity.value.Value;
 import entity.value.Values;
@@ -10,7 +11,7 @@ import java.util.Arrays;
 import java.util.List;
 
 public class BinaryNode extends Node {
-    public enum Op { ADD, SUBTRACT, MULTIPLY, DOT, CROSS, DIVIDE, POWER }
+    public enum Op { ADD, SUBTRACT, MULTIPLY, DOT, CROSS, DIVIDE, POWER, AND, OR, XOR, IMPLIES, IFF }
 
     private final Op op;
     private final Node left;
@@ -40,10 +41,39 @@ public class BinaryNode extends Node {
     }
 
     @Override
+    public boolean isCondition() {
+        return isLogic();
+    }
+
+    private boolean isLogic() {
+        return op == Op.AND || op == Op.OR || op == Op.XOR || op == Op.IMPLIES || op == Op.IFF;
+    }
+
+    @Override
     public Value evaluate(Context context) {
+        if (isLogic()) {
+            boolean p = Values.toBoolean(left.evaluate(context));
+            boolean q = Values.toBoolean(right.evaluate(context));
+            return BooleanValue.of(logic(p, q));
+        }
         Value a = left.evaluate(context);
         Value b = right.evaluate(context);
         return new NumberValue(calculate(Values.toNumber(a), Values.toNumber(b)));
+    }
+
+    private boolean logic(boolean p, boolean q) {
+        switch (op) {
+            case AND:
+                return p && q;
+            case OR:
+                return p || q;
+            case XOR:
+                return p != q;
+            case IMPLIES:
+                return !p || q;
+            default:
+                return p == q;
+        }
     }
 
     private double calculate(double a, double b) {
