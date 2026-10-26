@@ -54,7 +54,7 @@ public class MathEvaluator {
     private double parseTerm() {
         double result = parseUnary();
         while (true) {
-            if (peekIs("*")) {
+            if (peekIs("*") || peekIs("\\cdot") || peekIs("\\times")) {
                 next();
                 result = result * parseUnary();
             } else if (peekIs("/")) {
