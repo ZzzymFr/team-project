@@ -8,8 +8,31 @@ import java.awt.BorderLayout;
 import java.awt.FlowLayout;
 
 public class app {
-    public static void main(String[] args) {
+    vital_mini model;
+    app(){
+        model = new vital_mini();
+    }
+    void init(){
         SwingUtilities.invokeLater(app::showWindow);
+    }
+    void run(){
+        boolean should_run = true;
+        while(should_run){
+           if(should_run){
+               break;
+           }
+        }
+    }
+    public static void main(String[] args) {
+        try {
+            app application = new app();
+            application.init();
+            application.run();
+        } catch (Exception e) {
+            System.err.println("Application failed: " + e.getMessage());
+            e.printStackTrace();
+            System.exit(1);
+        }
     }
 
     private static void showWindow() {
