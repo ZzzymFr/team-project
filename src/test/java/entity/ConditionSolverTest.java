@@ -41,9 +41,19 @@ class ConditionSolverTest {
 
     @Test
     void skipsRelationsWithForeignVariables() {
-        // y not bound so x<y cant be solved, false everywhere
-        List<Interval> intervals = new ConditionSolver(parse("x>1\\land x<y"), "x", context()).solve();
-        assertTrue(intervals.isEmpty());
+        // y not bound, only x>1 gives a root
+        List<Double> roots = new ConditionSolver(parse("x>1\\land x<y"), "x", context()).boundaryRoots();
+        assertEquals(1, roots.size());
+        assertEquals(1, roots.get(0), DELTA);
+    }
+
+    @Test
+    void solvesRelationsWithBoundVariables() {
+        List<Double> roots = new ConditionSolver(parse("x>1\\land x<y"), "x",
+                context().withVariable("y", 5)).boundaryRoots();
+        assertEquals(2, roots.size());
+        assertEquals(1, roots.get(0), DELTA);
+        assertEquals(5, roots.get(1), DELTA);
     }
 
     @Test

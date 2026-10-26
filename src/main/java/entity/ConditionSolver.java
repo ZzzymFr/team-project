@@ -36,7 +36,7 @@ public class ConditionSolver {
     }
 
     public List<Interval> solve() {
-        double[] points = candidates(false);
+        double[] points = sortedCandidates();
         boolean[] truth = new boolean[points.length];
         for (int i = 0; i < points.length; i++) {
             truth[i] = isTrueAt(points[i]);
@@ -74,7 +74,12 @@ public class ConditionSolver {
     }
 
     public boolean isTrueSomewhere() {
-        for (double point : candidates(true)) {
+        for (double point : cheapPoints(true)) {
+            if (isTrueAt(point)) {
+                return true;
+            }
+        }
+        for (double point : rootPoints()) {
             if (isTrueAt(point)) {
                 return true;
             }
@@ -83,7 +88,12 @@ public class ConditionSolver {
     }
 
     public boolean isTrueEverywhere() {
-        for (double point : candidates(true)) {
+        for (double point : cheapPoints(true)) {
+            if (!isTrueAt(point)) {
+                return false;
+            }
+        }
+        for (double point : rootPoints()) {
             if (!isTrueAt(point)) {
                 return false;
             }
@@ -91,7 +101,15 @@ public class ConditionSolver {
         return true;
     }
 
-    private double[] candidates(boolean wide) {
+    List<Double> boundaryRoots() {
+        List<Double> values = new ArrayList<>();
+        for (Root root : getRoots()) {
+            values.add(root.value);
+        }
+        return values;
+    }
+
+    private List<Double> cheapPoints(boolean wide) {
         List<Double> points = new ArrayList<>();
         int count = (int) Math.round((EquationSolver.SEARCH_END - EquationSolver.SEARCH_START) / step) + 1;
         for (int i = 0; i < count; i++) {
@@ -99,11 +117,6 @@ public class ConditionSolver {
         }
         for (double point : SPECIAL_POINTS) {
             points.add(point);
-        }
-        for (Root root : getRoots()) {
-            points.add(root.value);
-            points.add(root.value - ROOT_OFFSET);
-            points.add(root.value + ROOT_OFFSET);
         }
         if (wide) {
             for (double point : FAR_POINTS) {
@@ -118,7 +131,22 @@ public class ConditionSolver {
                 points.add(-value);
             }
         }
+        return points;
+    }
 
+    private List<Double> rootPoints() {
+        List<Double> points = new ArrayList<>();
+        for (Root root : getRoots()) {
+            points.add(root.value);
+            points.add(root.value - ROOT_OFFSET);
+            points.add(root.value + ROOT_OFFSET);
+        }
+        return points;
+    }
+
+    private double[] sortedCandidates() {
+        List<Double> points = cheapPoints(false);
+        points.addAll(rootPoints());
         double[] sorted = new double[points.size()];
         for (int i = 0; i < sorted.length; i++) {
             sorted[i] = points.get(i);
@@ -135,11 +163,12 @@ public class ConditionSolver {
     }
 
     private boolean isTrueAt(double point) {
+        context.spendStep();
         try {
             return Values.toBoolean(condition.evaluate(context.withVariable(variable, point)));
         } catch (BudgetExceededException e) {
             throw e;
-        } catch (MathSyntaxException e) {
+        } catch (UncalculableException e) {
             return false;
         }
     }
@@ -165,7 +194,7 @@ public class ConditionSolver {
         }
         if (nearest != null) {
             double distance = Math.abs(nearest.value - point);
-            if (distance < SNAP || (distance < step && isNearlyEqualAt(nearest, point))) {
+            if (distance < SNAP || isNearlyEqualAt(nearest, point)) {
                 return nearest.value;
             }
         }
@@ -185,7 +214,7 @@ public class ConditionSolver {
             return Math.abs(a - b) <= NEARLY_EQUAL * size;
         } catch (BudgetExceededException e) {
             throw e;
-        } catch (MathSyntaxException e) {
+        } catch (UncalculableException e) {
             return false;
         }
     }
