@@ -1,7 +1,9 @@
 import app.AppBuilder;
+import app.StackedAppBuilder;
 
 import javax.swing.JFrame;
 import javax.swing.SwingUtilities;
+import javax.swing.UIManager;
 
 public class app {
     vital_mini model;
@@ -12,11 +14,23 @@ public class app {
     }
 
     void init() throws Exception {
-        SwingUtilities.invokeAndWait(() -> frame = new AppBuilder()
-                .addDrawingView()
-                .addExpressionView()
-                .addEvaluateUseCase()
-                .build());
+        SwingUtilities.invokeAndWait(() -> {
+            try {
+                UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());  // native look on Windows
+            } catch (Exception ignored) {
+                // fall back to the default look
+            }
+            // US2: the expression evaluator, shown on the Answer page
+            AppBuilder evaluator = new AppBuilder()
+                    .addExpressionView()
+                    .addEvaluateUseCase();
+            // Graph, PDF and Answer pages stacked in one window, sharing one handwriting canvas
+            frame = new StackedAppBuilder()
+                    .addGraphPage()
+                    .addPdfPage()
+                    .addAnswerPage(evaluator.getExpressionView())
+                    .build();
+        });
     }
 
     void run() {
