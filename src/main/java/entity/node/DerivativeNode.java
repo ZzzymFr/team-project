@@ -42,6 +42,11 @@ public class DerivativeNode extends Node {
     }
 
     @Override
+    public boolean isApproximate() {
+        return true;
+    }
+
+    @Override
     public Value evaluate(Context context) {
         double x = context.getVariable(variable);
         return new NumberValue(DerivativeCalculator.derivative(

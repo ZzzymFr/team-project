@@ -55,7 +55,21 @@ class FunctionAndDerivativeTest {
         assertTrue(roots.startsWith("x = -98.96016859 or x = -95.81857593 or "), roots);
         assertTrue(roots.endsWith("(and 54 more)"), roots);
         assertTrue(c.show("\\frac{d}{dx}\\sin(x)=0").startsWith("x = -98.96016859 or "));
+        assertEquals("x = 0.6931471806", c.show("\\frac{d}{dx}e^{x}=2"));
         c.show("v(x)=\\frac{1}{x}");
         assertEquals("= -400", c.show("v'(0.05)"));
+    }
+
+    @Test
+    void approximateResultsAreRoundedForDisplay() {
+        Calc c = new Calc();
+        c.show("f(x)=x^3");
+        assertEquals("= 12", c.show("f'(2)"));
+        assertEquals("= 13", c.show("f'(2)+1"));
+        assertEquals("= (12, 1)", c.show("(f'(2),1)"));
+        c.show("k(x)=f'(x)");
+        assertEquals("= 12", c.show("k(2)"));
+        c.show("p(x)=e^{x}");
+        assertEquals("= 2.71828183", c.show("p'(1)"));
     }
 }

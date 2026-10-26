@@ -21,6 +21,7 @@ public class CallNode extends Node {
     private final int derivativeParameter;
     private final Map<String, UserFunction> functions;
     private boolean checkingInfinity = false;
+    private boolean checkingApproximate = false;
 
     public CallNode(String name, List<Node> arguments, int derivativeOrder, int derivativeParameter,
                     Map<String, UserFunction> functions) {
@@ -66,6 +67,23 @@ public class CallNode extends Node {
             return function.getBody().canBeInfinite();
         } finally {
             checkingInfinity = false;
+        }
+    }
+
+    @Override
+    public boolean isApproximate() {
+        if (derivativeOrder > 0 || super.isApproximate()) {
+            return true;
+        }
+        UserFunction function = functions.get(name);
+        if (function == null || checkingApproximate) {
+            return false;
+        }
+        checkingApproximate = true;
+        try {
+            return function.getBody().isApproximate();
+        } finally {
+            checkingApproximate = false;
         }
     }
 

@@ -7,7 +7,6 @@ import java.util.function.DoubleUnaryOperator;
 public final class DerivativeCalculator {
     public static final int MAX_ORDER = 4;
 
-    private static final int SIGNIFICANT_DIGITS = 9;
     private static final int LEVELS = 12;
     private static final double SHRINK = 1.4;
     private static final double SAFE = 2.0;
@@ -44,7 +43,7 @@ public final class DerivativeCalculator {
         if (isFinite(best[1]) && Math.abs(result) <= NOISE_FACTOR * best[1]) {
             return 0;
         }
-        return Rounding.toSignificant(result, SIGNIFICANT_DIGITS);
+        return result;
     }
 
     private static boolean isConverged(double[] estimate) {

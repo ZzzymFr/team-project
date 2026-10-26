@@ -29,6 +29,15 @@ public abstract class Node {
         return false;
     }
 
+    public boolean isApproximate() {
+        for (Node child : children()) {
+            if (child.isApproximate()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public boolean isCondition() {
         return false;
     }

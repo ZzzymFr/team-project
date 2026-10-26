@@ -9,12 +9,15 @@ import entity.MathParser;
 import entity.MathSyntaxException;
 import entity.UncalculableException;
 import entity.UserFunction;
+import entity.calculus.Rounding;
 import entity.node.Node;
 import entity.node.RelationNode;
+import entity.value.FiniteSetValue;
 import entity.value.NumberSetValue;
 import entity.value.NumberValue;
 import entity.value.Value;
 import entity.value.Values;
+import entity.value.VectorValue;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -27,6 +30,7 @@ import java.util.Set;
 
 public class EvaluateInteractor implements EvaluateInputBoundary {
     private static final int MAX_PLUS_MINUS = 4;
+    private static final int APPROXIMATE_DIGITS = 9;
 
     private final FunctionDataAccessInterface functionDataAccess;
     private final EvaluateOutputBoundary presenter;
@@ -117,6 +121,9 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
         List<Value> values = new ArrayList<>();
         for (int mask = 0; mask < masks; mask++) {
             Value value = calculate(node, new Context(functions).withSigns(mask));
+            if (node.isApproximate()) {
+                value = rounded(value);
+            }
             boolean seen = false;
             for (Value existing : values) {
                 if (Values.areEqual(existing, value)) {
@@ -128,6 +135,31 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
             }
         }
         return values;
+    }
+
+    private Value rounded(Value value) {
+        if (value instanceof NumberValue) {
+            return new NumberValue(round(((NumberValue) value).getValue()));
+        }
+        if (value instanceof VectorValue) {
+            List<Double> components = new ArrayList<>();
+            for (double component : ((VectorValue) value).getComponents()) {
+                components.add(round(component));
+            }
+            return new VectorValue(components);
+        }
+        if (value instanceof FiniteSetValue) {
+            List<Double> elements = new ArrayList<>();
+            for (double element : ((FiniteSetValue) value).getElements()) {
+                elements.add(round(element));
+            }
+            return new FiniteSetValue(elements);
+        }
+        return value;
+    }
+
+    private double round(double number) {
+        return Rounding.toSignificant(number, APPROXIMATE_DIGITS);
     }
 
     private void solveCondition(Node node, String variable, Map<String, UserFunction> functions, int masks) {
