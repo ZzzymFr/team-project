@@ -1,7 +1,9 @@
 package use_case.evaluate;
 
+import entity.ConditionSolver;
 import entity.Context;
 import entity.EquationSolver;
+import entity.Interval;
 import entity.MathLexer;
 import entity.MathParser;
 import entity.MathSyntaxException;
@@ -129,7 +131,7 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
 
     private void solveCondition(Node node, String variable, Map<String, UserFunction> functions, int masks) {
         if (!isSingleEquation(node)) {
-            presenter.prepareFailView(unknownVariableMessage(variable));
+            solveInequality(node, variable, functions, masks);
             return;
         }
         boolean excluding = ((RelationNode) node).getOperators().get(0).equals("\\neq");
@@ -161,6 +163,19 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
             presenter.prepareAlwaysTrueView(variable);
         } else {
             presenter.prepareExcludedView(variable, solutions);
+        }
+    }
+
+    private void solveInequality(Node node, String variable, Map<String, UserFunction> functions, int masks) {
+        if (masks > 1) {
+            throw new UncalculableException();
+        }
+        List<Interval> intervals = new ConditionSolver(node, variable, new Context(functions)).solve();
+        if (intervals.size() == 1 && intervals.get(0).getLow() == Double.NEGATIVE_INFINITY
+                && intervals.get(0).getHigh() == Double.POSITIVE_INFINITY) {
+            presenter.prepareAlwaysTrueView(variable);
+        } else {
+            presenter.prepareIntervalsView(variable, intervals);
         }
     }
 
