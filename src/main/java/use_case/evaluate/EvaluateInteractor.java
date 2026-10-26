@@ -19,6 +19,7 @@ import entity.value.Values;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -190,7 +191,7 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
         for (int i = 2; i < equalsIndex; i += 2) {
             parameters.add(tokens.get(i));
         }
-        String header = name + "(" + String.join(", ", parameters) + ")";
+        String header = name + "(" + String.join(",", parameters) + ")";
         List<String> right = new ArrayList<>(tokens.subList(equalsIndex + 1, tokens.size()));
         if (right.isEmpty()) {
             presenter.prepareFailView("Please write a formula after \"" + header + "=\".");
@@ -209,7 +210,8 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
         body.collectFreeVariables(variables);
         for (String variable : variables) {
             if (!parameters.contains(variable)) {
-                presenter.prepareFailView("The formula of " + header + " can only use the variable "
+                String noun = parameters.size() == 1 ? "variable " : "variables ";
+                presenter.prepareFailView("The formula of " + header + " can only use the " + noun
                         + String.join(", ", parameters) + ", but it uses " + variable + ".");
                 return;
             }
@@ -219,7 +221,11 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
         for (String parameter : parameters) {
             testContext = testContext.withVariable(parameter, 1.0);
         }
-        body.evaluate(testContext);
+        try {
+            body.evaluate(testContext);
+        } catch (UncalculableException e) {
+            // can be undefined at 1 and still be fine
+        }
 
         String formulaText = textAfterEquals(expression);
         functionDataAccess.saveFunction(new UserFunction(name, parameters, body, formulaText));
@@ -228,14 +234,27 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
 
     private boolean isFunctionDefinition(List<String> tokens) {
         int equalsIndex = tokens.indexOf("=");
-        if (equalsIndex != 4 || equalsIndex != tokens.lastIndexOf("=")) {
+        if (equalsIndex < 4 || equalsIndex % 2 != 0 || equalsIndex != tokens.lastIndexOf("=")) {
             return false;
         }
         String name = tokens.get(0);
-        String parameter = tokens.get(2);
-        return MathLexer.isLetter(name) && tokens.get(1).equals("(")
-                && MathLexer.isLetter(parameter) && tokens.get(3).equals(")")
-                && !name.equals(parameter) && !name.equals("e") && !parameter.equals("e");
+        if (!MathLexer.isLetter(name) || name.equals("e") || !tokens.get(1).equals("(")
+                || !tokens.get(equalsIndex - 1).equals(")")) {
+            return false;
+        }
+        Set<String> parameters = new HashSet<>();
+        for (int i = 2; i < equalsIndex; i += 2) {
+            String parameter = tokens.get(i);
+            String separator = tokens.get(i + 1);
+            if (!MathLexer.isLetter(parameter) || parameter.equals(name) || parameter.equals("e")
+                    || !parameters.add(parameter)) {
+                return false;
+            }
+            if (i + 1 < equalsIndex - 1 && !separator.equals(",")) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private boolean isSingleEquation(Node node) {

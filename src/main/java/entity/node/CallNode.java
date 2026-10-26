@@ -4,6 +4,8 @@ import entity.Context;
 import entity.MathSyntaxException;
 import entity.UncalculableException;
 import entity.UserFunction;
+import entity.calculus.DerivativeCalculator;
+import entity.value.NumberValue;
 import entity.value.Value;
 import entity.value.Values;
 
@@ -75,14 +77,28 @@ public class CallNode extends Node {
             throw new MathSyntaxException("Unknown variable \"" + name + "\".");
         }
         List<String> parameters = function.getParameters();
-        if (derivativeOrder != 0 || parameters.size() != arguments.size()) {
+        if (parameters.size() != arguments.size()) {
+            String inputs = parameters.size() == 1 ? " input." : " inputs.";
+            throw new MathSyntaxException(name + " needs " + parameters.size() + inputs);
+        }
+        if (derivativeOrder < 0 || derivativeOrder > DerivativeCalculator.MAX_ORDER
+                || derivativeParameter < 0 || derivativeParameter >= parameters.size()) {
             throw new UncalculableException();
         }
-        Context body = context.forFunctionBody(name);
+        Context bound = context.forFunctionBody(name);
+        double[] values = new double[arguments.size()];
         for (int i = 0; i < arguments.size(); i++) {
-            double argument = Values.toNumber(arguments.get(i).evaluate(context));
-            body = body.withVariable(parameters.get(i), argument);
+            values[i] = Values.toNumber(arguments.get(i).evaluate(context));
+            bound = bound.withVariable(parameters.get(i), values[i]);
         }
-        return function.getBody().evaluate(body);
+        Node body = function.getBody();
+        if (derivativeOrder == 0) {
+            return body.evaluate(bound);
+        }
+        String parameter = parameters.get(derivativeParameter);
+        Context fixed = bound;
+        return new NumberValue(DerivativeCalculator.derivative(
+                t -> DerivativeNode.numberAt(body, fixed.withVariable(parameter, t)),
+                values[derivativeParameter], derivativeOrder));
     }
 }

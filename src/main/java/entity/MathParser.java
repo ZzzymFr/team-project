@@ -1,7 +1,9 @@
 package entity;
 
+import entity.calculus.DerivativeCalculator;
 import entity.node.BinaryNode;
 import entity.node.CallNode;
+import entity.node.DerivativeNode;
 import entity.node.FunctionNode;
 import entity.node.LiteralNode;
 import entity.node.Node;
@@ -17,7 +19,6 @@ import entity.value.NumberSetValue;
 import entity.value.NumberValue;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -244,6 +245,10 @@ public final class MathParser {
             return new LiteralNode(new NumberValue(Math.E), false);
         }
         if (token.equals("\\frac")) {
+            Node derivative = parseDerivative();
+            if (derivative != null) {
+                return derivative;
+            }
             expect("{");
             Node top = parseRestOfGroup("}");
             expect("{");
@@ -274,9 +279,13 @@ public final class MathParser {
         }
         if (MathLexer.isLetter(token)) {
             if (functions.containsKey(token) && !peekIs("_")) {
-                return parseCall(token);
+                return parseFunctionUse(token);
             }
-            return new VariableNode(parseName(token));
+            String name = parseName(token);
+            if (peekIs("'")) {
+                throw new UncalculableException();
+            }
+            return new VariableNode(name);
         }
         if (token.startsWith("\\") && token.length() > 1) {
             throw new MathSyntaxException("\"" + token + "\" is not supported.");
@@ -437,13 +446,95 @@ public final class MathParser {
         throw new UncalculableException();
     }
 
-    private Node parseCall(String name) {
+    private Node parseFunctionUse(String name) {
+        int order = 0;
+        while (peekIs("'")) {
+            next();
+            order++;
+        }
+        if (order == 0 && peekIs("^") && "{".equals(tokenAt(position + 1)) && "(".equals(tokenAt(position + 2))
+                && orderOf(tokenAt(position + 3)) >= 0 && ")".equals(tokenAt(position + 4))
+                && "}".equals(tokenAt(position + 5))) {
+            order = orderOf(tokenAt(position + 3));
+            position = position + 6;
+        }
+        if (order > DerivativeCalculator.MAX_ORDER) {
+            throw new UncalculableException();
+        }
+        return parseCall(name, order, 0);
+    }
+
+    private Node parseCall(String name, int derivativeOrder, int derivativeParameter) {
         if (!peekIs("(")) {
             throw new MathSyntaxException("Write " + name + "(...) to use the function " + name + ".");
         }
         next();
-        Node argument = parseRestOfGroup(")");
-        return new CallNode(name, Collections.singletonList(argument), 0, 0, functions);
+        List<Node> arguments = new ArrayList<>();
+        arguments.add(parseStatement());
+        while (peekIs(",")) {
+            next();
+            arguments.add(parseStatement());
+        }
+        expect(")");
+        return new CallNode(name, arguments, derivativeOrder, derivativeParameter, functions);
+    }
+
+    // parse \frac{d}{dx} stuff, null if its not a derivative
+    private Node parseDerivative() {
+        int start = position;
+        String operator = tokenAt(position + 1);
+        if (!"{".equals(peek()) || !("d".equals(operator) || "\\partial".equals(operator))) {
+            return null;
+        }
+        position = position + 2;
+        int order = readDerivativeOrder();
+        String function = null;
+        if (peek() != null && MathLexer.isLetter(peek()) && functions.containsKey(peek())) {
+            function = next();
+        }
+        String variable = null;
+        if (peekIs("}") && "{".equals(tokenAt(position + 1)) && operator.equals(tokenAt(position + 2))) {
+            position = position + 3;
+            if (peek() != null && MathLexer.isLetter(peek())) {
+                variable = next();
+            }
+        }
+        if (variable == null || order != readDerivativeOrder() || !peekIs("}")) {
+            position = start;
+            return null;
+        }
+        next();
+        if (order < 1 || order > DerivativeCalculator.MAX_ORDER) {
+            throw new UncalculableException();
+        }
+        if (function == null) {
+            return new DerivativeNode(variable, order, parseAdditive());
+        }
+        int parameter = functions.get(function).getParameters().indexOf(variable);
+        if (parameter < 0) {
+            throw new UncalculableException();
+        }
+        return parseCall(function, order, parameter);
+    }
+
+    private int readDerivativeOrder() {
+        if (peekIs("^") && orderOf(tokenAt(position + 1)) >= 0) {
+            next();
+            return orderOf(next());
+        }
+        return 1;
+    }
+
+    private int orderOf(String token) {
+        if (token == null || token.isEmpty() || token.length() > 3) {
+            return -1;
+        }
+        for (int i = 0; i < token.length(); i++) {
+            if (token.charAt(i) < '0' || token.charAt(i) > '9') {
+                return -1;
+            }
+        }
+        return Integer.parseInt(token);
     }
 
     private Node parseSqrt() {
@@ -519,6 +610,13 @@ public final class MathParser {
     private boolean isNumber(String token) {
         char first = token.charAt(0);
         return (first >= '0' && first <= '9') || first == '.';
+    }
+
+    private String tokenAt(int index) {
+        if (index < tokens.size()) {
+            return tokens.get(index);
+        }
+        return null;
     }
 
     private String peek() {
