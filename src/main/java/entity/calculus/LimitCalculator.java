@@ -1,5 +1,7 @@
 package entity.calculus;
 
+import entity.UncalculableException;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.DoubleUnaryOperator;
@@ -7,8 +9,11 @@ import java.util.function.DoubleUnaryOperator;
 public final class LimitCalculator {
     private static final int SAMPLES = 30;
     private static final int MIN_SAMPLES = 5;
-    private static final int LEADING_SKIPS = 10;
-    private static final double FIRST_STEP = 0.1;
+    private static final int POSITIONS = 40;
+    private static final int TAIL = 3;
+    private static final int OSCILLATION_TURNS = 3;
+    // not a round number so poles dont land on samples
+    private static final double FIRST_STEP = 0.0937;
     private static final double SHRINK = 2;
     private static final int RICHARDSON_COLUMNS = 10;
     private static final int WYNN_COLUMNS = 8;
@@ -16,15 +21,16 @@ public final class LimitCalculator {
     private static final double ACCEPTED = 1e-8;
     private static final double SIDES_AGREE = 1e-7;
     private static final double NOISE_FACTOR = 10;
+    private static final double ROUND_OFF = 1e-12;
     private static final double SAFE = 2;
     private static final int NOISY_ROWS = 2;
     private static final int GROWTH_WINDOW = 6;
-    private static final double STEADY_GROWTH = 0.98;
+    private static final double STEADY_GROWTH = 0.999;
 
     private LimitCalculator() {
     }
 
-    // side: -1 below, +1 above, 0 both. NaN = no limit
+    // side -1/+1/0, NaN = no limit, uncalc = cant tell
     public static double limit(DoubleUnaryOperator f, double target, int side) {
         if (Double.isNaN(target)) {
             return Double.NaN;
@@ -68,59 +74,90 @@ public final class LimitCalculator {
         return Double.NaN;
     }
 
-    // limit of g(h) as h->0 from halving samples
+    // limit of g(h) as h->0, NaN sample restarts the run
     private static double oneSided(DoubleUnaryOperator g) {
         double h = FIRST_STEP;
-        double y = g.applyAsDouble(h);
-        for (int i = 0; i < LEADING_SKIPS && !isFinite(y); i++) {
-            h = h / SHRINK;
-            y = g.applyAsDouble(h);
-        }
         List<Double> samples = new ArrayList<>();
+        List<Double> before = new ArrayList<>();
         Richardson richardson = new Richardson();
-        while (true) {
-            if (Double.isNaN(y)) {
-                break;
+        boolean anyFinite = false;
+        int badRun = 0;
+        double badValue = Double.NaN;
+        for (int k = 0; k < POSITIONS && samples.size() < SAMPLES; k++) {
+            double y = g.applyAsDouble(h);
+            h = h / SHRINK;
+            if (!isFinite(y)) {
+                if (!samples.isEmpty()) {
+                    before = samples;
+                    samples = new ArrayList<>();
+                    richardson = new Richardson();
+                }
+                badValue = badRun == 0 || y == badValue ? y : Double.NaN;
+                badRun++;
+                continue;
             }
-            if (Double.isInfinite(y)) {
-                return towardsInfinity(samples, y);
-            }
+            anyFinite = true;
+            badRun = 0;
             samples.add(y);
             richardson.add(y);
-            boolean done = richardson.accuracy() <= SETTLED
-                    || (richardson.accuracy() <= ACCEPTED && richardson.worseRows >= NOISY_ROWS);
-            if (samples.size() >= MIN_SAMPLES && done) {
-                return snapped(richardson.value, richardson.error);
+            if (samples.size() >= MIN_SAMPLES && richardson.isDone()) {
+                return snapped(richardson.value, richardson.error, y);
             }
-            if (samples.size() == SAMPLES) {
-                break;
-            }
-            h = h / SHRINK;
-            y = g.applyAsDouble(h);
         }
-        if (samples.size() < MIN_SAMPLES) {
+        if (!anyFinite) {
             return Double.NaN;
         }
+        if (samples.size() >= MIN_SAMPLES) {
+            return fromSamples(samples, richardson);
+        }
+        if (badRun >= TAIL && Double.isInfinite(badValue) && movesTowards(before, badValue)) {
+            return badValue;
+        }
+        throw new UncalculableException();
+    }
+
+    private static double fromSamples(List<Double> samples, Richardson richardson) {
         double growth = steadyGrowth(samples);
         if (growth != 0) {
+            if (Math.signum(samples.get(samples.size() - 1)) != growth) {
+                throw new UncalculableException();
+            }
             return growth * Double.POSITIVE_INFINITY;
         }
+        double nearest = samples.get(samples.size() - 1);
         if (richardson.accuracy() <= ACCEPTED) {
-            return snapped(richardson.value, richardson.error);
+            return snapped(richardson.value, richardson.error, nearest);
         }
         double[] wynn = wynn(samples);
         if (relativeError(wynn[0], wynn[1]) <= ACCEPTED) {
-            return snapped(wynn[0], wynn[1]);
+            return snapped(wynn[0], wynn[1], nearest);
         }
-        return Double.NaN;
+        if (oscillates(samples)) {
+            return Double.NaN;
+        }
+        throw new UncalculableException();
     }
 
-    private static double towardsInfinity(List<Double> samples, double infinity) {
+    // overflowed going to that inf
+    private static boolean movesTowards(List<Double> samples, double infinity) {
         int n = samples.size();
-        if (n < 2 || Math.signum(samples.get(n - 1) - samples.get(n - 2)) == Math.signum(infinity)) {
-            return infinity;
+        return n >= 2 && Math.signum(samples.get(n - 1)) == Math.signum(infinity)
+                && Math.signum(samples.get(n - 1) - samples.get(n - 2)) == Math.signum(infinity);
+    }
+
+    private static boolean oscillates(List<Double> samples) {
+        int turns = 0;
+        double previousStep = 0;
+        for (int i = 1; i < samples.size(); i++) {
+            double step = samples.get(i) - samples.get(i - 1);
+            if (step * previousStep < 0) {
+                turns++;
+            }
+            if (step != 0) {
+                previousStep = step;
+            }
         }
-        return Double.NaN;
+        return turns >= OSCILLATION_TURNS;
     }
 
     // +1/-1 if samples keep moving same way, else 0
@@ -176,8 +213,9 @@ public final class LimitCalculator {
         return new double[] {bestValue, bestError};
     }
 
-    private static double snapped(double value, double error) {
-        if (Math.abs(value) <= NOISE_FACTOR * error) {
+    // within error of 0 -> just 0
+    private static double snapped(double value, double error, double nearestSample) {
+        if (Math.abs(value) <= Math.max(NOISE_FACTOR * error, ROUND_OFF * Math.abs(nearestSample))) {
             return 0;
         }
         return value;
@@ -242,6 +280,10 @@ public final class LimitCalculator {
                 rowValue = candidate;
                 rowError = candidateError;
             }
+        }
+
+        boolean isDone() {
+            return accuracy() <= SETTLED || (accuracy() <= ACCEPTED && worseRows >= NOISY_ROWS);
         }
 
         double accuracy() {
