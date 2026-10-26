@@ -70,4 +70,31 @@ class LimitTest {
         assertEquals("= -∞", Calc.once("\\lim_{x\\to\\infty}1000000000000-x"));
         assertEquals("= 1000000000000", Calc.once("\\lim_{x\\to\\infty}1000000000000+\\frac{1}{x}"));
     }
+
+    @Test
+    void dampedOscillationsHaveALimit() {
+        assertEquals("= 0", Calc.once("\\lim_{x\\to0^+}\\sqrt{x}\\cos(\\ln x)"));
+        assertEquals("= 0", Calc.once("\\lim_{x\\to0^+}\\sqrt{x}\\sin(\\ln x)"));
+        assertEquals("= 0", Calc.once("\\lim_{x\\to0^+}x^{0.2}\\cos(\\ln x)"));
+        assertEquals("= 0", Calc.once("\\lim_{x\\to\\infty}\\frac{\\sin(\\ln x)}{\\sqrt{x}}"));
+        assertEquals("= 0", Calc.once("\\lim_{x\\to\\infty}\\frac{\\cos(\\ln x)}{x^{0.3}}"));
+        assertEquals("= 1", Calc.once("\\lim_{x\\to0^+}1+\\sqrt{x}\\cos(\\ln x)"));
+        assertEquals("= 0", Calc.once("\\lim_{x\\to\\infty}\\frac{\\sin(\\ln x)}{x}"));
+        assertEquals("= 0", Calc.once("\\lim_{x\\to0}x\\sin(\\frac{1}{x})"));
+        assertEquals("= 0", Calc.once("\\lim_{x\\to\\infty}\\frac{\\sin x}{x}"));
+    }
+
+    @Test
+    void slowDampedOscillationsAreUncalculable() {
+        assertEquals("Uncalculable", Calc.once("\\lim_{x\\to\\infty}\\frac{\\sin x}{\\sqrt{x}}"));
+        assertEquals("Uncalculable", Calc.once("\\lim_{x\\to0^+}\\sqrt{x}\\sin(\\frac{1}{x})"));
+        assertEquals("Uncalculable", Calc.once("\\lim_{x\\to\\infty}\\frac{\\sin(\\ln x)}{\\ln x}"));
+    }
+
+    @Test
+    void undampedOscillationsHaveNoLimit() {
+        assertEquals("= undefined", Calc.once("\\lim_{x\\to\\infty}\\cos x"));
+        assertEquals("= undefined", Calc.once("\\lim_{x\\to0}\\sin(\\frac{1}{x})"));
+        assertEquals("= undefined", Calc.once("\\lim_{x\\to\\infty}x\\sin x"));
+    }
 }

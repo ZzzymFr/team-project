@@ -78,4 +78,15 @@ class LimitCalculatorTest {
         assertEquals(Double.POSITIVE_INFINITY, LimitCalculator.limit(x -> x - 1e12, Double.POSITIVE_INFINITY, 0));
         assertEquals(1e12, LimitCalculator.limit(x -> 1e12 + 1 / x, Double.POSITIVE_INFINITY, 0), 1e-3);
     }
+
+    @Test
+    void oscillations() {
+        double inf = Double.POSITIVE_INFINITY;
+        assertEquals(0, LimitCalculator.limit(x -> Math.sqrt(x) * Math.cos(Math.log(x)), 0, 1), 0);
+        assertEquals(1, LimitCalculator.limit(x -> 1 + Math.sqrt(x) * Math.cos(Math.log(x)), 0, 1), 1e-9);
+        assertEquals(0, LimitCalculator.limit(x -> Math.sin(Math.log(x)) / x, inf, 0), 0);
+        assertThrows(UncalculableException.class, () -> LimitCalculator.limit(x -> Math.sin(x) / Math.sqrt(x), inf, 0));
+        assertTrue(Double.isNaN(LimitCalculator.limit(Math::cos, inf, 0)));
+        assertTrue(Double.isNaN(LimitCalculator.limit(x -> Math.sin(1 / x), 0, 0)));
+    }
 }

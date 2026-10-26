@@ -27,6 +27,7 @@ public final class LimitCalculator {
     private static final int GROWTH_WINDOW = 6;
     private static final double STEADY_GROWTH = 0.999;
     private static final double ACCELERATION = 1.5;
+    private static final double SWING_SHRINK = 0.5;
 
     private LimitCalculator() {
     }
@@ -118,9 +119,10 @@ public final class LimitCalculator {
         throw new UncalculableException();
     }
 
-    // small rel error not enough, samples also need to settle
+    // small rel error not enough, oscillating goes to fromSamples
     private static boolean isSettled(List<Double> samples, Richardson richardson) {
-        if (steadyGrowth(samples) != 0) {
+        List<Double> recent = samples.subList(Math.max(0, samples.size() - GROWTH_WINDOW), samples.size());
+        if (steadyGrowth(samples) != 0 || turns(recent) > 0) {
             return false;
         }
         boolean exact = richardson.accuracy() <= SETTLED && stepsDoNotGrow(samples);
@@ -149,18 +151,62 @@ public final class LimitCalculator {
             return growth * Double.POSITIVE_INFINITY;
         }
         double nearest = samples.get(samples.size() - 1);
+        if (turns(samples) >= OSCILLATION_TURNS) {
+            return fromOscillation(samples, richardson, nearest);
+        }
         if (richardson.accuracy() <= ACCEPTED) {
             return snapped(richardson.value, richardson.error, nearest);
-        }
-        // wynn turns oscillation into its middle, skip it there
-        if (oscillates(samples)) {
-            return Double.NaN;
         }
         double[] wynn = wynn(samples);
         if (relativeError(wynn[0], wynn[1]) <= ACCEPTED) {
             return snapped(wynn[0], wynn[1], nearest);
         }
         throw new UncalculableException();
+    }
+
+    // swing not shrinking = no limit
+    private static double fromOscillation(List<Double> samples, Richardson richardson, double nearest) {
+        int n = samples.size();
+        List<Double> earlier = samples.subList(0, n / 2);
+        List<Double> later = samples.subList(n / 2, n);
+        double swing = max(later) - min(later);
+        if (swing >= SWING_SHRINK * (max(earlier) - min(earlier))) {
+            return Double.NaN;
+        }
+        double[] wynn = wynn(samples);
+        double[][] candidates = {{richardson.value, richardson.error}, wynn};
+        for (double[] candidate : candidates) {
+            double value = candidate[0];
+            double error = candidate[1];
+            if (isFinite(value) && isFinite(error) && error <= ACCEPTED * Math.max(Math.abs(value), swing)
+                    && value >= min(later) - error && value <= max(later) + error) {
+                return snapped(value, error, nearest);
+            }
+        }
+        // swing already closed in
+        List<Double> last = samples.subList(n - MIN_SAMPLES, n);
+        double middle = (max(last) + min(last)) / 2;
+        double halfWidth = (max(last) - min(last)) / 2;
+        if (relativeError(middle, halfWidth) <= ACCEPTED) {
+            return snapped(middle, halfWidth, nearest);
+        }
+        throw new UncalculableException();
+    }
+
+    private static double max(List<Double> values) {
+        double result = Double.NEGATIVE_INFINITY;
+        for (double value : values) {
+            result = Math.max(result, value);
+        }
+        return result;
+    }
+
+    private static double min(List<Double> values) {
+        double result = Double.POSITIVE_INFINITY;
+        for (double value : values) {
+            result = Math.min(result, value);
+        }
+        return result;
     }
 
     // overflowed going to that inf
@@ -178,7 +224,8 @@ public final class LimitCalculator {
         return last >= ACCELERATION * Math.abs(samples.get(n - 2) - samples.get(n - 3));
     }
 
-    private static boolean oscillates(List<Double> samples) {
+    // count direction changes, ignore roundoff steps
+    private static int turns(List<Double> samples) {
         int turns = 0;
         double previousStep = 0;
         for (int i = 1; i < samples.size(); i++) {
@@ -191,7 +238,7 @@ public final class LimitCalculator {
             }
             previousStep = step;
         }
-        return turns >= OSCILLATION_TURNS;
+        return turns;
     }
 
     // +1/-1 if samples keep moving same way, else 0
