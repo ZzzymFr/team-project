@@ -1,21 +1,28 @@
+import app.AppBuilder;
 
+import javax.swing.JFrame;
+import javax.swing.SwingUtilities;
 
 public class app {
     vital_mini model;
-    app(){
+    JFrame frame;
+
+    app() {
         model = new vital_mini();
     }
-    void init(){
 
+    void init() throws Exception {
+        SwingUtilities.invokeAndWait(() -> frame = new AppBuilder()
+                .addDrawingView()
+                .addExpressionView()
+                .addEvaluateUseCase()
+                .build());
     }
-    void run(){
-        boolean should_run = true;
-        while(should_run){
-           if(should_run){
-               break;
-           }
-        }
+
+    void run() {
+        SwingUtilities.invokeLater(() -> frame.setVisible(true));
     }
+
     public static void main(String[] args) {
         try {
             app application = new app();
@@ -27,5 +34,4 @@ public class app {
             System.exit(1);
         }
     }
-    
 }
