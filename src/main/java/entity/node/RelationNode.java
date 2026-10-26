@@ -43,16 +43,54 @@ public class RelationNode extends Node {
         boolean result = true;
         for (int i = 0; i < operators.size(); i++) {
             Value right = operands.get(i + 1).evaluate(context);
-            result = result && holds(operators.get(i), left, right);
+            result = result && holds(operators.get(i), left, right, operands.get(i), operands.get(i + 1));
             left = right;
         }
         return BooleanValue.of(result);
     }
 
-    private boolean holds(String operator, Value left, Value right) {
-        if (operator.equals("=")) {
-            return Values.areEqual(left, right);
+    private boolean holds(String operator, Value left, Value right, Node leftNode, Node rightNode) {
+        switch (operator) {
+            case "=":
+                return Values.areEqual(left, right);
+            case "\\neq":
+                return !Values.areEqual(left, right);
+            case "<":
+                return Values.toNumber(left) < Values.toNumber(right) && !almostEqual(left, right);
+            case ">":
+                return Values.toNumber(left) > Values.toNumber(right) && !almostEqual(left, right);
+            case "\\leq":
+                return Values.toNumber(left) < Values.toNumber(right) || almostEqual(left, right);
+            case "\\geq":
+                return Values.toNumber(left) > Values.toNumber(right) || almostEqual(left, right);
+            case "\\approx":
+                return approximately(Values.toNumber(left), Values.toNumber(right), leftNode, rightNode);
+            default:
+                throw new UncalculableException();
         }
-        throw new UncalculableException();
+    }
+
+    private boolean almostEqual(Value left, Value right) {
+        return Values.areAlmostEqual(Values.toNumber(left), Values.toNumber(right));
+    }
+
+    private boolean approximately(double a, double b, Node leftNode, Node rightNode) {
+        if (Double.isNaN(a) || Double.isNaN(b)) {
+            return false;
+        }
+        if (Double.isInfinite(a) || Double.isInfinite(b)) {
+            return a == b;
+        }
+        if (rightNode instanceof NumberNode) {
+            return withinRounding(a, b, ((NumberNode) rightNode).getDecimals());
+        }
+        if (leftNode instanceof NumberNode) {
+            return withinRounding(a, b, ((NumberNode) leftNode).getDecimals());
+        }
+        return Math.abs(a - b) <= 0.01 * Math.max(Math.abs(a), Math.abs(b));
+    }
+
+    private boolean withinRounding(double a, double b, int decimals) {
+        return Math.abs(a - b) <= 0.5 * Math.pow(10, -decimals) + 1e-12;
     }
 }

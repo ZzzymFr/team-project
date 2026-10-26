@@ -323,7 +323,9 @@ public final class MathParser {
     }
 
     private boolean isRelationOperator(String token) {
-        return "=".equals(token);
+        return "=".equals(token) || "<".equals(token) || ">".equals(token)
+                || "\\leq".equals(token) || "\\geq".equals(token)
+                || "\\neq".equals(token) || "\\approx".equals(token);
     }
 
     private boolean startsValue(String token) {

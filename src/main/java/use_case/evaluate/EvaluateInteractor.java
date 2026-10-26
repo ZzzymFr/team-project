@@ -132,13 +132,18 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
             presenter.prepareFailView(unknownVariableMessage(variable));
             return;
         }
+        boolean excluding = ((RelationNode) node).getOperators().get(0).equals("\\neq");
         List<Node> sides = ((RelationNode) node).getOperands();
         List<Double> all = new ArrayList<>();
         for (int mask = 0; mask < masks; mask++) {
             Context context = new Context(functions).withSigns(mask);
             EquationSolver solver = new EquationSolver(sides.get(0), sides.get(1), variable, context);
             if (solver.isAlwaysTrue()) {
-                presenter.prepareAlwaysTrueView(variable);
+                if (excluding) {
+                    presenter.prepareFailView("Uncalculable");
+                } else {
+                    presenter.prepareAlwaysTrueView(variable);
+                }
                 return;
             }
             all.addAll(solver.solve());
@@ -150,7 +155,13 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
                 solutions.add(solution);
             }
         }
-        presenter.prepareSolutionsView(variable, solutions);
+        if (!excluding) {
+            presenter.prepareSolutionsView(variable, solutions);
+        } else if (solutions.isEmpty()) {
+            presenter.prepareAlwaysTrueView(variable);
+        } else {
+            presenter.prepareExcludedView(variable, solutions);
+        }
     }
 
     private String unknownVariableMessage(String name) {
@@ -213,8 +224,12 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
     }
 
     private boolean isSingleEquation(Node node) {
-        return node instanceof RelationNode
-                && ((RelationNode) node).getOperators().equals(Collections.singletonList("="));
+        if (!(node instanceof RelationNode)) {
+            return false;
+        }
+        List<String> operators = ((RelationNode) node).getOperators();
+        return operators.size() == 1 && (operators.get(0).equals("=") || operators.get(0).equals("\\neq")
+                || operators.get(0).equals("\\approx"));
     }
 
     private int countEquals(Node node) {
