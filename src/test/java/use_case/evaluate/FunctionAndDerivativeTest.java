@@ -51,7 +51,10 @@ class FunctionAndDerivativeTest {
     void derivativeEquationsKeepEveryRoot() {
         Calc c = new Calc();
         c.show("f(x)=\\sin(x)");
-        assertTrue(c.show("f'(x)=0").endsWith("(and 54 more)"));
+        String roots = c.show("f'(x)=0");
+        assertTrue(roots.startsWith("x = -98.96016859 or x = -95.81857593 or "), roots);
+        assertTrue(roots.endsWith("(and 54 more)"), roots);
+        assertTrue(c.show("\\frac{d}{dx}\\sin(x)=0").startsWith("x = -98.96016859 or "));
         c.show("v(x)=\\frac{1}{x}");
         assertEquals("= -400", c.show("v'(0.05)"));
     }

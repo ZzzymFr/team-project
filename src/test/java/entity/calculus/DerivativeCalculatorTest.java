@@ -25,6 +25,8 @@ class DerivativeCalculatorTest {
         assertEquals(20, DerivativeCalculator.derivative(Math::log, 0.05, 1), 1e-6);
         assertEquals(Math.exp(2), DerivativeCalculator.derivative(Math::exp, 2, 3), 1e-6);
         assertEquals(0, DerivativeCalculator.derivative(x -> x * x * x, 2, 4), 0);
+        assertEquals(2e-7, DerivativeCalculator.derivative(x -> x * x, 1e-7, 1), 1e-15);
+        assertEquals(-1e-7, DerivativeCalculator.derivative(Math::sin, Math.PI / 2 + 1e-7, 1), 1e-12);
         assertEquals(-400, DerivativeCalculator.derivative(x -> 1 / x, 0.05, 1), 1e-6);
         assertEquals(7.68e7, DerivativeCalculator.derivative(x -> 1 / x, 0.05, 4), 1);
     }

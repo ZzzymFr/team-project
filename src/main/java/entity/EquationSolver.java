@@ -102,10 +102,6 @@ public class EquationSolver {
         if (isNumber(dRoot) && Math.abs(dRoot) < 1e-6) {
             return root;
         }
-        double dHigh = difference(high);
-        if (isNumber(dHigh) && Math.abs(dHigh) < 1e-6) {
-            return high;
-        }
         return Double.NaN;
     }
 

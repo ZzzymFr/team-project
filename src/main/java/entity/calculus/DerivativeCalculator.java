@@ -12,7 +12,7 @@ public final class DerivativeCalculator {
     private static final double SHRINK = 1.4;
     private static final double SAFE = 2.0;
     private static final double ONE_SIDED_TOLERANCE = 1e-4;
-    private static final double ZERO_TOLERANCE = 1e-6;
+    private static final double NOISE_FACTOR = 10;
     private static final double CONVERGED = 1e-9;
 
     private DerivativeCalculator() {
@@ -41,9 +41,7 @@ public final class DerivativeCalculator {
         if (order == 1 && !sidesAgree(f, x, result)) {
             return Double.NaN;
         }
-        double value = f.applyAsDouble(x);
-        double scale = Double.isNaN(value) || Double.isInfinite(value) ? 1 : Math.max(1, Math.abs(value));
-        if (Math.abs(result) < ZERO_TOLERANCE * scale) {
+        if (isFinite(best[1]) && Math.abs(result) <= NOISE_FACTOR * best[1]) {
             return 0;
         }
         return Rounding.toSignificant(result, SIGNIFICANT_DIGITS);
