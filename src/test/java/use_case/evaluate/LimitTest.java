@@ -54,4 +54,20 @@ class LimitTest {
         assertEquals("= 0", Calc.once("\\lim_{x\\to0^+}\\sqrt{x}"));
         assertEquals("Unexpected \"}\".", Calc.once("\\lim_{x\\to}x"));
     }
+
+    @Test
+    void samplesThatAreAllInfinite() {
+        assertEquals("= ∞", Calc.once("\\lim_{x\\to\\infty}e^{1000x}"));
+        assertEquals("= ∞", Calc.once("\\lim_{x\\to\\infty}e^{e^x}"));
+        assertEquals("= ∞", Calc.once("\\lim_{x\\to0^+}e^{\\frac{100}{x}}"));
+        assertEquals("= ∞", Calc.once("\\lim_{x\\to0}e^{\\frac{100}{x^2}}"));
+    }
+
+    @Test
+    void oscillationAndLargeOffsets() {
+        assertEquals("= undefined", Calc.once("\\lim_{x\\to\\infty}\\sin(\\ln x)"));
+        assertEquals("= ∞", Calc.once("\\lim_{x\\to\\infty}x-1000000000000"));
+        assertEquals("= -∞", Calc.once("\\lim_{x\\to\\infty}1000000000000-x"));
+        assertEquals("= 1000000000000", Calc.once("\\lim_{x\\to\\infty}1000000000000+\\frac{1}{x}"));
+    }
 }

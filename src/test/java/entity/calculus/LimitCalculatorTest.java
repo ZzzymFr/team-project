@@ -68,4 +68,14 @@ class LimitCalculatorTest {
         assertEquals(0, LimitCalculator.limit(Math::sqrt, 0, 1), 1e-9);
         assertTrue(Double.isNaN(LimitCalculator.limit(Math::sqrt, 0, 0)));
     }
+
+    @Test
+    void allInfiniteSamplesOscillationAndOffsets() {
+        assertEquals(Double.POSITIVE_INFINITY,
+                LimitCalculator.limit(x -> Math.exp(1000 * x), Double.POSITIVE_INFINITY, 0));
+        assertEquals(Double.POSITIVE_INFINITY, LimitCalculator.limit(x -> Math.exp(100 / (x * x)), 0, 0));
+        assertTrue(Double.isNaN(LimitCalculator.limit(x -> Math.sin(Math.log(x)), Double.POSITIVE_INFINITY, 0)));
+        assertEquals(Double.POSITIVE_INFINITY, LimitCalculator.limit(x -> x - 1e12, Double.POSITIVE_INFINITY, 0));
+        assertEquals(1e12, LimitCalculator.limit(x -> 1e12 + 1 / x, Double.POSITIVE_INFINITY, 0), 1e-3);
+    }
 }

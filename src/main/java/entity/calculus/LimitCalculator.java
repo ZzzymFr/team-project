@@ -26,6 +26,7 @@ public final class LimitCalculator {
     private static final int NOISY_ROWS = 2;
     private static final int GROWTH_WINDOW = 6;
     private static final double STEADY_GROWTH = 0.999;
+    private static final double ACCELERATION = 1.5;
 
     private LimitCalculator() {
     }
@@ -100,12 +101,13 @@ public final class LimitCalculator {
             badRun = 0;
             samples.add(y);
             richardson.add(y);
-            if (samples.size() >= MIN_SAMPLES && richardson.isDone()) {
+            if (samples.size() >= MIN_SAMPLES && isSettled(samples, richardson)) {
                 return snapped(richardson.value, richardson.error, y);
             }
         }
         if (!anyFinite) {
-            return Double.NaN;
+            // all samples same inf or side outside domain
+            return Double.isInfinite(badValue) ? badValue : Double.NaN;
         }
         if (samples.size() >= MIN_SAMPLES) {
             return fromSamples(samples, richardson);
@@ -116,10 +118,32 @@ public final class LimitCalculator {
         throw new UncalculableException();
     }
 
+    // small rel error not enough, samples also need to settle
+    private static boolean isSettled(List<Double> samples, Richardson richardson) {
+        if (steadyGrowth(samples) != 0) {
+            return false;
+        }
+        boolean exact = richardson.accuracy() <= SETTLED && stepsDoNotGrow(samples);
+        boolean noisy = richardson.accuracy() <= ACCEPTED && richardson.worseRows >= NOISY_ROWS;
+        return exact || noisy;
+    }
+
+    private static boolean stepsDoNotGrow(List<Double> samples) {
+        int n = samples.size();
+        for (int i = n - MIN_SAMPLES + 2; i < n; i++) {
+            double step = Math.abs(samples.get(i) - samples.get(i - 1));
+            if (step > Math.abs(samples.get(i - 1) - samples.get(i - 2))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private static double fromSamples(List<Double> samples, Richardson richardson) {
         double growth = steadyGrowth(samples);
         if (growth != 0) {
-            if (Math.signum(samples.get(samples.size() - 1)) != growth) {
+            // slow growth might level off, fast wont
+            if (Math.signum(samples.get(samples.size() - 1)) != growth && !accelerates(samples)) {
                 throw new UncalculableException();
             }
             return growth * Double.POSITIVE_INFINITY;
@@ -128,12 +152,13 @@ public final class LimitCalculator {
         if (richardson.accuracy() <= ACCEPTED) {
             return snapped(richardson.value, richardson.error, nearest);
         }
+        // wynn turns oscillation into its middle, skip it there
+        if (oscillates(samples)) {
+            return Double.NaN;
+        }
         double[] wynn = wynn(samples);
         if (relativeError(wynn[0], wynn[1]) <= ACCEPTED) {
             return snapped(wynn[0], wynn[1], nearest);
-        }
-        if (oscillates(samples)) {
-            return Double.NaN;
         }
         throw new UncalculableException();
     }
@@ -141,8 +166,16 @@ public final class LimitCalculator {
     // overflowed going to that inf
     private static boolean movesTowards(List<Double> samples, double infinity) {
         int n = samples.size();
-        return n >= 2 && Math.signum(samples.get(n - 1)) == Math.signum(infinity)
-                && Math.signum(samples.get(n - 1) - samples.get(n - 2)) == Math.signum(infinity);
+        if (n == 0 || Math.signum(samples.get(n - 1)) != Math.signum(infinity)) {
+            return false;
+        }
+        return n == 1 || Math.signum(samples.get(n - 1) - samples.get(n - 2)) == Math.signum(infinity);
+    }
+
+    private static boolean accelerates(List<Double> samples) {
+        int n = samples.size();
+        double last = Math.abs(samples.get(n - 1) - samples.get(n - 2));
+        return last >= ACCELERATION * Math.abs(samples.get(n - 2) - samples.get(n - 3));
     }
 
     private static boolean oscillates(List<Double> samples) {
@@ -150,12 +183,13 @@ public final class LimitCalculator {
         double previousStep = 0;
         for (int i = 1; i < samples.size(); i++) {
             double step = samples.get(i) - samples.get(i - 1);
+            if (Math.abs(step) <= ROUND_OFF * Math.max(1, Math.abs(samples.get(i)))) {
+                continue;
+            }
             if (step * previousStep < 0) {
                 turns++;
             }
-            if (step != 0) {
-                previousStep = step;
-            }
+            previousStep = step;
         }
         return turns >= OSCILLATION_TURNS;
     }
@@ -280,10 +314,6 @@ public final class LimitCalculator {
                 rowValue = candidate;
                 rowError = candidateError;
             }
-        }
-
-        boolean isDone() {
-            return accuracy() <= SETTLED || (accuracy() <= ACCEPTED && worseRows >= NOISY_ROWS);
         }
 
         double accuracy() {
