@@ -721,7 +721,7 @@ Traceback (most recent call last):
     raise RuntimeError(
     ...<3 lines>...
     )
-RuntimeError: Error(s) in loading state_dict for vital_mini:
+RuntimeError: Error(s) in loading state_dict for model.vital_mini:
 	Missing key(s) in state_dict: "cnn.conv.bias", "cnn.conv2.bias", "cnn.conv3.bias", "cnn.con4.bias", "cnn.con5.bias". 
 训练结束: 2026-10-24T15:40:38-04:00 | 状态: 失败 | 总耗时: 926.9s
 
