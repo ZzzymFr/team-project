@@ -28,6 +28,7 @@ public class EquationSolver {
     private static final double MAX_TURNS_PER_POINT = 0.5;
     private static final double TURN_NOISE = 1e-6;
     private static final double NEAR_MISS_SHARE = 1e-2;
+    private static final double ROOT_SHARE = 1e-9;
     private static final double[] IRRATIONAL_POINTS = {-Math.PI * 7, -Math.sqrt(2), Math.E, Math.sqrt(97)};
 
     private final Node left;
@@ -416,7 +417,10 @@ public class EquationSolver {
         }
     }
 
+    // sign change = root or pole
     private double bisect(double low, double high, double dLow) {
+        double dStart = difference(high);
+        double scale = isNumber(dStart) ? Math.max(Math.abs(dLow), Math.abs(dStart)) : Math.abs(dLow);
         for (int round = 0; round < 60; round++) {
             double middle = (low + high) / 2;
             double dMiddle = difference(middle);
@@ -432,15 +436,19 @@ public class EquationSolver {
         }
         double root = (low + high) / 2;
         double dRoot = difference(root);
-        if (isNumber(dRoot) && Math.abs(dRoot) < 1e-6) {
+        if (isRootDifference(dRoot, scale)) {
             return root;
         }
         // root can sit at edge of a flat bit where diff is exactly 0
         double dHigh = difference(high);
-        if (isNumber(dHigh) && Math.abs(dHigh) < 1e-6) {
+        if (isRootDifference(dHigh, scale)) {
             return high;
         }
         return Double.NaN;
+    }
+
+    private boolean isRootDifference(double d, double scale) {
+        return isNumber(d) && (Math.abs(d) < 1e-6 || Math.abs(d) <= ROOT_SHARE * scale);
     }
 
     private void addSolution(List<Double> solutions, double x) {

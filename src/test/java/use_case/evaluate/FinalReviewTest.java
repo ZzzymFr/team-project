@@ -192,6 +192,20 @@ class FinalReviewTest {
     }
 
     @Test
+    void rootsOfLargeOrSteepSidesAreKept() {
+        assertEquals("x = 20.72326584", quick("e^x=10^{9}"));
+        assertEquals("x = 69.07755279", quick("e^x=10^{30}"));
+        assertEquals("x = -31.6227766 or x = 31.6227766", quick("x^{10}=10^{15}"));
+        assertEquals("x = 66.4385619", quick("2^x=10^{20}"));
+        assertEquals("x = 1.5", quick("10^{12}(x-1.5)=1"));
+        assertEquals("x ≠ 69.07755279", quick("e^x\\neq10^{30}"));
+        assertEquals("no solution", quick("\\frac{1}{x}=0"));
+        // pole changes sign too but not a root
+        assertEquals("no solution", quick("\\frac{1}{x-0.505}=0"));
+        assertEquals("no solution", quick("\\frac{10^{12}}{x-0.505}=0"));
+    }
+
+    @Test
     void plusMinusExclusionKeepsUndefinedPoints() {
         assertEquals("x ≠ -1 and x ≠ 0 and x ≠ 1", quick("\\frac{1}{x}\\neq\\pm1"));
         assertEquals("x ≠ -1 and x ≠ 1", quick("x\\neq\\pm1"));
