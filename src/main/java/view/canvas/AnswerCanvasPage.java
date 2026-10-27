@@ -121,7 +121,7 @@ public class AnswerCanvasPage extends CanvasPage {
             String error = "";
             try {
                 latex = recognizeFormula(capture.getImage());  // fails if recognition is not connected
-            } catch (Exception e) {
+            } catch (Throwable e) {  // native model can throw Errors too
                 error = reason(e);
             }
             if (latex != null) {
@@ -134,7 +134,7 @@ public class AnswerCanvasPage extends CanvasPage {
                     MathLabState state = viewModel.getState();
                     result = state.getResultText();
                     error = state.getErrorText();
-                } catch (RuntimeException e) {
+                } catch (Throwable e) {
                     error = reason(e);
                 }
             }

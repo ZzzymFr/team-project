@@ -41,4 +41,12 @@ class AnswerKindTest {
         assertEquals(AnswerKind.BELOW, AnswerKind.of("\\text{a}=1"));  // lexer throws
         assertEquals(AnswerKind.RIGHT, AnswerKind.of(null));
     }
+
+    @Test
+    void indexInsideASumIsNotARelation() {
+        assertEquals(AnswerKind.RIGHT, AnswerKind.of("\\sum_{i=1}^{10} i"));
+        assertEquals(AnswerKind.RIGHT, AnswerKind.of("\\prod_{k=1}^{5} k"));
+        assertEquals(AnswerKind.AFTER_EQUALS, AnswerKind.of("\\sum_{i=1}^{10} i="));
+        assertEquals(AnswerKind.BELOW, AnswerKind.of("\\sum_{i=1}^{n} i=10"));
+    }
 }

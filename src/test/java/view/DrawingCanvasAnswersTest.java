@@ -310,4 +310,33 @@ class DrawingCanvasAnswersTest {
         assertEquals(1, canvas.getAnswers().size());
         assertEquals(1, canvas.getFormulas().size());
     }
+
+    // ---- review fixes
+
+    @Test
+    void undoToAStateWithoutTheAnswerAsksForARecalc() {
+        writeOneEquals();
+        FormulaCapture c = calculateOne();
+        drag(100, 400, 140, 440);  // far away, while the calc runs
+        assertTrue(canvas.showAnswer(c.getId(), c.getRevision(), AnswerKind.AFTER_EQUALS, "2", false));
+        canvas.undo();
+        assertEquals(List.of(c.getId()), changed, "unanswered formula is sent for recalc");
+        assertTrue(canvas.captureForRecalculation(c.getId()) != null);
+    }
+
+    @Test
+    void answerArrivingMidStrokeDoesNotPanUnderThePen() {
+        writeOneEquals();
+        FormulaCapture c = calculateOne();
+        canvas.panBy(-2000, 0);  // formula far off screen
+        send(MouseEvent.MOUSE_PRESSED, 300, 300);
+        send(MouseEvent.MOUSE_DRAGGED, 310, 300);
+        assertTrue(canvas.showAnswer(c.getId(), c.getRevision(), AnswerKind.AFTER_EQUALS, "2", false));
+        send(MouseEvent.MOUSE_DRAGGED, 320, 300);
+        send(MouseEvent.MOUSE_RELEASED, 320, 300);
+        List<entity.InkPoint> pts = canvas.getStrokes().get(canvas.getStrokes().size() - 1).getPoints();
+        for (int i = 1; i < pts.size(); i++) {
+            assertTrue(Math.abs(pts.get(i).getX() - pts.get(i - 1).getX()) <= 10, "jump at point " + i);
+        }
+    }
 }

@@ -19,7 +19,14 @@ public enum AnswerKind {
             if (!tokens.isEmpty() && "=".equals(tokens.get(tokens.size() - 1))) {
                 return AFTER_EQUALS;
             }
-            return tokens.stream().anyMatch(RELATIONS::contains) ? BELOW : RIGHT;
+            int depth = 0;
+            for (String t : tokens) {
+                depth += "{".equals(t) ? 1 : "}".equals(t) ? -1 : 0;
+                if (depth == 0 && RELATIONS.contains(t)) {
+                    return BELOW;  // skips the i=1 under a sum
+                }
+            }
+            return RIGHT;
         } catch (RuntimeException e) {
             // lexer choked, guess from the raw text
             if (latex.trim().endsWith("=")) {

@@ -807,6 +807,11 @@ public class DrawingCanvas extends JPanel {
             selection.clear();
             selectedAnswers.clear();
             repaint();
+            for (Formula f : book.all()) {
+                if (f.getAnswer() == null) {
+                    notifyChanged(f.getId());  // came back without its answer, get one
+                }
+            }
         }
     }
 
@@ -856,10 +861,20 @@ public class DrawingCanvas extends JPanel {
             return;
         }
         for (long id : book.strokesReplaced(removed, added, this::nextRevision)) {
-            for (LongConsumer listener : formulaListeners) {
-                listener.accept(id);
-            }
+            notifyChanged(id);
         }
+    }
+
+    private void notifyChanged(long id) {
+        for (LongConsumer listener : formulaListeners) {
+            listener.accept(id);
+        }
+    }
+
+    // mid-gesture a pan would shift the ink under the pen
+    private boolean busy() {
+        return currentStroke != null || moveStart != null || resizeHandle >= 0 || lassoPath != null
+                || lastErasePoint != null || panFrom != null;
     }
 
     private long nextRevision() {
@@ -947,7 +962,9 @@ public class DrawingCanvas extends JPanel {
         }
         CanvasAnswer answer = new CanvasAnswer(text, error, at.getX(), at.getY(), w, ht, size);
         book.put(f.withAnswer(answer));
-        bringIntoView(answer.getBox(), answer.getBox());
+        if (!busy()) {
+            bringIntoView(answer.getBox(), answer.getBox());
+        }
         repaint();
         return true;
     }

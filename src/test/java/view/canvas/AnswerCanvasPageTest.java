@@ -256,4 +256,17 @@ class AnswerCanvasPageTest {
         waitFor(() -> errorShown("The canvas is empty"), "the empty-canvas message");
         assertFalse(recognised.get(), "nothing was sent to recognition");
     }
+
+    @Test
+    void anErrorFromTheModelStillEndsTheJob() throws Exception {
+        shared.setFormulaRecognizer(image -> {
+            throw new UnsatisfiedLinkError("no native lib");
+        });
+        openPage();
+        write();
+        clickCalculate();
+
+        waitFor(() -> answerIs("?"), "the red ?");
+        waitFor(() -> errorShown("no native lib"), "the reason");
+    }
 }
