@@ -1,6 +1,8 @@
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDManager;
 import ai.djl.ndarray.types.Shape;
+import model.vital_mini;
+import model.vital_pixel;
 
 import java.io.DataInputStream;
 import java.nio.file.Files;
@@ -55,22 +57,27 @@ public final class ModelOpsParityCheck {
     public static void main(String[] args) throws Exception {
         Path modelPath = args.length > 0 ? Path.of(args[0]) : Path.of("checkpoints/model_ops.pt");
         Path fixtures = args.length > 1 ? Path.of(args[1]) : Path.of("target/model-ops-reference.bin");
-        try (TorchScriptOps model = new TorchScriptOps(modelPath);
+        try (vital_mini model = new vital_mini(modelPath);
+             vital_pixel pixel = new vital_pixel(modelPath);
              DataInputStream input = new DataInputStream(Files.newInputStream(fixtures))) {
+            model.init();
             int count = input.readInt();
             for (int i = 0; i < count; i++) {
-                try (TorchScriptOps.Session ops = model.newSession()) {
-                    NDManager manager = ops.manager();
+                try (NDManager manager = model.manager().newSubManager()) {
                     NDArray image = readTensor(input, manager, "float");
                     NDArray tokens = readTensor(input, manager, "long");
                     NDArray memoryPadding = readTensor(input, manager, "bool");
-                    ModelSteps steps = new ModelSteps(ops);
-                    NDArray memory = steps.encodeImage(image);
-                    check("encoder", memory, readTensor(input, manager, "float"));
-                    check("decode", steps.decode(tokens, memory, null, null), readTensor(input, manager, "float"));
-                    NDArray padding = ops.call("padding_mask", tokens);
-                    check("masked decode", steps.decode(tokens, memory, padding, memoryPadding), readTensor(input, manager, "float"));
-                    check("judge", steps.judge(tokens, memory, memoryPadding), readTensor(input, manager, "float"));
+                    try (NDArray features = pixel.forward(image);
+                         NDArray memory = features.reshape(features.getShape().get(0), 256, -1).transpose(0, 2, 1);
+                         NDArray decoded = model.forward(features, tokens);
+                         NDArray padding = tokens.eq(vital_mini.PAD_ID);
+                         NDArray masked = model.forward(features, tokens, padding, memoryPadding);
+                         NDArray judged = model.judge(features, tokens, null, memoryPadding)) {
+                        check("encoder", memory, readTensor(input, manager, "float"));
+                        check("decode", decoded, readTensor(input, manager, "float"));
+                        check("masked decode", masked, readTensor(input, manager, "float"));
+                        check("judge", judged, readTensor(input, manager, "float"));
+                    }
                 }
             }
         }

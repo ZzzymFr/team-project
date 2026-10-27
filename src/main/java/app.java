@@ -1,47 +1,61 @@
+import app.AppBuilder;
+import app.StackedAppBuilder;
 import model.vital_mini;
 
 import javax.swing.JFrame;
 import javax.swing.SwingUtilities;
-
+import javax.swing.UIManager;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 
 public class app {
-    public vital_mini model;
-    app(){
-        model = new vital_mini();
-    }
-    void init() throws java.io.IOException, ai.djl.MalformedModelException {
+    public final vital_mini model = new vital_mini();
+    JFrame frame;
+
+    void init() throws Exception {
         model.init();
-        SwingUtilities.invokeLater(() -> {
-            JFrame window = new JFrame("Math Lab");
-            window.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-            window.setSize(1000, 700);
-            window.setLocationRelativeTo(null);
-            window.setVisible(true);
+        SwingUtilities.invokeAndWait(() -> {
+            try {
+                UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+            } catch (Exception ignored) {
+                // Fall back to the default look.
+            }
+            AppBuilder evaluator = new AppBuilder()
+                    .addExpressionView()
+                    .addEvaluateUseCase();
+            frame = new StackedAppBuilder()
+                    .addGraphPage()
+                    .addPdfPage()
+                    .addAnswerPage(evaluator.getExpressionView())
+                    .build();
+            frame.addWindowListener(new WindowAdapter() {
+                @Override
+                public void windowClosing(WindowEvent event) {
+                    model.close();
+                }
+
+                @Override
+                public void windowClosed(WindowEvent event) {
+                    model.close();
+                }
+            });
         });
     }
-    void run(){
-        boolean should_run = true;
-        while(should_run){
 
-           if(!should_run){
-               break;
-           }
-        }
+    void run() {
+        SwingUtilities.invokeLater(() -> frame.setVisible(true));
     }
+
     public static void main(String[] args) {
+        app application = new app();
         try {
-            app application = new app();
-            try {
-                application.init();
-                application.run();
-            } finally {
-                application.model.close();
-            }
+            application.init();
+            application.run();
         } catch (Exception e) {
+            application.model.close();
             System.err.println("Application failed: " + e.getMessage());
             e.printStackTrace();
             System.exit(1);
         }
     }
-    
 }
