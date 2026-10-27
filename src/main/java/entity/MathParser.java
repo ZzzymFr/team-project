@@ -10,6 +10,7 @@ import entity.node.LiteralNode;
 import entity.node.Node;
 import entity.node.NumberNode;
 import entity.node.PlusMinusNode;
+import entity.node.QuantifierNode;
 import entity.node.RelationNode;
 import entity.node.SeriesNode;
 import entity.node.SetLiteralNode;
@@ -98,7 +99,44 @@ public final class MathParser {
             next();
             return new UnaryNode(UnaryNode.Op.NOT, parseNot());
         }
+        if (peekIs("\\forall") || peekIs("\\exists")) {
+            return parseQuantifier();
+        }
         return parseRelation();
+    }
+
+    // forall/exists name [\in dom] , body. no dom = R
+    private Node parseQuantifier() {
+        boolean isForAll = next().equals("\\forall");
+        int plusMinusBefore = plusMinusCount;
+        String letter = next();
+        if (!MathLexer.isLetter(letter)) {
+            throw new MathSyntaxException("Unexpected \"" + letter + "\".");
+        }
+        String variable = parseName(letter);
+        Node domain = null;
+        if (peekIs("\\in")) {
+            next();
+            domain = parsePrimary();
+            while (peekIs("\\cup") || peekIs("\\cap")) {
+                if (next().equals("\\cup")) {
+                    domain = new BinaryNode(BinaryNode.Op.UNION, domain, parsePrimary());
+                } else {
+                    domain = new BinaryNode(BinaryNode.Op.INTERSECT, domain, parsePrimary());
+                }
+            }
+        }
+        if (peekIs(",") || peekIs(":")) {
+            next();
+        }
+        if (peek() == null || peekIs(")") || peekIs("}") || peekIs("]") || peekIs("\\}")) {
+            throw new UncalculableException();
+        }
+        Node body = parseStatement();
+        if (plusMinusCount > plusMinusBefore) {
+            throw new UncalculableException();
+        }
+        return new QuantifierNode(isForAll, variable, domain, body);
     }
 
     private Node parseRelation() {
@@ -389,6 +427,9 @@ public final class MathParser {
     }
 
     private int parseDimension(String token) {
+        if (MathLexer.isLetter(token)) {
+            throw new UncalculableException();
+        }
         try {
             int dimension = Integer.parseInt(token);
             if (dimension >= 1) {

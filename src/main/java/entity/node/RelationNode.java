@@ -43,14 +43,22 @@ public class RelationNode extends Node {
 
     @Override
     public Value evaluate(Context context) {
-        Value left = operands.get(0).evaluate(context);
+        Value left = defined(operands.get(0).evaluate(context));
         boolean result = true;
         for (int i = 0; i < operators.size(); i++) {
-            Value right = operands.get(i + 1).evaluate(context);
+            Value right = defined(operands.get(i + 1).evaluate(context));
             result = result && holds(operators.get(i), left, right, operands.get(i), operands.get(i + 1));
             left = right;
         }
         return BooleanValue.of(result);
+    }
+
+    // undefined side cant compare
+    private static Value defined(Value value) {
+        if (value instanceof NumberValue && Double.isNaN(((NumberValue) value).getValue())) {
+            throw new UncalculableException();
+        }
+        return value;
     }
 
     private boolean holds(String operator, Value left, Value right, Node leftNode, Node rightNode) {

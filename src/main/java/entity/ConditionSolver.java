@@ -2,6 +2,7 @@ package entity;
 
 import entity.node.LiteralNode;
 import entity.node.Node;
+import entity.node.QuantifierNode;
 import entity.node.RelationNode;
 import entity.value.FiniteSetValue;
 import entity.value.NumberValue;
@@ -22,9 +23,15 @@ public class ConditionSolver {
     private static final double ROOT_OFFSET = 1e-7;
     private static final double SNAP = 1e-6;
     private static final double NEARLY_EQUAL = 1e-8;
+    // bisection can land just past the 1e-9 tol
+    private static final double ZERO_SNAP = 2e-9;
     private static final int ROUNDS = 60;
     private static final double[] SPECIAL_POINTS = {0, 0.5, -0.5, 1, -1};
     private static final double[] FAR_POINTS = {1e3, -1e3, 1e6, -1e6};
+    private static final double OUTER_SCALE = 10;
+    private static final int FOUND = 0;
+    private static final int FOUND_AT_ROOT = 1;
+    private static final int NOT_FOUND = 2;
 
     private final Node condition;
     private final String variable;
@@ -36,7 +43,20 @@ public class ConditionSolver {
         this.condition = condition;
         this.variable = variable;
         this.context = context;
-        this.step = context.getVariableValues().isEmpty() ? GRID_STEP : NESTED_STEP;
+        boolean nested = !context.getVariableValues().isEmpty() || containsQuantifier(condition);
+        this.step = nested ? NESTED_STEP : GRID_STEP;
+    }
+
+    private static boolean containsQuantifier(Node node) {
+        if (node instanceof QuantifierNode) {
+            return true;
+        }
+        for (Node child : node.children()) {
+            if (containsQuantifier(child)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public List<Interval> solve() {
@@ -78,31 +98,42 @@ public class ConditionSolver {
     }
 
     public boolean isTrueSomewhere() {
-        for (double point : cheapPoints(true)) {
-            if (isTrueAt(point)) {
-                return true;
-            }
-        }
-        for (double point : rootPoints()) {
-            if (isTrueAt(point)) {
-                return true;
-            }
-        }
-        return false;
+        return find(true) != NOT_FOUND;
     }
 
     public boolean isTrueEverywhere() {
+        return find(false) == NOT_FOUND;
+    }
+
+    // over Q roots like sqrt2 arent members, so uncalc
+    public boolean isTrueSomewhereRational() {
+        return decidedWithoutRoots(find(true)) == FOUND;
+    }
+
+    public boolean isTrueEverywhereRational() {
+        return decidedWithoutRoots(find(false)) == NOT_FOUND;
+    }
+
+    private static int decidedWithoutRoots(int result) {
+        if (result == FOUND_AT_ROOT) {
+            throw new UncalculableException();
+        }
+        return result;
+    }
+
+    // find a point w/ this truth value, cheap first
+    private int find(boolean truth) {
         for (double point : cheapPoints(true)) {
-            if (!isTrueAt(point)) {
-                return false;
+            if (isTrueAt(point) == truth) {
+                return FOUND;
             }
         }
         for (double point : rootPoints()) {
-            if (!isTrueAt(point)) {
-                return false;
+            if (isTrueAt(point) == truth) {
+                return FOUND_AT_ROOT;
             }
         }
-        return true;
+        return NOT_FOUND;
     }
 
     List<Double> boundaryRoots() {
@@ -133,6 +164,15 @@ public class ConditionSolver {
                 points.add(value - 1);
                 points.add(value + 1);
                 points.add(-value);
+            }
+            // past every outer value so y > 2x works at x=1e6
+            double beyond = 1;
+            for (double value : context.getVariableValues()) {
+                beyond += OUTER_SCALE * Math.abs(value);
+            }
+            if (!context.getVariableValues().isEmpty() && !Double.isInfinite(beyond)) {
+                points.add(beyond);
+                points.add(-beyond);
             }
         }
         return points;
@@ -202,7 +242,7 @@ public class ConditionSolver {
                 return nearest.value;
             }
         }
-        if (Math.abs(point) < 1e-9) {
+        if (Math.abs(point) <= ZERO_SNAP) {
             return 0;
         }
         return new BigDecimal(point).round(new MathContext(8)).doubleValue();
