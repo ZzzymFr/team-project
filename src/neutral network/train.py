@@ -347,7 +347,7 @@ def collate(batch):
     image, widths = convert(list(images))
     B = len(batch)
 
-    # memory 的 padding mask: 补出来的列 -> True。展平顺序必须和 vital_mini.encode 一致(先行后列)
+    # memory 的 padding mask: 补出来的列 -> True。展平顺序必须和 model.vital_mini.encode 一致(先行后列)
     gh, gw = IMG_H // STRIDE, image.size(-1) // STRIDE
     valid_cols = (widths + STRIDE - 1) // STRIDE
     col_pad = torch.arange(gw)[None, :] >= valid_cols[:, None]                     # [B,gw]
