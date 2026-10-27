@@ -223,6 +223,11 @@ public class ConditionSolver {
             value = condition.evaluate(at);
         } catch (UndefinedException e) {
             return new Sample(false, FALSE, false);
+        } catch (OverflowException e) {
+            // overflow = lost value, rest decides
+            lostInSample = true;
+            int known = partTruth(condition, at, atRoot);
+            return new Sample(false, known, true);
         }
         if (!(value instanceof BooleanValue)) {
             throw new UndecidableException();
@@ -275,6 +280,9 @@ public class ConditionSolver {
                 return UNKNOWN;
             }
             return ((BooleanValue) value).getValue() ? TRUE : FALSE;
+        } catch (OverflowException e) {
+            lostInSample = true;
+            return UNKNOWN;
         } catch (BudgetExceededException | UndecidableException e) {
             throw e;
         } catch (UncalculableException e) {
@@ -524,7 +532,12 @@ public class ConditionSolver {
     // lost value proves nothing unless real root
     private int verdict(double point, boolean atRoot) {
         context.setAbsorbed(false);
-        boolean truth = isTrueAt(point);
+        boolean truth;
+        try {
+            truth = isTrueAt(point);
+        } catch (OverflowException e) {
+            return SKIP;
+        }
         if (context.isAbsorbed() && !atRoot) {
             return SKIP;
         }

@@ -41,4 +41,15 @@ class FinalReviewTest {
         assertEquals("x ≥ 0", quick("\\sqrt{x}\\geq0"));
         assertEquals("n = 10", quick("\\sum_{i=1}^{n}i=55"));
     }
+
+    @Test
+    void overflowDoesNotDecideComparisons() {
+        correctOrUncalculable("false", "200!=201!");
+        correctOrUncalculable("false", "e^{1000}=e^{1001}");
+        correctOrUncalculable("true", "e^{1000}<e^{1001}");
+        correctOrUncalculable("true", "\\forall x, e^{1000x}\\geq e^{1000}\\Rightarrow x\\geq1");
+        assertEquals("true", quick("\\infty=\\infty+1"));
+        assertEquals("true", quick("\\lim_{x\\to0}\\frac{1}{x^2}=\\infty"));
+        assertEquals("x > 0.1609437912", quick("e^{10x}>5"));
+    }
 }

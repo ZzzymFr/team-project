@@ -1,6 +1,7 @@
 package entity.node;
 
 import entity.Context;
+import entity.OverflowException;
 import entity.UncalculableException;
 import entity.UndefinedException;
 import entity.value.BooleanValue;
@@ -44,10 +45,10 @@ public class RelationNode extends Node {
 
     @Override
     public Value evaluate(Context context) {
-        Value left = defined(operands.get(0).evaluate(context));
+        Value left = comparable(operands.get(0), context);
         boolean result = true;
         for (int i = 0; i < operators.size(); i++) {
-            Value right = defined(operands.get(i + 1).evaluate(context));
+            Value right = comparable(operands.get(i + 1), context);
             String operator = operators.get(i);
             if (result && isDecidedByTolerance(operator, left, right)) {
                 context.markTolerated();
@@ -58,10 +59,17 @@ public class RelationNode extends Node {
         return BooleanValue.of(result);
     }
 
-    // undefined side cant compare
-    private static Value defined(Value value) {
-        if (value instanceof NumberValue && Double.isNaN(((NumberValue) value).getValue())) {
-            throw new UndefinedException();
+    // undefined or overflowed side cant compare
+    private static Value comparable(Node operand, Context context) {
+        Value value = operand.evaluate(context);
+        if (value instanceof NumberValue) {
+            double number = ((NumberValue) value).getValue();
+            if (Double.isNaN(number)) {
+                throw new UndefinedException();
+            }
+            if (Double.isInfinite(number) && !operand.canBeInfinite()) {
+                throw new OverflowException();
+            }
         }
         return value;
     }
