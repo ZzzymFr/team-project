@@ -11,6 +11,7 @@ import entity.node.Node;
 import entity.node.NumberNode;
 import entity.node.PlusMinusNode;
 import entity.node.RelationNode;
+import entity.node.SeriesNode;
 import entity.node.SetLiteralNode;
 import entity.node.UnaryNode;
 import entity.node.VectorNode;
@@ -261,6 +262,9 @@ public final class MathParser {
         }
         if (token.equals("\\lim")) {
             return parseLimit();
+        }
+        if (token.equals("\\sum") || token.equals("\\prod")) {
+            return parseSeries(token.equals("\\prod"));
         }
         if (token.equals("\\log")) {
             return parseLog();
@@ -547,16 +551,55 @@ public final class MathParser {
         if (side != 0) {
             targetEnd = tokens.get(end - 1).equals("}") ? end - 4 : end - 2;
         }
-        if (targetEnd == start) {
-            throw new MathSyntaxException("Unexpected \"" + tokens.get(targetEnd) + "\".");
-        }
-        MathParser targetParser = new MathParser(tokens.subList(start, targetEnd), functions);
-        Node target = targetParser.parse();
-        if (targetParser.getPlusMinusCount() > 0) {
-            throw new UncalculableException();
-        }
+        Node target = parseBound(start, targetEnd);
         position = end + 1;
         return new LimitNode(variable, target, side, parseAdditive());
+    }
+
+    // \sum / \prod w/ range, no range -> uncalc
+    private Node parseSeries(boolean isProduct) {
+        if (!peekIs("_") || !"{".equals(tokenAt(position + 1))) {
+            throw new UncalculableException();
+        }
+        int start = position + 2;
+        int end = closingBrace(start);
+        if (start == end || !MathLexer.isLetter(tokens.get(start))) {
+            throw new UncalculableException();
+        }
+        position = start + 1;
+        String variable = parseName(tokens.get(start));
+        if (position >= end || !tokens.get(position).equals("=")) {
+            throw new UncalculableException();
+        }
+        Node lower = parseBound(position + 1, end);
+        position = end + 1;
+        if (!peekIs("^")) {
+            throw new UncalculableException();
+        }
+        next();
+        Node upper;
+        if (peekIs("{")) {
+            int upperEnd = closingBrace(position + 1);
+            upper = parseBound(position + 1, upperEnd);
+            position = upperEnd + 1;
+        } else {
+            next();
+            upper = parseBound(position - 1, position);
+        }
+        return new SeriesNode(isProduct, variable, lower, upper, parseAdditive());
+    }
+
+    // bound inside the brackets, parsed on its own
+    private Node parseBound(int from, int to) {
+        if (from == to) {
+            throw new MathSyntaxException("Unexpected \"" + tokens.get(to) + "\".");
+        }
+        MathParser boundParser = new MathParser(tokens.subList(from, to), functions);
+        Node bound = boundParser.parse();
+        if (boundParser.getPlusMinusCount() > 0) {
+            throw new UncalculableException();
+        }
+        return bound;
     }
 
     private int closingBrace(int start) {
@@ -675,6 +718,7 @@ public final class MathParser {
                 || token.equals("(") || token.equals("{") || token.equals("[")
                 || token.equals("\\pi") || token.equals("\\frac") || token.equals("\\sqrt")
                 || token.equals("\\log") || token.equals("\\ln") || token.equals("\\lim")
+                || token.equals("\\sum") || token.equals("\\prod")
                 || token.equals("\\infty") || token.equals("\\top") || token.equals("\\bot")
                 || token.equals("\\vec") || token.equals("\\hat") || token.equals("\\bar")
                 || token.equals("\\overline")

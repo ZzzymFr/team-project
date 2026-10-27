@@ -266,7 +266,7 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
 
     private boolean isFunctionDefinition(List<String> tokens) {
         int equalsIndex = tokens.indexOf("=");
-        if (equalsIndex < 4 || equalsIndex % 2 != 0 || equalsIndex != tokens.lastIndexOf("=")) {
+        if (equalsIndex < 4 || equalsIndex % 2 != 0 || hasEqualsOutsideBraces(tokens, equalsIndex + 1)) {
             return false;
         }
         String name = tokens.get(0);
@@ -287,6 +287,22 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
             }
         }
         return true;
+    }
+
+    // ignore the = in \sum_{i=1}
+    private boolean hasEqualsOutsideBraces(List<String> tokens, int from) {
+        int depth = 0;
+        for (int i = from; i < tokens.size(); i++) {
+            String token = tokens.get(i);
+            if (token.equals("{")) {
+                depth++;
+            } else if (token.equals("}")) {
+                depth--;
+            } else if (token.equals("=") && depth <= 0) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean isSingleEquation(Node node) {
