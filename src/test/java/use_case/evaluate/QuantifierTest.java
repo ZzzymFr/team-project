@@ -122,4 +122,39 @@ class QuantifierTest {
         assertEquals("true", Calc.once("\\exists e\\in\\mathbb{R}, e<0"));
         assertEquals("true", Calc.once("\\forall x\\in\\{1\\}, e>2"));
     }
+
+    @Test
+    void computedRootsAreEvidenceNotNoise() {
+        assertEquals("true", Calc.once("\\exists x\\in\\mathbb{R}, x^2-2=0"));
+        assertEquals("true", Calc.once("\\exists x\\in\\mathbb{R}, \\cos(x)=0"));
+        assertEquals("true", Calc.once("\\exists x\\in\\mathbb{R}, x^3-x-1=0"));
+        assertEquals("true", Calc.once("\\exists x\\in\\mathbb{R}, x^2-3x+1=0"));
+        assertEquals("true", Calc.once("\\exists x\\in\\mathbb{R}, x^2-0.1=0"));
+        assertEquals("true", Calc.once("\\exists x\\in\\mathbb{R}, x^2=0.1"));
+        assertEquals("true", Calc.once("\\exists x\\in\\mathbb{R}, x-0.3=0"));
+        assertEquals("true", Calc.once("\\exists x\\in\\mathbb{R}, 3x-1=0"));
+        assertEquals("false", Calc.once("\\forall x\\in\\mathbb{R}, x^2-2\\neq0"));
+        assertEquals("false", Calc.once("\\forall x\\in\\mathbb{R}, \\cos(x)\\neq0"));
+    }
+
+    @Test
+    void zeroSidesAtFarRootsAreEvidence() {
+        assertTimeout(Duration.ofSeconds(2), () -> {
+            assertEquals("true", Calc.once("\\forall x\\in\\mathbb{R}, \\exists y\\in\\mathbb{R}, x+y=0"));
+            assertEquals("true", Calc.once("\\forall x\\in\\{1000\\}, \\exists y\\in\\mathbb{R}, x+y=0"));
+            assertEquals("true", Calc.once("\\forall x\\in\\mathbb{R}, \\exists y\\in\\mathbb{R}, x-y=0"));
+            assertEquals("true", Calc.once("\\exists x\\in\\mathbb{R}, x-150=0"));
+            assertEquals("true", Calc.once("\\exists x\\in\\mathbb{R}, x^2-40000=0"));
+            assertEquals("true", Calc.once("\\exists n\\in\\mathbb{Z}, n-1500=0"));
+            assertEquals("true", Calc.once("\\forall n\\in\\mathbb{N}, \\exists m\\in\\mathbb{N}, m-2n=0"));
+            assertEquals("false", Calc.once("\\forall x\\in\\mathbb{R}, x-150\\neq0"));
+        });
+    }
+
+    @Test
+    void roundingNoiseIsNotARoot() {
+        assertEquals("true", Calc.once("\\exists x\\in\\mathbb{R}, 10^{-12}x=1"));
+        assertEquals("true", Calc.once("\\forall x, \\forall y, (x+y)^2-x^2-2xy-y^2=0"));
+        assertEquals("false", Calc.once("\\exists x\\in\\mathbb{R}, e^{-x}=0"));
+    }
 }

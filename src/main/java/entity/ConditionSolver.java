@@ -1,9 +1,12 @@
 package entity;
 
+import entity.node.BinaryNode;
+import entity.node.FunctionNode;
 import entity.node.LiteralNode;
 import entity.node.Node;
 import entity.node.QuantifierNode;
 import entity.node.RelationNode;
+import entity.node.UnaryNode;
 import entity.value.BooleanValue;
 import entity.value.FiniteSetValue;
 import entity.value.NumberValue;
@@ -45,6 +48,9 @@ public class ConditionSolver {
     private static final int TRUE = 1;
     private static final int FALSE = 0;
     private static final int SKIP = -1;
+    private static final int RELIABLE = 0;
+    private static final int NOISY = 1;
+    private static final int OUT_OF_RANGE = 2;
     private static final int FOUND = 0;
     private static final int FOUND_AT_ROOT = 1;
     private static final int NOT_FOUND = 2;
@@ -56,6 +62,7 @@ public class ConditionSolver {
     private List<Root> roots;
     private List<RelationNode> relations;
     private boolean sawVerdict;
+    private boolean skippedRoot;
 
     public ConditionSolver(Node condition, String variable, Context context) {
         this.condition = condition;
@@ -175,34 +182,63 @@ public class ConditionSolver {
             }
         }
         for (Root root : getRoots()) {
-            int result = checkRoot(root.value, wanted, mode);
+            int result = checkRoot(root.value, new Node[] {root.left, root.right}, wanted, mode);
             if (result != NOT_FOUND) {
                 return result;
             }
         }
         int result = scanFar(wanted, mode);
-        if (result == NOT_FOUND && !sawVerdict) {
+        if (result == NOT_FOUND && (skippedRoot || !sawVerdict)) {
             throw new UndecidableException();
         }
         return result;
     }
 
-    private int checkRoot(double root, int wanted, int mode) {
+    // real root: 0 sides are expected, dont skip
+    private int checkRoot(double root, Node[] pair, int wanted, int mode) {
         double offset = PROBE * Math.max(1, Math.abs(root));
+        boolean genuine = isGenuineRoot(pair, root, offset);
+        List<Double> samples = new ArrayList<>();
         if (mode == REAL) {
-            if (verdictAt(root - offset) == wanted || verdictAt(root + offset) == wanted) {
-                return FOUND;
+            samples.add(root - offset);
+            samples.add(root + offset);
+        } else {
+            double[] near = {Math.floor(root) - 1, Math.floor(root), Math.ceil(root), Math.ceil(root) + 1,
+                    Math.floor(root - offset), Math.ceil(root + offset)};
+            for (double n : near) {
+                if (mode == INTEGER || n >= 0) {
+                    samples.add(n);
+                }
             }
-            return verdictAt(root) == wanted ? FOUND_AT_ROOT : NOT_FOUND;
         }
-        double[] near = {Math.floor(root) - 1, Math.floor(root), Math.ceil(root), Math.ceil(root) + 1,
-                Math.floor(root - offset), Math.ceil(root + offset)};
-        for (double n : near) {
-            if ((mode == INTEGER || n >= 0) && verdictAt(n) == wanted) {
+        for (double sample : samples) {
+            if (rootVerdictAt(sample, genuine) == wanted) {
                 return FOUND;
             }
+        }
+        if (mode == REAL && rootVerdictAt(root, genuine) == wanted) {
+            return FOUND_AT_ROOT;
         }
         return NOT_FOUND;
+    }
+
+    private int rootVerdictAt(double point, boolean genuine) {
+        int reliability = reliabilityAt(point, genuine);
+        if (reliability == OUT_OF_RANGE && genuine) {
+            skippedRoot = true;
+        }
+        return reliability == RELIABLE ? verdict(point) : SKIP;
+    }
+
+    // sides cross or meet w/ gaps both sides
+    private boolean isGenuineRoot(Node[] pair, double root, double offset) {
+        double here = difference(pair, root);
+        double below = difference(pair, root - offset);
+        double above = difference(pair, root + offset);
+        if (!isFinite(below) || !isFinite(above)) {
+            return false;
+        }
+        return below * above < 0 || (here == 0 && Math.abs(below) >= TINY && Math.abs(above) >= TINY);
     }
 
     // sign changes 3 per decade out to 1e300
@@ -225,7 +261,7 @@ public class ConditionSolver {
                         continue;
                     }
                     double root = d == 0 ? sign * size : bisect(pairs.get(i), sign * lastSize, sign * size, before);
-                    int result = checkRoot(root, wanted, mode);
+                    int result = checkRoot(root, pairs.get(i), wanted, mode);
                     if (result != NOT_FOUND) {
                         return result;
                     }
@@ -234,6 +270,14 @@ public class ConditionSolver {
             lastSize = size;
         }
         return NOT_FOUND;
+    }
+
+    private double outerScale() {
+        double scale = 0;
+        for (double value : context.getVariableValues()) {
+            scale = Math.max(scale, Math.abs(value));
+        }
+        return scale;
     }
 
     private double bisect(Node[] pair, double low, double high, double dLow) {
@@ -271,20 +315,17 @@ public class ConditionSolver {
     }
 
     private int verdictAt(double point) {
-        if (isUnreliableAt(point)) {
-            return SKIP;
-        }
+        return reliabilityAt(point, false) == RELIABLE ? verdict(point) : SKIP;
+    }
+
+    private int verdict(double point) {
         sawVerdict = true;
         return isTrueAt(point) ? TRUE : FALSE;
     }
 
     // skip samples that only show rounding
-    private boolean isUnreliableAt(double point) {
+    private int reliabilityAt(double point, boolean atRoot) {
         boolean far = Math.abs(point) > EquationSolver.SEARCH_END;
-        double scale = Math.abs(point);
-        for (double value : context.getVariableValues()) {
-            scale = Math.max(scale, Math.abs(value));
-        }
         Context at = context.withVariable(variable, point);
         for (RelationNode relation : eligibleRelations()) {
             List<Node> operands = relation.getOperands();
@@ -296,15 +337,15 @@ public class ConditionSolver {
                     if (value instanceof NumberValue) {
                         values[i] = ((NumberValue) value).getValue();
                         double size = Math.abs(values[i]);
-                        if (far && !(size >= TINY && size <= HUGE)) {
-                            return true;
+                        if (far && !(size <= HUGE && (size >= TINY || atRoot))) {
+                            return OUT_OF_RANGE;
                         }
                     }
                 } catch (BudgetExceededException | UndecidableException e) {
                     throw e;
                 } catch (UncalculableException e) {
                     if (far) {
-                        return true;
+                        return OUT_OF_RANGE;
                     }
                 }
             }
@@ -315,15 +356,40 @@ public class ConditionSolver {
                     continue;
                 }
                 double gap = Math.abs(a - b);
-                if (gap <= ABSOLUTE_BAND && Math.max(Math.abs(a), Math.abs(b)) < 1) {
-                    return true;
+                if (!atRoot && gap <= ABSOLUTE_BAND && Math.max(Math.abs(a), Math.abs(b)) < 1) {
+                    return NOISY;
                 }
-                if (far && !Values.areAlmostEqual(a, b) && gap <= NOISE * scale) {
-                    return true;
+                if (!Values.areAlmostEqual(a, b)) {
+                    double scale = Math.max(Math.abs(point), outerScale());
+                    scale = Math.max(scale, Math.max(largestPart(operands.get(i), at), largestPart(operands.get(i + 1), at)));
+                    if (gap <= NOISE * scale) {
+                        return NOISY;
+                    }
                 }
             }
         }
-        return false;
+        return RELIABLE;
+    }
+
+    // max size in the arithmetic, bounds rounding err
+    private static double largestPart(Node node, Context at) {
+        double largest = 0;
+        try {
+            Value value = node.evaluate(at);
+            if (value instanceof NumberValue && isFinite(((NumberValue) value).getValue())) {
+                largest = Math.abs(((NumberValue) value).getValue());
+            }
+        } catch (BudgetExceededException | UndecidableException e) {
+            throw e;
+        } catch (UncalculableException e) {
+            return 0;
+        }
+        if (node instanceof BinaryNode || node instanceof UnaryNode || node instanceof FunctionNode) {
+            for (Node child : node.children()) {
+                largest = Math.max(largest, largestPart(child, at));
+            }
+        }
+        return largest;
     }
 
     private List<Double> integerPoints(boolean naturalOnly, int range) {
