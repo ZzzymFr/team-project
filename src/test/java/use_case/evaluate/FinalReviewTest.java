@@ -206,6 +206,16 @@ class FinalReviewTest {
     }
 
     @Test
+    void finiteSumsAndProductsThatOverflowAreUncalculable() {
+        assertEquals(UNCALCULABLE, quick("\\prod_{i=1}^{200}i"));
+        assertEquals(UNCALCULABLE, quick("\\sum_{i=1}^{3}10^{308}"));
+        correctOrUncalculable("false", "\\prod_{i=1}^{200}i=\\prod_{i=1}^{201}i");
+        correctOrUncalculable("false", "\\sum_{i=1}^{3}10^{308}=\\infty");
+        assertEquals("= ∞", quick("\\sum_{i=1}^{3}\\infty"));
+        assertEquals("= 120", quick("\\prod_{i=1}^{5}i"));
+    }
+
+    @Test
     void plusMinusExclusionKeepsUndefinedPoints() {
         assertEquals("x ≠ -1 and x ≠ 0 and x ≠ 1", quick("\\frac{1}{x}\\neq\\pm1"));
         assertEquals("x ≠ -1 and x ≠ 1", quick("x\\neq\\pm1"));

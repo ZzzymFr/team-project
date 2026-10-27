@@ -23,26 +23,35 @@ public final class SeriesCalculator {
         if (end - start < 0 || end - start >= MAX_TERMS) {
             throw new UncalculableException();
         }
+        boolean infiniteTerm = false;
+        double result;
         if (product) {
-            double result = 1;
+            result = 1;
             for (long n = start; n <= end; n++) {
                 double factor = term.applyAsDouble(n);
                 if (Double.isNaN(factor)) {
                     return Double.NaN;
                 }
+                infiniteTerm = infiniteTerm || Double.isInfinite(factor);
                 result = result * factor;
             }
-            return result;
-        }
-        CompensatedSum sum = new CompensatedSum();
-        for (long n = start; n <= end; n++) {
-            double value = term.applyAsDouble(n);
-            if (Double.isNaN(value)) {
-                return Double.NaN;
+        } else {
+            CompensatedSum sum = new CompensatedSum();
+            for (long n = start; n <= end; n++) {
+                double value = term.applyAsDouble(n);
+                if (Double.isNaN(value)) {
+                    return Double.NaN;
+                }
+                infiniteTerm = infiniteTerm || Double.isInfinite(value);
+                sum.add(value);
             }
-            sum.add(value);
+            result = sum.value();
         }
-        return sum.value();
+        // overflowing finite terms -> too big
+        if (Double.isInfinite(result) && !infiniteTerm) {
+            throw new UncalculableException();
+        }
+        return result;
     }
 
     // neumaier summation
