@@ -1035,11 +1035,13 @@ public class ConditionSolver {
             }
         }
         double limit = (falsePoint + truePoint) / 2;
-        double snapped = tidy(limit);
+        // domain edge is its own boundary
+        boolean domainEdge = isUndefinedAt(falsePoint);
+        double snapped = tidy(limit, !domainEdge);
         if (!Double.isNaN(snapped)) {
             return new double[] {snapped, isTrueAt(snapped) ? INCLUDED : 0};
         }
-        if (isUndefinedAt(falsePoint) && isTrueAt(truePoint)) {
+        if (domainEdge && isTrueAt(truePoint)) {
             return new double[] {truePoint, INCLUDED};
         }
         return new double[] {limit, 0};
@@ -1055,8 +1057,8 @@ public class ConditionSolver {
         }
     }
 
-    // root a bisected boundary belongs to, else NaN
-    private double tidy(double point) {
+    // root for bisected boundary, else NaN
+    private double tidy(double point, boolean nearlyEqual) {
         Root nearest = null;
         for (Root root : getRoots()) {
             if (nearest == null || Math.abs(root.value - point) < Math.abs(nearest.value - point)) {
@@ -1065,7 +1067,7 @@ public class ConditionSolver {
         }
         if (nearest != null) {
             double distance = Math.abs(nearest.value - point);
-            if (distance < SNAP || !nearest.stretchEnd && isNearlyEqualAt(nearest, point)) {
+            if (distance < SNAP || nearlyEqual && !nearest.stretchEnd && isNearlyEqualAt(nearest, point)) {
                 return nearest.value;
             }
         }

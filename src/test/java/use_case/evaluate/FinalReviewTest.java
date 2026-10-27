@@ -162,4 +162,22 @@ class FinalReviewTest {
         assertEquals("false", quick("\\exists x\\exists y, x^2+y^2=-1"));
         assertEquals("false", quick("\\forall x, e^{-x}(x-1000)\\neq0"));
     }
+
+    @Test
+    void approximationWithNegativeLiterals() {
+        assertEquals("true", quick("-3.14\\approx-\\pi"));
+        assertEquals("false", quick("-3.15\\approx-\\pi"));
+        assertEquals("false", quick("3.15\\approx\\pi"));
+        assertEquals("true", quick("-\\pi\\approx-3.14"));
+    }
+
+    @Test
+    void logarithmDomainIsNotCutAtOneHundredth() {
+        correctOrUncalculable("x > 0", "e^{\\ln(x)}=x");
+        correctOrUncalculable("x > 0", "\\ln(x^2)=2\\ln(x)");
+        correctOrUncalculable("x > 0", "\\ln(x^2)\\geq2\\ln(x)");
+        correctOrUncalculable("x > 0", "e^{\\ln(x)}\\geq x");
+        assertEquals("x = 0", quick("x^6\\leq0"));
+        assertEquals("x ≥ 0", quick("\\sqrt{x}^2=x"));
+    }
 }

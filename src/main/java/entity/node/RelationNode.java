@@ -219,13 +219,21 @@ public class RelationNode extends Node {
         if (Double.isInfinite(a) || Double.isInfinite(b)) {
             return a == b;
         }
-        if (rightNode instanceof NumberNode) {
-            return withinRounding(a, b, ((NumberNode) rightNode).getDecimals());
+        if (isLiteral(rightNode)) {
+            return withinRounding(a, b, decimalsOf(rightNode));
         }
-        if (leftNode instanceof NumberNode) {
-            return withinRounding(a, b, ((NumberNode) leftNode).getDecimals());
+        if (isLiteral(leftNode)) {
+            return withinRounding(a, b, decimalsOf(leftNode));
         }
         return Math.abs(a - b) <= 0.01 * Math.max(Math.abs(a), Math.abs(b));
+    }
+
+    // decimals in literal, incl -3.14
+    private static int decimalsOf(Node literal) {
+        if (literal instanceof UnaryNode) {
+            return decimalsOf(((UnaryNode) literal).getOperand());
+        }
+        return ((NumberNode) literal).getDecimals();
     }
 
     private boolean withinRounding(double a, double b, int decimals) {
