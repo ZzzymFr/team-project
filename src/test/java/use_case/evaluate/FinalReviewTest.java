@@ -65,4 +65,23 @@ class FinalReviewTest {
         assertEquals("x = 2", quick("(x,x^2)=(2,4)"));
         assertEquals("true", quick("\\exists x, (x,1)=(200,1)"));
     }
+
+    @Test
+    void narrowTruthRegionsAreFound() {
+        assertEquals("true", quick("\\exists x\\in\\mathbb{R}, x>50\\land x<50.001"));
+        assertEquals("true", quick("\\exists x, x>5\\land x<5.0001"));
+        assertEquals("true", quick("\\exists x, |x-500|<0.01"));
+        assertEquals("true", quick("\\exists x, (x-1)(x-1.0001)<0"));
+        assertEquals("false", quick("\\forall x, x\\leq0\\lor x\\geq0.00005"));
+        assertEquals("true", quick("\\forall\\epsilon, \\epsilon>0\\Rightarrow\\exists\\delta, \\delta>0\\land\\delta<\\epsilon"));
+        assertEquals("false", quick("\\exists x, |x-500|<-0.01"));
+        assertEquals("true", quick("\\exists x, (x-1000)^2<0.0001"));
+        assertEquals("false", quick("\\forall x, (x-1000)^2\\geq0.0001"));
+        assertEquals("true", quick("\\exists x, x>5000\\land x<5000.001"));
+        assertEquals("1 < x < 1.0001", quick("(x-1)(x-1.0001)<0"));
+        assertEquals("x < 1 or x > 1.0001", quick("(x-1)(x-1.0001)>0"));
+        // period below grid step, cant solve
+        assertEquals(UNCALCULABLE, quick("\\sin(1000x)=1"));
+        assertTrue(quick("\\sin(100x)=0.9999").startsWith("x = -99.9499117 or x = -99.94962885 or "));
+    }
 }

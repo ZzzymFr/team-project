@@ -189,6 +189,9 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
                 return;
             }
             all.addAll(solver.solve());
+            if (solver.isUndersampled()) {
+                throw new UncalculableException();
+            }
             stretch = stretch || solver.hasStretch();
         }
         Collections.sort(all);

@@ -8,6 +8,7 @@ import entity.value.VectorValue;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.DoubleUnaryOperator;
 
 public class EquationSolver {
     public static final double SEARCH_START = -100;
@@ -22,6 +23,9 @@ public class EquationSolver {
     private static final double FLAT_BOTTOM = 1e-12;
     private static final int EDGE_ROUNDS = 50;
     private static final double DEEP = 1e-6;
+    // turns too often = grid too coarse
+    private static final double MAX_TURNS_PER_POINT = 0.5;
+    private static final double TURN_NOISE = 1e-6;
 
     private final Node left;
     private final Node right;
@@ -31,6 +35,7 @@ public class EquationSolver {
     private final int leftPart;
     private final int rightPart;
     private boolean hasStretch;
+    private boolean undersampled;
 
     public EquationSolver(Node left, Node right, String variable, Context context) {
         this(left, right, variable, context, STEP);
@@ -80,6 +85,7 @@ public class EquationSolver {
             exactZero[i] = ds[i] == 0 && !context.isAbsorbed();
         }
 
+        undersampled = turnsTooOften(ds);
         List<Double> solutions = new ArrayList<>();
         for (int i = 0; i < count; i++) {
             if (i > 0 && isNumber(ds[i - 1]) && isNumber(ds[i]) && ds[i - 1] * ds[i] < 0) {
@@ -93,13 +99,35 @@ public class EquationSolver {
                 boolean zeroAfter = i < count - 1 && exactZero[i + 1];
                 // flat stretch: keep only the ends as hints
                 hasStretch = hasStretch || zeroBefore || zeroAfter;
+                // same sign both sides, might cross back
+                boolean sameSides = i > 0 && i < count - 1 && isNumber(ds[i - 1]) && isNumber(ds[i + 1])
+                        && ds[i - 1] * ds[i + 1] > 0;
+                if (sameSides) {
+                    addHiddenCrossing(solutions, xs[i - 1], ds[i - 1], xs[i]);
+                }
                 if (!zeroBefore || !zeroAfter) {
                     addSolution(solutions, xs[i]);
                 }
+                if (sameSides) {
+                    addHiddenCrossing(solutions, xs[i + 1], ds[i + 1], xs[i]);
+                }
             } else if (isTouchingCandidate(ds, i)) {
-                double root = touchingRoot(xs[i - 1], xs[i + 1], Math.abs(ds[i]));
-                if (isNumber(root)) {
-                    addSolution(solutions, root);
+                // dip might cross 0 twice or touch
+                double sign = Math.signum(ds[i]);
+                double[] lowest = lowest(x -> sign * searchDifference(x), xs[i - 1], xs[i + 1]);
+                if (isNumber(lowest[1]) && lowest[1] < 0) {
+                    double first = bisect(xs[i - 1], lowest[0], ds[i - 1]);
+                    double second = bisect(lowest[0], xs[i + 1], difference(lowest[0]));
+                    for (double root : new double[] {first, second}) {
+                        if (isNumber(root)) {
+                            addSolution(solutions, root);
+                        }
+                    }
+                } else {
+                    double root = touchingRoot(xs[i - 1], xs[i + 1], Math.abs(ds[i]));
+                    if (isNumber(root)) {
+                        addSolution(solutions, root);
+                    }
                 }
             }
         }
@@ -109,6 +137,68 @@ public class EquationSolver {
     // true if solve hit an equal stretch, list incomplete
     public boolean hasStretch() {
         return hasStretch;
+    }
+
+    // root between outside pt and exact zero
+    private void addHiddenCrossing(List<Double> solutions, double outside, double dOutside, double zero) {
+        double low = Math.min(outside, zero);
+        double high = Math.max(outside, zero);
+        double[] lowest = lowest(x -> Math.signum(dOutside) * searchDifference(x), low, high);
+        if (!isNumber(lowest[1]) || lowest[1] >= 0) {
+            return;
+        }
+        double root = bisect(Math.min(outside, lowest[0]), Math.max(outside, lowest[0]),
+                difference(Math.min(outside, lowest[0])));
+        if (isNumber(root)) {
+            addSolution(solutions, root);
+        }
+    }
+
+    // {x, f(x)} min via golden section
+    public static double[] lowest(DoubleUnaryOperator f, double low, double high) {
+        double a = low;
+        double b = high;
+        double c = b - GOLDEN * (b - a);
+        double d = a + GOLDEN * (b - a);
+        double fc = f.applyAsDouble(c);
+        double fd = f.applyAsDouble(d);
+        for (int round = 0; round < GOLDEN_ROUNDS && b - a > 1e-15 * Math.max(1, Math.abs(a)); round++) {
+            if (Double.isNaN(fc) || Double.isNaN(fd)) {
+                return new double[] {Double.NaN, Double.NaN};
+            }
+            if (fc <= fd) {
+                b = d;
+                d = c;
+                fd = fc;
+                c = b - GOLDEN * (b - a);
+                fc = f.applyAsDouble(c);
+            } else {
+                a = c;
+                c = d;
+                fc = fd;
+                d = a + GOLDEN * (b - a);
+                fd = f.applyAsDouble(d);
+            }
+        }
+        return fc <= fd ? new double[] {c, fc} : new double[] {d, fd};
+    }
+
+    // curve turns too much, missed roots
+    public boolean isUndersampled() {
+        return undersampled;
+    }
+
+    private static boolean turnsTooOften(double[] ds) {
+        int turns = 0;
+        for (int i = 1; i + 1 < ds.length; i++) {
+            double before = ds[i] - ds[i - 1];
+            double after = ds[i + 1] - ds[i];
+            double noise = TURN_NOISE * Math.max(1, Math.abs(ds[i]));
+            if (before * after < 0 && Math.abs(before) > noise && Math.abs(after) > noise) {
+                turns++;
+            }
+        }
+        return turns > MAX_TURNS_PER_POINT * ds.length;
     }
 
     // dip w/ no sign change might touch 0, search if deep or curve says so

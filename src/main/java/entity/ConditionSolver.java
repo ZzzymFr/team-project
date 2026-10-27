@@ -18,6 +18,7 @@ import java.math.BigDecimal;
 import java.math.MathContext;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -37,6 +38,8 @@ public class ConditionSolver {
     private static final double OUTER_SCALE = 10;
     private static final double[] FAR_INTEGERS = {1e3, 1e6, 1e9, 1e12};
     private static final double PROBE = 1e-4;
+    private static final double MIN_PROBE = 1e-12;
+    private static final double NEIGHBOUR_SHARE = 4;
     private static final int POINTS_PER_DECADE = 3;
     private static final int SCAN_POINTS = 3 * 298;
     private static final double TINY = 1e-300;
@@ -73,6 +76,7 @@ public class ConditionSolver {
     private boolean sawVerdict;
     private boolean skippedRoot;
     private boolean lostInSample;
+    private boolean undersampled;
 
     public ConditionSolver(Node condition, String variable, Context context) {
         this.condition = condition;
@@ -96,9 +100,13 @@ public class ConditionSolver {
 
     public List<Interval> solve() {
         double[] points = sortedCandidates();
+        if (undersampled) {
+            throw new UncalculableException();
+        }
         Set<Double> genuineRoots = new HashSet<>();
+        List<Double> sortedRoots = sortedRootValues();
         for (Root root : getRoots()) {
-            double offset = PROBE * Math.max(1, Math.abs(root.value));
+            double offset = probeOffset(root.value, sortedRoots);
             if (isGenuineRoot(root.pair, root.value, offset)) {
                 genuineRoots.add(root.value);
             }
@@ -109,6 +117,7 @@ public class ConditionSolver {
         }
         boolean[] truth = withRoundingRunsFilled(samples);
         Set<Double> rootValues = new HashSet<>(boundaryRoots());
+        Set<Double> midpoints = new HashSet<>(rootMidpoints());
 
         List<Interval> intervals = new ArrayList<>();
         int isolatedPoints = 0;
@@ -124,7 +133,7 @@ public class ConditionSolver {
             }
             int end = i;
             // lone true sample only shown if false right next to it
-            if (start == end && !rootValues.contains(points[start])) {
+            if (start == end && !rootValues.contains(points[start]) && !midpoints.contains(points[start])) {
                 isolatedPoints++;
                 if (isolatedPoints > MAX_ISOLATED_POINTS || !isIsolated(points[start], true)) {
                     throw new UncalculableException();
@@ -397,22 +406,28 @@ public class ConditionSolver {
                 return FOUND;
             }
         }
+        List<Double> rootValues = sortedRootValues();
         for (Root root : getRoots()) {
-            int result = checkRoot(root.value, root.pair, wanted, mode);
+            int result = checkRoot(root.value, root.pair, wanted, mode, probeOffset(root.value, rootValues));
             if (result != NOT_FOUND) {
                 return result;
             }
         }
+        // might only hold between close roots
+        for (double midpoint : mode == REAL ? rootMidpoints() : new ArrayList<Double>()) {
+            if (verdictAt(midpoint) == wanted) {
+                return FOUND;
+            }
+        }
         int result = scanFar(wanted, mode);
-        if (result == NOT_FOUND && (skippedRoot || !sawVerdict)) {
+        if (result == NOT_FOUND && (skippedRoot || !sawVerdict || undersampled)) {
             throw new UndecidableException();
         }
         return result;
     }
 
     // real root: 0 sides are expected, dont skip
-    private int checkRoot(double root, Pair pair, int wanted, int mode) {
-        double offset = PROBE * Math.max(1, Math.abs(root));
+    private int checkRoot(double root, Pair pair, int wanted, int mode, double offset) {
         boolean genuine = isGenuineRoot(pair, root, offset);
         List<Double> samples = new ArrayList<>();
         if (mode == REAL) {
@@ -438,6 +453,40 @@ public class ConditionSolver {
         return NOT_FOUND;
     }
 
+    // close roots, might miss it on the grid
+    private List<Double> rootMidpoints() {
+        List<Double> rootValues = sortedRootValues();
+        List<Double> midpoints = new ArrayList<>();
+        for (int i = 0; i + 1 < rootValues.size(); i++) {
+            midpoints.add((rootValues.get(i) + rootValues.get(i + 1)) / 2);
+        }
+        return midpoints;
+    }
+
+    // distinct roots sorted
+    private List<Double> sortedRootValues() {
+        Set<Double> distinct = new HashSet<>(boundaryRoots());
+        List<Double> values = new ArrayList<>(distinct);
+        Collections.sort(values);
+        return values;
+    }
+
+    // probe 1e-4 of root size, max 1/4 to next root
+    private static double probeOffset(double root, List<Double> rootValues) {
+        double offset = PROBE * Math.max(1, Math.abs(root));
+        int index = Collections.binarySearch(rootValues, root);
+        if (index < 0) {
+            return offset;
+        }
+        if (index > 0) {
+            offset = Math.min(offset, (root - rootValues.get(index - 1)) / NEIGHBOUR_SHARE);
+        }
+        if (index + 1 < rootValues.size()) {
+            offset = Math.min(offset, (rootValues.get(index + 1) - root) / NEIGHBOUR_SHARE);
+        }
+        return Math.max(offset, MIN_PROBE * Math.max(1, Math.abs(root)));
+    }
+
     private int rootVerdictAt(double point, boolean genuine) {
         int reliability = reliabilityAt(point, genuine);
         if (reliability == OUT_OF_RANGE && genuine) {
@@ -459,14 +508,18 @@ public class ConditionSolver {
         return below * above < 0 || (touching && Math.abs(below) >= TINY && Math.abs(above) >= TINY);
     }
 
-    // sign changes 3 per decade out to 1e300
+    // scan to 1e300 + dips that might cross 0
     private int scanFar(int wanted, int mode) {
         List<Pair> pairs = numericPairs();
         if (pairs.isEmpty()) {
             return NOT_FOUND;
         }
+        boolean dips = context.getVariableValues().isEmpty();
+        List<Double> found = new ArrayList<>(sortedRootValues());
         double[][] last = new double[2][pairs.size()];
+        double[][] beforeLast = new double[2][pairs.size()];
         double lastSize = 0;
+        double beforeLastSize = 0;
         for (int k = 0; k <= SCAN_POINTS; k++) {
             double size = EquationSolver.SEARCH_END * Math.pow(10, k / (double) POINTS_PER_DECADE);
             for (int side = 0; side < 2; side++) {
@@ -474,18 +527,79 @@ public class ConditionSolver {
                 for (int i = 0; i < pairs.size(); i++) {
                     double d = difference(pairs.get(i), sign * size);
                     double before = last[side][i];
+                    double twoBefore = beforeLast[side][i];
+                    beforeLast[side][i] = before;
                     last[side][i] = d;
+                    if (dips && k >= 2 && isDip(twoBefore, before, d)) {
+                        int result = checkDip(pairs.get(i), sign * beforeLastSize, twoBefore, sign * size,
+                                wanted, mode);
+                        if (result != NOT_FOUND) {
+                            return result;
+                        }
+                    }
                     if (k == 0 || !isFinite(d) || !isFinite(before) || before == 0 || before * d > 0) {
                         continue;
                     }
                     double root = d == 0 ? sign * size : bisect(pairs.get(i), sign * lastSize, sign * size, before);
-                    int result = checkRoot(root, pairs.get(i), wanted, mode);
+                    int result = checkFarRoot(root, pairs.get(i), wanted, mode, found);
                     if (result != NOT_FOUND) {
                         return result;
                     }
                 }
             }
+            beforeLastSize = lastSize;
             lastSize = size;
+        }
+        return NOT_FOUND;
+    }
+
+    // scan root, keep probes between roots
+    private int checkFarRoot(double root, Pair pair, int wanted, int mode, List<Double> found) {
+        double nearest = Double.NaN;
+        for (double other : found) {
+            if (other != root && (Double.isNaN(nearest) || Math.abs(other - root) < Math.abs(nearest - root))) {
+                nearest = other;
+            }
+        }
+        found.add(root);
+        double offset = PROBE * Math.max(1, Math.abs(root));
+        if (!Double.isNaN(nearest)) {
+            offset = Math.max(Math.min(offset, Math.abs(root - nearest) / NEIGHBOUR_SHARE),
+                    MIN_PROBE * Math.max(1, Math.abs(root)));
+        }
+        int result = checkRoot(root, pair, wanted, mode, offset);
+        if (result == NOT_FOUND && mode == REAL && !Double.isNaN(nearest)
+                && verdictAt((root + nearest) / 2) == wanted) {
+            return FOUND;
+        }
+        return result;
+    }
+
+    // 3 same sign vals, middle closest to 0
+    private static boolean isDip(double first, double middle, double last) {
+        return isFinite(first) && isFinite(middle) && isFinite(last) && first * middle > 0 && middle * last > 0
+                && Math.abs(middle) < Math.abs(first) && Math.abs(middle) < Math.abs(last);
+    }
+
+    // lowest pt of dip, past 0 = two roots
+    private int checkDip(Pair pair, double from, double dFrom, double to, int wanted, int mode) {
+        double sign = Math.signum(dFrom);
+        double[] lowest = EquationSolver.lowest(x -> sign * difference(pair, x), Math.min(from, to),
+                Math.max(from, to));
+        if (!isFinite(lowest[1]) || lowest[1] > 0) {
+            return NOT_FOUND;
+        }
+        if (verdictAt(lowest[0]) == wanted) {
+            return FOUND;
+        }
+        double first = bisect(pair, from, lowest[0], dFrom);
+        double second = bisect(pair, to, lowest[0], difference(pair, to));
+        double offset = Math.abs(second - first) / NEIGHBOUR_SHARE;
+        for (double root : new double[] {first, second}) {
+            int result = checkRoot(root, pair, wanted, mode, Math.min(offset, PROBE * Math.max(1, Math.abs(root))));
+            if (result != NOT_FOUND) {
+                return result;
+            }
         }
         return NOT_FOUND;
     }
@@ -704,6 +818,7 @@ public class ConditionSolver {
     private double[] sortedCandidates() {
         List<Double> points = cheapPoints(false);
         points.addAll(rootPoints());
+        points.addAll(rootMidpoints());
         double[] sorted = new double[points.size()];
         for (int i = 0; i < sorted.length; i++) {
             sorted[i] = points.get(i);
@@ -822,6 +937,7 @@ public class ConditionSolver {
                 for (double value : solver.solve()) {
                     roots.add(new Root(value, pair));
                 }
+                undersampled = undersampled || solver.isUndersampled();
             }
         }
     }
