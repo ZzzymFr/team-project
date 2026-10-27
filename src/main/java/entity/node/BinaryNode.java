@@ -2,6 +2,7 @@ package entity.node;
 
 import entity.Context;
 import entity.UncalculableException;
+import entity.UndefinedException;
 import entity.UndecidableException;
 import entity.value.BooleanValue;
 import entity.value.FiniteSetValue;
@@ -141,7 +142,10 @@ public class BinaryNode extends Node {
         boolean scalarOnRight = a instanceof VectorValue;
         if (op == Op.DIVIDE && scalarOnRight) {
             double divisor = Values.toNumber(b);
-            if (divisor == 0 || Double.isNaN(divisor) || Double.isInfinite(divisor)) {
+            if (divisor == 0 || Double.isNaN(divisor)) {
+                throw new UndefinedException();
+            }
+            if (Double.isInfinite(divisor)) {
                 throw new UncalculableException();
             }
             List<Double> divided = new ArrayList<>();
@@ -171,7 +175,10 @@ public class BinaryNode extends Node {
 
     public static VectorValue finiteVector(List<Double> components) {
         for (double component : components) {
-            if (Double.isNaN(component) || Double.isInfinite(component)) {
+            if (Double.isNaN(component)) {
+                throw new UndefinedException();
+            }
+            if (Double.isInfinite(component)) {
                 throw new UncalculableException();
             }
         }

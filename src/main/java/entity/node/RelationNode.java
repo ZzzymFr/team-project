@@ -2,6 +2,7 @@ package entity.node;
 
 import entity.Context;
 import entity.UncalculableException;
+import entity.UndefinedException;
 import entity.value.BooleanValue;
 import entity.value.FiniteSetValue;
 import entity.value.NumberSetValue;
@@ -60,7 +61,7 @@ public class RelationNode extends Node {
     // undefined side cant compare
     private static Value defined(Value value) {
         if (value instanceof NumberValue && Double.isNaN(((NumberValue) value).getValue())) {
-            throw new UncalculableException();
+            throw new UndefinedException();
         }
         return value;
     }
@@ -130,7 +131,7 @@ public class RelationNode extends Node {
 
     private boolean isMember(Value element, Value set, Node elementNode) {
         if (element instanceof NumberValue && Double.isNaN(((NumberValue) element).getValue())) {
-            throw new UncalculableException();
+            throw new UndefinedException();
         }
         if (element instanceof NumberValue && set instanceof FiniteSetValue) {
             return ((FiniteSetValue) set).contains(((NumberValue) element).getValue());

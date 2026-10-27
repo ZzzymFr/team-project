@@ -193,9 +193,7 @@ public class EquationSolver {
                 return Double.NaN;
             }
             return ((NumberValue) leftValue).getValue() - ((NumberValue) rightValue).getValue();
-        } catch (BudgetExceededException e) {
-            throw e;
-        } catch (UncalculableException e) {
+        } catch (UndefinedException e) {
             return Double.NaN;
         }
     }

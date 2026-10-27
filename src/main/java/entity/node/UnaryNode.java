@@ -2,6 +2,7 @@ package entity.node;
 
 import entity.Context;
 import entity.UncalculableException;
+import entity.UndefinedException;
 import entity.value.BooleanValue;
 import entity.value.FiniteSetValue;
 import entity.value.NumberValue;
@@ -87,7 +88,10 @@ public class UnaryNode extends Node {
                 }
                 return BinaryNode.finiteVector(scaled);
             case UNIT:
-                if (norm == 0 || Double.isInfinite(norm)) {
+                if (norm == 0) {
+                    throw new UndefinedException();
+                }
+                if (Double.isInfinite(norm)) {
                     throw new UncalculableException();
                 }
                 for (double component : vector.getComponents()) {

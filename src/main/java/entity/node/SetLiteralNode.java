@@ -2,6 +2,7 @@ package entity.node;
 
 import entity.Context;
 import entity.UncalculableException;
+import entity.UndefinedException;
 import entity.value.FiniteSetValue;
 import entity.value.Value;
 import entity.value.Values;
@@ -32,7 +33,10 @@ public class SetLiteralNode extends Node {
         List<Double> numbers = new ArrayList<>();
         for (Node element : elements) {
             double number = Values.toNumber(element.evaluate(context));
-            if (Double.isNaN(number) || Double.isInfinite(number)) {
+            if (Double.isNaN(number)) {
+                throw new UndefinedException();
+            }
+            if (Double.isInfinite(number)) {
                 throw new UncalculableException();
             }
             numbers.add(number);

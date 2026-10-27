@@ -221,9 +221,7 @@ public class ConditionSolver {
         Value value;
         try {
             value = condition.evaluate(at);
-        } catch (BudgetExceededException | UndecidableException e) {
-            throw e;
-        } catch (UncalculableException e) {
+        } catch (UndefinedException e) {
             return new Sample(false, FALSE, false);
         }
         if (!(value instanceof BooleanValue)) {
@@ -712,9 +710,7 @@ public class ConditionSolver {
         Value value;
         try {
             value = condition.evaluate(context.withVariable(variable, point));
-        } catch (BudgetExceededException | UndecidableException e) {
-            throw e;
-        } catch (UncalculableException e) {
+        } catch (UndefinedException e) {
             return false;
         }
         if (!(value instanceof BooleanValue)) {

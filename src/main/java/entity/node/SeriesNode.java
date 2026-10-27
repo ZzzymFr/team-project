@@ -2,6 +2,7 @@ package entity.node;
 
 import entity.Context;
 import entity.UncalculableException;
+import entity.UndefinedException;
 import entity.calculus.SeriesCalculator;
 import entity.value.NumberValue;
 import entity.value.Value;
@@ -92,7 +93,10 @@ public class SeriesNode extends Node {
 
     private static long bound(double value) {
         double rounded = Math.rint(value);
-        if (!(Math.abs(value - rounded) <= INTEGER_TOLERANCE) || Math.abs(rounded) >= 0x1p62) {
+        if (!(Math.abs(value - rounded) <= INTEGER_TOLERANCE)) {
+            throw new UndefinedException();
+        }
+        if (Math.abs(rounded) >= 0x1p62) {
             throw new UncalculableException();
         }
         return (long) rounded;

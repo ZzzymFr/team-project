@@ -2,6 +2,7 @@ package entity.node;
 
 import entity.Context;
 import entity.UncalculableException;
+import entity.UndefinedException;
 import entity.value.Value;
 import entity.value.Values;
 import entity.value.VectorValue;
@@ -36,7 +37,10 @@ public class VectorNode extends Node {
         List<Double> numbers = new ArrayList<>();
         for (Node component : components) {
             double number = Values.toNumber(component.evaluate(context));
-            if (Double.isNaN(number) || Double.isInfinite(number)) {
+            if (Double.isNaN(number)) {
+                throw new UndefinedException();
+            }
+            if (Double.isInfinite(number)) {
                 throw new UncalculableException();
             }
             numbers.add(number);

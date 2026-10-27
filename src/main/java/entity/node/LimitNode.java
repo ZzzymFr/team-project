@@ -1,8 +1,7 @@
 package entity.node;
 
-import entity.BudgetExceededException;
 import entity.Context;
-import entity.UncalculableException;
+import entity.UndefinedException;
 import entity.calculus.LimitCalculator;
 import entity.value.NumberValue;
 import entity.value.Value;
@@ -75,9 +74,7 @@ public class LimitNode extends Node {
     private double sample(Context context) {
         try {
             return DerivativeNode.numberAt(body, context);
-        } catch (BudgetExceededException e) {
-            throw e;
-        } catch (UncalculableException e) {
+        } catch (UndefinedException e) {
             return Double.NaN;
         }
     }
