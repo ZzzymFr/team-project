@@ -216,6 +216,14 @@ class FinalReviewTest {
     }
 
     @Test
+    void indexNamedEIsAVariable() {
+        assertEquals("= 6", quick("\\sum_{e=1}^{3}e"));
+        assertEquals("= 6", quick("\\prod_{e=1}^{3}e"));
+        assertEquals("= 4", quick("\\lim_{e\\to2}e^2"));
+        assertEquals("= 2.718281828", quick("\\sum_{i=1}^{1}e"));
+    }
+
+    @Test
     void plusMinusExclusionKeepsUndefinedPoints() {
         assertEquals("x ≠ -1 and x ≠ 0 and x ≠ 1", quick("\\frac{1}{x}\\neq\\pm1"));
         assertEquals("x ≠ -1 and x ≠ 1", quick("x\\neq\\pm1"));

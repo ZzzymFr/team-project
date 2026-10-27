@@ -588,7 +588,7 @@ public final class MathParser {
             throw new UncalculableException();
         }
         if (function == null) {
-            return new DerivativeNode(variable, order, parseAdditive());
+            return new DerivativeNode(variable, order, parseBody(variable));
         }
         int parameter = functions.get(function).getParameters().indexOf(variable);
         if (parameter < 0) {
@@ -625,7 +625,7 @@ public final class MathParser {
         }
         Node target = parseBound(start, targetEnd);
         position = end + 1;
-        return new LimitNode(variable, target, side, parseAdditive());
+        return new LimitNode(variable, target, side, parseBody(variable));
     }
 
     // \sum / \prod w/ range, no range -> uncalc
@@ -658,7 +658,15 @@ public final class MathParser {
             next();
             upper = parseBound(position - 1, position);
         }
-        return new SeriesNode(isProduct, variable, lower, upper, parseAdditive());
+        return new SeriesNode(isProduct, variable, lower, upper, parseBody(variable));
+    }
+
+    // body where the var is bound (even e)
+    private Node parseBody(String variable) {
+        boundNames.add(variable);
+        Node body = parseAdditive();
+        boundNames.remove(boundNames.size() - 1);
+        return body;
     }
 
     // bound inside the brackets, parsed on its own
@@ -667,6 +675,7 @@ public final class MathParser {
             throw new MathSyntaxException("Unexpected \"" + tokens.get(to) + "\".");
         }
         MathParser boundParser = new MathParser(tokens.subList(from, to), functions);
+        boundParser.boundNames.addAll(boundNames);
         Node bound = boundParser.parse();
         if (boundParser.getPlusMinusCount() > 0) {
             throw new UncalculableException();
