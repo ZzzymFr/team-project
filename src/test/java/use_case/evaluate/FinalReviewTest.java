@@ -119,7 +119,10 @@ class FinalReviewTest {
         assertEquals("true for all x", quick("x+0=x"));
         assertEquals("true for all x", quick("\\sin(x)^2+\\cos(x)^2=1"));
         assertEquals("true for all x", quick("(x+1)^4=x^4+4x^3+6x^2+4x+1"));
-        assertTrue(!quick("\\sin(100\\pi x)=0").startsWith("true"));
+        // every grid pt is a root
+        String gridRoots = quick("\\sin(100\\pi x)=0");
+        assertTrue(gridRoots.equals(UNCALCULABLE) || gridRoots.startsWith("x = -100 or x = -99.99 or x = -99.98 or "),
+                gridRoots);
         assertEquals("x = -100 or x = 100", quick("x^2=10000"));
         assertEquals("no solution", quick("e^{-x^2}=0"));
     }

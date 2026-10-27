@@ -121,6 +121,10 @@ public class EquationSolver {
             if (end && equal[i] && !exactZero[i] && !noise[i] && !equal[i == 0 ? 1 : count - 2]) {
                 addSolution(solutions, xs[i]);
             }
+            // equal within tol at grid pts but not between
+            if (equal[i] && !exactZero[i] && !noise[i] && i < count - 1 && equal[i + 1]) {
+                undersampled = undersampled || !isEqualAt((xs[i] + xs[i + 1]) / 2);
+            }
             if (noise[i]) {
                 // approx noise, keep stretch ends only
                 boolean noiseBefore = i > 0 && (noise[i - 1] || exactZero[i - 1]);
@@ -378,6 +382,11 @@ public class EquationSolver {
             }
         }
         return true;
+    }
+
+    private boolean isEqualAt(double x) {
+        double d = searchDifference(x);
+        return isNumber(d) && (Values.areAlmostEqual(lastLeft, lastRight) || approximate && isWithinApproximation());
     }
 
     private boolean isWithinApproximation() {
