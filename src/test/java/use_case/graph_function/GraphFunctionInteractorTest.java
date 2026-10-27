@@ -86,6 +86,41 @@ class GraphFunctionInteractorTest {
     }
 
     @Test
+    void givenYRangeIsUsedExactlyAndPointsOutsideAreHidden() {
+        interactor.execute(new GraphFunctionInputData("y=x^2", -10, 10, 0, 25));
+
+        GraphData data = renderer.received;
+        assertEquals(0, data.getYMin(), 1e-9);
+        assertEquals(25, data.getYMax(), 1e-9);
+        for (double y : data.getYs()) {
+            assertTrue(Double.isNaN(y) || (y >= 0 && y <= 25), "no point outside [0, 25]: " + y);
+        }
+        assertNotNull(presenter.success);
+    }
+
+    @Test
+    void automaticYRangeIsStillTheDefault() {
+        GraphFunctionInputData input = new GraphFunctionInputData("y=x^2", -2, 2);
+        assertTrue(input.isYAutomatic());
+        interactor.execute(input);
+        assertTrue(renderer.received.getYMin() < 0, "automatic window has padding below 0");
+    }
+
+    @Test
+    void invalidYRangeIsReported() {
+        interactor.execute(new GraphFunctionInputData("y=x", -10, 10, 5, 5));
+        assertNull(presenter.success);
+        assertTrue(presenter.error.contains("y range"));
+    }
+
+    @Test
+    void curveEntirelyOutsideTheYRangeIsReported() {
+        interactor.execute(new GraphFunctionInputData("y=x^2+100", -10, 10, -5, 5));
+        assertNull(presenter.success);
+        assertTrue(presenter.error.contains("outside the y range"));
+    }
+
+    @Test
     void parseErrorIsReported() {
         interactor.execute(new GraphFunctionInputData("y=ax+b"));
         assertNull(presenter.success);

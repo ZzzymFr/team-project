@@ -1,4 +1,3 @@
-import app.AppBuilder;
 import app.StackedAppBuilder;
 import model.vital_mini;
 
@@ -26,7 +25,7 @@ public class app {
             frame = new StackedAppBuilder()
                     .addGraphPage()
                     .addPdfPage()
-                    .addAnswerPage(evaluator.getExpressionView())
+                    .addAnswerPage()
                     .build();
             frame.addWindowListener(new WindowAdapter() {
                 @Override

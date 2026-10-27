@@ -31,17 +31,70 @@ class SharedCanvasTest {
     }
 
     @Test
-    void formulaImageIsCroppedToTheInkWithAWhiteMargin() {
-        drawLine(100, 50, 140, 80);
+    void wideFormulaImageIsCroppedToTheInkWithAWhiteMargin() {
+        drawLine(100, 50, 300, 60);
 
         BufferedImage image = shared.captureFormulaImage();
 
-        // 41 x 31 pixels of ink plus 16 px margin and half the 4 px pen width on each side
-        assertEquals(41 + 2 * 18, image.getWidth());
-        assertEquals(31 + 2 * 18, image.getHeight());
+        // 201 x 11 pixels of ink plus 16 px margin and half the 4 px pen width on each side
+        assertEquals(201 + 2 * 18, image.getWidth());
+        assertEquals(11 + 2 * 18, image.getHeight());
         assertTrue(isWhite(image, 0, 0));
         assertTrue(isWhite(image, image.getWidth() - 1, image.getHeight() - 1));
-        assertEquals(Color.BLACK.getRGB(), image.getRGB(18 + 20, 18 + 15), "middle of the line is ink");
+        assertEquals(Color.BLACK.getRGB(), image.getRGB(18 + 100, 18 + 5), "middle of the line is ink");
+    }
+
+    @Test
+    void formulaImageIsAlwaysALandscapeRectangle() {
+        drawLine(50, 0, 50, 300);   // one tall, narrow stroke
+
+        BufferedImage image = shared.captureFormulaImage();
+
+        assertEquals(301 + 2 * 18, image.getHeight());
+        assertTrue(image.getWidth() >= 2 * image.getHeight(), "at least twice as wide as tall");
+        int middle = image.getWidth() / 2;
+        assertEquals(Color.BLACK.getRGB(), image.getRGB(middle, image.getHeight() / 2), "the ink is centred");
+        assertTrue(isWhite(image, 0, image.getHeight() / 2));
+        assertTrue(isWhite(image, image.getWidth() - 1, image.getHeight() / 2));
+    }
+
+    @Test
+    void squareInkIsWidenedToo() {
+        drawLine(100, 50, 140, 80);   // 41 x 31 of ink: taller than half its width with the margin
+        BufferedImage image = shared.captureFormulaImage();
+        assertEquals(31 + 2 * 18, image.getHeight());
+        assertEquals(2 * (31 + 2 * 18), image.getWidth());
+    }
+
+    /** Draws a lasso loop around the rectangle (left, top)-(right, bottom). */
+    private void lassoAround(int left, int top, int right, int bottom) {
+        canvas.setTool(DrawingCanvas.Tool.LASSO);
+        canvas.dispatchEvent(new MouseEvent(canvas, MouseEvent.MOUSE_PRESSED, 0, 0, left, top, 1, false, MouseEvent.BUTTON1));
+        canvas.dispatchEvent(new MouseEvent(canvas, MouseEvent.MOUSE_DRAGGED, 0, 0, right, top, 1, false, MouseEvent.BUTTON1));
+        canvas.dispatchEvent(new MouseEvent(canvas, MouseEvent.MOUSE_DRAGGED, 0, 0, right, bottom, 1, false, MouseEvent.BUTTON1));
+        canvas.dispatchEvent(new MouseEvent(canvas, MouseEvent.MOUSE_DRAGGED, 0, 0, left, bottom, 1, false, MouseEvent.BUTTON1));
+        canvas.dispatchEvent(new MouseEvent(canvas, MouseEvent.MOUSE_RELEASED, 0, 0, left, bottom, 1, false, MouseEvent.BUTTON1));
+    }
+
+    @Test
+    void withALassoSelectionOnlyThatFormulaIsCaptured() {
+        drawLine(0, 0, 30, 0);        // formula A
+        drawLine(300, 300, 400, 300); // formula B
+        assertEquals(674, shared.captureFormulaImage().getWidth(), "no selection: both formulas");
+
+        lassoAround(-20, -20, 60, 20);
+
+        BufferedImage image = shared.captureFormulaImage();
+        assertEquals(1 + 2 * 18, image.getHeight(), "only A's height");
+        assertEquals(2 * (1 + 2 * 18), image.getWidth(), "only A's width (made landscape)");
+        assertEquals(new java.awt.Rectangle(0, 0, 30, 0), shared.getFormulaBounds());
+    }
+
+    @Test
+    void withoutASelectionTheFormulaIsAllTheInk() {
+        drawLine(0, 0, 30, 0);
+        drawLine(300, 300, 400, 300);
+        assertEquals(new java.awt.Rectangle(0, 0, 400, 300), shared.getFormulaBounds());
     }
 
     @Test
@@ -51,7 +104,7 @@ class SharedCanvasTest {
         Thread worker = new Thread(() -> image.set(shared.captureFormulaImage()));
         worker.start();
         worker.join(5000);
-        assertEquals(11 + 2 * 18, image.get().getWidth());
+        assertEquals(2 * (11 + 2 * 18), image.get().getWidth());
     }
 
     @Test
@@ -69,7 +122,7 @@ class SharedCanvasTest {
         });
 
         assertEquals("y=x", shared.recognizeFormula());
-        assertEquals(31 + 2 * 18, received.get().getWidth());
+        assertEquals(2 * (1 + 2 * 18), received.get().getWidth());
     }
 
     @Test

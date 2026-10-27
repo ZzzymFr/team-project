@@ -8,9 +8,11 @@ import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
 import java.awt.Container;
 import java.awt.Graphics2D;
+import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
 import java.lang.reflect.InvocationTargetException;
 import java.util.function.Consumer;
+import java.util.function.DoubleConsumer;
 
 /**
  * The one handwriting canvas shared by every {@link CanvasPage}.
@@ -21,8 +23,7 @@ import java.util.function.Consumer;
  *
  * <p>{@link #captureFormulaImage()} takes the screenshot of the formula, and
  * {@link #recognizeFormula()} sends it to handwriting recognition once a
- * {@link FormulaRecognizer} is connected. {@code recognizeFormula} has the same shape as
- * {@code interface_adapter.graph.LatexProvider}, so {@code graphView.setLatexProvider(shared::recognizeFormula)} works.
+ * {@link FormulaRecognizer} is connected. {@link #showGraph} puts a graph beside the formula.
  */
 public class SharedCanvas {
     private final DrawingCanvas canvas;
@@ -62,8 +63,53 @@ public class SharedCanvas {
         slot.repaint();
     }
 
+    /** The ink and graph card as they appear on screen, e.g. for the frosted backdrop behind floating glass. */
     void paintInkCopy(Graphics2D g2) {
-        canvas.paintInk(g2);
+        canvas.paintContent(g2);
+    }
+
+    /** Shows the graph as a card beside the formula (not over the whole canvas). Call on the Swing event thread. */
+    public void showGraph(BufferedImage graph) {
+        canvas.showGraph(graph);
+    }
+
+    /** Shows the graph as a card beside the formula found at {@code formula} (from {@link #getFormulaBounds()}). */
+    public void showGraph(BufferedImage graph, Rectangle formula) {
+        canvas.showGraph(graph, formula);
+    }
+
+    /** Where the formula is: the lasso selection if there is one, otherwise all the ink; null if blank. */
+    public Rectangle getFormulaBounds() {
+        return canvas.getFormulaBounds();
+    }
+
+    public void removeGraph() {
+        canvas.removeGraph();
+    }
+
+    public boolean hasGraph() {
+        return canvas.hasGraph();
+    }
+
+    /** The grid and ink as they appear on screen, for pages that are not in front. */
+    void paintCanvasCopy(Graphics2D g2) {
+        canvas.paintView(g2);
+    }
+
+    /** The zoom of the infinite canvas: 1 = 100%. */
+    public double getZoom() {
+        return canvas.getZoom();
+    }
+
+    /** Back to 100%, with the ink in the middle. */
+    public void resetView() {
+        canvas.resetView();
+    }
+
+    /** Called with the new zoom whenever it changes. */
+    public void addZoomListener(DoubleConsumer listener) {
+        canvas.addPropertyChangeListener(DrawingCanvas.ZOOM_PROPERTY,
+                e -> listener.accept((Double) e.getNewValue()));
     }
 
     public DrawingCanvas.Tool getTool() {
@@ -108,7 +154,8 @@ public class SharedCanvas {
     }
 
     /**
-     * Screenshot of the formula on the canvas (cropped, dark ink on white). Safe to call from any thread.
+     * Screenshot of the formula on the canvas (cropped, dark ink on white): the lasso selection if
+     * there is one, otherwise all the ink. Safe to call from any thread.
      *
      * @throws IllegalStateException if the canvas is empty
      */
@@ -146,9 +193,20 @@ public class SharedCanvas {
      * @throws Exception if recognition itself fails
      */
     public String recognizeFormula() throws Exception {
+        return recognizeFormula(captureFormulaImage());
+    }
+
+    /**
+     * The LaTeX that handwriting recognition reads from an image already captured with
+     * {@link #captureFormulaImage()}. Call off the Swing event thread: recognition may be slow.
+     *
+     * @throws IllegalStateException if no recognizer is connected yet
+     * @throws Exception if recognition itself fails
+     */
+    public String recognizeFormula(BufferedImage formulaImage) throws Exception {
         if (recognizer == null) {
             throw new IllegalStateException("Handwriting recognition is not connected yet.");
         }
-        return recognizer.recognize(captureFormulaImage());
+        return recognizer.recognize(formulaImage);
     }
 }

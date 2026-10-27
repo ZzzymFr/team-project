@@ -44,6 +44,13 @@ public class GraphFunctionInteractor implements GraphFunctionInputBoundary {
             presenter.prepareFailView("The x range is invalid: x min must be less than x max.");
             return;
         }
+        boolean yAutomatic = inputData.isYAutomatic();
+        double yMin = inputData.getYMin();
+        double yMax = inputData.getYMax();
+        if (!yAutomatic && !(yMin < yMax)) {
+            presenter.prepareFailView("The y range is invalid: y min must be less than y max.");
+            return;
+        }
 
         MathFunction function;
         try {
@@ -53,10 +60,15 @@ public class GraphFunctionInteractor implements GraphFunctionInputBoundary {
             return;
         }
 
-        GraphData graphData = sample(function, xMin, xMax);
+        GraphData graphData = yAutomatic ? sample(function, xMin, xMax) : sample(function, xMin, xMax, yMin, yMax);
         if (graphData == null) {
             presenter.prepareFailView("\"" + latex + "\" is undefined for every x in ["
                     + xMin + ", " + xMax + "].");
+            return;
+        }
+        if (!yAutomatic && !hasVisiblePoint(graphData)) {
+            presenter.prepareFailView("The graph of \"" + latex + "\" is outside the y range ["
+                    + yMin + ", " + yMax + "] for every x in [" + xMin + ", " + xMax + "].");
             return;
         }
 
@@ -68,8 +80,16 @@ public class GraphFunctionInteractor implements GraphFunctionInputBoundary {
         }
     }
 
-    /** Returns null if the function has no finite value in the range. */
+    /** Samples with an automatic y range. Returns null if the function has no finite value in the range. */
     GraphData sample(MathFunction function, double xMin, double xMax) {
+        return sample(function, xMin, xMax, Double.NaN, Double.NaN);
+    }
+
+    /**
+     * Samples the function over [xMin, xMax] for the window [yMin, yMax]; NaN bounds mean an
+     * automatic y range. Returns null if the function has no finite value in the x range.
+     */
+    GraphData sample(MathFunction function, double xMin, double xMax, double fixedYMin, double fixedYMax) {
         double[] xs = new double[SAMPLE_COUNT + 1];
         double[] ys = new double[SAMPLE_COUNT + 1];
         List<Double> finite = new ArrayList<>();
@@ -86,7 +106,8 @@ public class GraphFunctionInteractor implements GraphFunctionInputBoundary {
             return null;
         }
 
-        double[] window = yWindow(finite);
+        boolean automatic = Double.isNaN(fixedYMin) || Double.isNaN(fixedYMax);
+        double[] window = automatic ? yWindow(finite) : new double[]{fixedYMin, fixedYMax};
         double yMin = window[0];
         double yMax = window[1];
 
@@ -109,6 +130,15 @@ public class GraphFunctionInteractor implements GraphFunctionInputBoundary {
             previous = y;
         }
         return new GraphData(function.getLatex(), toArray(outX), toArray(outY), xMin, xMax, yMin, yMax);
+    }
+
+    private static boolean hasVisiblePoint(GraphData data) {
+        for (double y : data.getYs()) {
+            if (!Double.isNaN(y)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Chooses [yMin, yMax]: the full range, or the central range when a few values blow up. */

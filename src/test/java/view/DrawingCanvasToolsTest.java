@@ -1,5 +1,6 @@
 package view;
 
+import entity.InkPoint;
 import entity.Stroke;
 import org.junit.jupiter.api.Test;
 
@@ -108,6 +109,54 @@ class DrawingCanvasToolsTest {
         assertEquals(300, firstX(1), "unselected ink stays put");
         canvas.undo();
         assertEquals(20, firstX(0));
+    }
+
+    /** Selects the stroke (20,20)-(40,40); its selection box is (12,12)-(48,48) with 8 px padding. */
+    private void selectSmallStroke() {
+        drag(20, 20, 40, 40);
+        drag(300, 300, 320, 320);   // stays unselected
+        canvas.setTool(DrawingCanvas.Tool.LASSO);
+        drag(0, 0, 100, 0, 100, 100, 0, 100);
+    }
+
+    private int point(int stroke, int index, boolean x) {
+        InkPoint p = canvas.getStrokes().get(stroke).getPoints().get(index);
+        return x ? p.getX() : p.getY();
+    }
+
+    @Test
+    void draggingACornerResizesTheSelectionAroundTheOppositeCorner() {
+        selectSmallStroke();
+        drag(48, 48, 84, 84);       // bottom-right handle, twice as far from the top-left corner
+
+        // scaled 2x around (12, 12): (20,20) -> (28,28), (40,40) -> (68,68)
+        assertEquals(28, point(0, 0, true));
+        assertEquals(28, point(0, 0, false));
+        assertEquals(68, point(0, 1, true));
+        assertEquals(68, point(0, 1, false));
+        assertEquals(300, firstX(1), "unselected ink is not resized");
+        assertTrue(canvas.hasSelection(), "the resized ink stays selected");
+
+        canvas.undo();
+        assertEquals(40, point(0, 1, true));
+    }
+
+    @Test
+    void resizingKeepsTheShape() {
+        selectSmallStroke();
+        drag(12, 12, 30, 20);       // top-left handle dragged unevenly: still one factor for x and y
+
+        int width = point(0, 1, true) - point(0, 0, true);
+        int height = point(0, 1, false) - point(0, 0, false);
+        assertEquals(width, height);
+        assertTrue(width < 20, "dragging the corner inwards makes it smaller");
+    }
+
+    @Test
+    void resizeCannotShrinkToNothing() {
+        selectSmallStroke();
+        drag(48, 48, -500, -500);   // far past the opposite corner
+        assertTrue(point(0, 1, true) > point(0, 0, true), "the stroke is not flipped or collapsed");
     }
 
     @Test

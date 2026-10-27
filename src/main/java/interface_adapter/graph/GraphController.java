@@ -22,4 +22,16 @@ public class GraphController {
     public void execute(String latex, double xMin, double xMax) {
         interactor.execute(new GraphFunctionInputData(latex, xMin, xMax));
     }
+
+    /**
+     * Graphs the LaTeX function over the given ranges, as {min, max} pairs from {@link AxisRangeParser};
+     * a null x range means the default [-10, 10], a null y range means choosing y automatically.
+     */
+    public void execute(String latex, double[] xRange, double[] yRange) {
+        double xMin = xRange == null ? GraphFunctionInputData.DEFAULT_X_MIN : xRange[0];
+        double xMax = xRange == null ? GraphFunctionInputData.DEFAULT_X_MAX : xRange[1];
+        double yMin = yRange == null ? GraphFunctionInputData.AUTOMATIC : yRange[0];
+        double yMax = yRange == null ? GraphFunctionInputData.AUTOMATIC : yRange[1];
+        interactor.execute(new GraphFunctionInputData(latex, xMin, xMax, yMin, yMax));
+    }
 }
