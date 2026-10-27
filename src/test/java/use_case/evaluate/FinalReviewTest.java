@@ -144,6 +144,14 @@ class FinalReviewTest {
     }
 
     @Test
+    void inclusionIsDecidedBeforeRounding() {
+        assertEquals("x > 3.141592654", quick("\\sqrt{x-\\pi}>0"));
+        assertEquals("x ≥ 3.141592654", quick("\\sqrt{x-\\pi}\\geq0"));
+        assertEquals("x ≥ 0", quick("\\sqrt{x}>-1"));
+        assertEquals("x ≤ -1.414213562 or x ≥ 1.414213562", quick("x^2\\geq2"));
+    }
+
+    @Test
     void domainEdgeAndTouchingRootsInQuantifiers() {
         assertEquals("true", quick("\\exists x, \\sqrt{x-1000}=0"));
         correctOrUncalculable("true", "\\exists x, e^{-x}(x-1000)=0");

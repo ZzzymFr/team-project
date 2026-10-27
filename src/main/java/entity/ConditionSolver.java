@@ -14,8 +14,6 @@ import entity.value.Value;
 import entity.value.Values;
 import entity.value.VectorValue;
 
-import java.math.BigDecimal;
-import java.math.MathContext;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -60,6 +58,7 @@ public class ConditionSolver {
     private static final int FOUND = 0;
     private static final int FOUND_AT_ROOT = 1;
     private static final int NOT_FOUND = 2;
+    private static final double INCLUDED = 1;
     private static final int NUMBER_SHAPE = 0;
     private static final int VECTOR_SHAPE = 1;
     private static final int SET_SHAPE = 2;
@@ -163,16 +162,18 @@ public class ConditionSolver {
             if (start > 0 && isLoneExclusion(points, truth, start - 1)) {
                 low = points[start - 1];
             } else if (start > 0) {
-                low = boundary(points[start - 1], points[start]);
-                lowIncluded = isTrueAt(low);
+                double[] edge = boundary(points[start - 1], points[start]);
+                low = edge[0];
+                lowIncluded = edge[1] == INCLUDED;
             }
             double high = Double.POSITIVE_INFINITY;
             boolean highIncluded = false;
             if (end < points.length - 1 && isLoneExclusion(points, truth, end + 1)) {
                 high = points[end + 1];
             } else if (end < points.length - 1) {
-                high = boundary(points[end + 1], points[end]);
-                highIncluded = isTrueAt(high);
+                double[] edge = boundary(points[end + 1], points[end]);
+                high = edge[0];
+                highIncluded = edge[1] == INCLUDED;
             }
             addInterval(intervals, new Interval(low, lowIncluded, high, highIncluded));
             i++;
@@ -1023,7 +1024,8 @@ public class ConditionSolver {
         return ((BooleanValue) value).getValue();
     }
 
-    private double boundary(double falsePoint, double truePoint) {
+    // {boundary, INCLUDED?} between false and true
+    private double[] boundary(double falsePoint, double truePoint) {
         for (int round = 0; round < ROUNDS; round++) {
             double middle = (falsePoint + truePoint) / 2;
             if (isTrueAt(middle)) {
@@ -1032,9 +1034,28 @@ public class ConditionSolver {
                 falsePoint = middle;
             }
         }
-        return tidy((falsePoint + truePoint) / 2);
+        double limit = (falsePoint + truePoint) / 2;
+        double snapped = tidy(limit);
+        if (!Double.isNaN(snapped)) {
+            return new double[] {snapped, isTrueAt(snapped) ? INCLUDED : 0};
+        }
+        if (isUndefinedAt(falsePoint) && isTrueAt(truePoint)) {
+            return new double[] {truePoint, INCLUDED};
+        }
+        return new double[] {limit, 0};
     }
 
+    private boolean isUndefinedAt(double point) {
+        context.spendStep();
+        try {
+            condition.evaluate(context.withVariable(variable, point));
+            return false;
+        } catch (UndefinedException e) {
+            return true;
+        }
+    }
+
+    // root a bisected boundary belongs to, else NaN
     private double tidy(double point) {
         Root nearest = null;
         for (Root root : getRoots()) {
@@ -1051,7 +1072,7 @@ public class ConditionSolver {
         if (Math.abs(point) <= ZERO_SNAP) {
             return 0;
         }
-        return new BigDecimal(point).round(new MathContext(8)).doubleValue();
+        return Double.NaN;
     }
 
     // inside tol of a root the root is the real boundary
