@@ -11,6 +11,7 @@ import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.lang.reflect.InvocationTargetException;
 import java.util.function.Consumer;
+import java.util.function.DoubleConsumer;
 
 /**
  * The one handwriting canvas shared by every {@link CanvasPage}.
@@ -62,8 +63,30 @@ public class SharedCanvas {
         slot.repaint();
     }
 
+    /** The ink as it appears on screen, e.g. for the frosted backdrop behind floating glass. */
     void paintInkCopy(Graphics2D g2) {
         canvas.paintInk(g2);
+    }
+
+    /** The grid and ink as they appear on screen, for pages that are not in front. */
+    void paintCanvasCopy(Graphics2D g2) {
+        canvas.paintView(g2);
+    }
+
+    /** The zoom of the infinite canvas: 1 = 100%. */
+    public double getZoom() {
+        return canvas.getZoom();
+    }
+
+    /** Back to 100%, with the ink in the middle. */
+    public void resetView() {
+        canvas.resetView();
+    }
+
+    /** Called with the new zoom whenever it changes. */
+    public void addZoomListener(DoubleConsumer listener) {
+        canvas.addPropertyChangeListener(DrawingCanvas.ZOOM_PROPERTY,
+                e -> listener.accept((Double) e.getNewValue()));
     }
 
     public DrawingCanvas.Tool getTool() {

@@ -108,6 +108,19 @@ public final class InkEditor {
         return moved;
     }
 
+    /**
+     * A copy of the stroke resized by a factor around the anchor point: the anchor stays where it
+     * is and every point moves towards it (factor below 1) or away from it (above 1).
+     */
+    public static Stroke scale(Stroke stroke, double anchorX, double anchorY, double factor) {
+        Stroke scaled = new Stroke();
+        for (InkPoint p : stroke.getPoints()) {
+            scaled.addPoint(new InkPoint((int) Math.round(anchorX + (p.getX() - anchorX) * factor),
+                    (int) Math.round(anchorY + (p.getY() - anchorY) * factor), p.getTimeMillis()));
+        }
+        return scaled;
+    }
+
     /** Ray casting: is (x, y) inside the closed polygon? */
     static boolean contains(List<InkPoint> polygon, double x, double y) {
         boolean inside = false;

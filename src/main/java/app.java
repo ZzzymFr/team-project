@@ -1,4 +1,3 @@
-import app.AppBuilder;
 import app.StackedAppBuilder;
 
 import javax.swing.JFrame;
@@ -20,15 +19,11 @@ public class app {
             } catch (Exception ignored) {
                 // fall back to the default look
             }
-            // US2: the expression evaluator, shown on the Answer page
-            AppBuilder evaluator = new AppBuilder()
-                    .addExpressionView()
-                    .addEvaluateUseCase();
             // Graph, PDF and Answer pages stacked in one window, sharing one handwriting canvas
             frame = new StackedAppBuilder()
                     .addGraphPage()
                     .addPdfPage()
-                    .addAnswerPage(evaluator.getExpressionView())
+                    .addAnswerPage()
                     .build();
         });
     }

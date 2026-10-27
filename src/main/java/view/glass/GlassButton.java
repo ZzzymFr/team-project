@@ -20,13 +20,20 @@ public class GlassButton extends JButton {
     private static final int HEIGHT = 30;
     private static final int PADDING = 16;
 
+    private final int height;
     private double hover;
     private double press;
     private boolean hovering;
     private final Timer animator = new Timer(15, e -> step());
 
     public GlassButton(String text) {
+        this(text, HEIGHT);
+    }
+
+    /** A glass button of the given height (the capsule; its shadow adds a little around it). */
+    public GlassButton(String text, int height) {
         super(text);
+        this.height = height;
         setFont(Fonts.ui(Font.PLAIN, 13f));
         setForeground(Glass.TEXT);
         setContentAreaFilled(false);
@@ -77,8 +84,9 @@ public class GlassButton extends JButton {
     @Override
     public Dimension getPreferredSize() {
         FontMetrics fm = getFontMetrics(getFont());
-        return new Dimension(fm.stringWidth(getText()) + 2 * PADDING + 2 * Glass.SHADOW,
-                HEIGHT + 2 * Glass.SHADOW);
+        int padding = PADDING + (height - HEIGHT) / 2;  // taller buttons get a little more side room
+        return new Dimension(fm.stringWidth(getText()) + 2 * padding + 2 * Glass.SHADOW,
+                height + 2 * Glass.SHADOW);
     }
 
     @Override

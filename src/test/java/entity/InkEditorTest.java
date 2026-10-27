@@ -100,6 +100,20 @@ class InkEditorTest {
     }
 
     @Test
+    void scaleResizesAroundTheAnchor() {
+        Stroke original = stroke(10, 10, 20, 30);
+        Stroke bigger = InkEditor.scale(original, 10, 10, 2);
+        assertEquals(10, bigger.getPoints().get(0).getX(), "the anchor stays put");
+        assertEquals(30, bigger.getPoints().get(1).getX());
+        assertEquals(50, bigger.getPoints().get(1).getY());
+
+        Stroke smaller = InkEditor.scale(original, 0, 0, 0.5);
+        assertEquals(5, smaller.getPoints().get(0).getX());
+        assertEquals(15, smaller.getPoints().get(1).getY());
+        assertEquals(20, original.getPoints().get(1).getX(), "the original is unchanged");
+    }
+
+    @Test
     void translateMovesEveryPointAndKeepsTheOriginal() {
         Stroke original = stroke(1, 2, 3, 4);
         Stroke moved = InkEditor.translate(original, 10, -2);

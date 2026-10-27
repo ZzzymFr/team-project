@@ -41,12 +41,6 @@ public class StackedAppBuilder {
         return this;
     }
 
-    /** An Answer page showing the given tools (e.g. the expression evaluator) above the canvas. */
-    public StackedAppBuilder addAnswerPage(JComponent answerTools) {
-        pages.addPage("Answer", ANSWER_GREEN, new AnswerCanvasPage(sharedCanvas, answerTools));
-        return this;
-    }
-
     /** Connects handwriting recognition once the machine-learning part is ready. */
     public StackedAppBuilder setFormulaRecognizer(FormulaRecognizer recognizer) {
         sharedCanvas.setFormulaRecognizer(recognizer);
