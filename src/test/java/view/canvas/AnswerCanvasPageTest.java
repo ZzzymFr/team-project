@@ -1,6 +1,7 @@
 package view.canvas;
 
 import data_access.InMemoryFunctionDataAccessObject;
+import entity.CanvasAnswer;
 import interface_adapter.MathLabViewModel;
 import interface_adapter.evaluate.EvaluateController;
 import interface_adapter.evaluate.EvaluatePresenter;
@@ -11,7 +12,10 @@ import view.DrawingCanvas;
 import javax.swing.SwingUtilities;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 
@@ -19,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-// calculate -> recognize -> evaluate -> answer/error
+// calculate -> recognize -> evaluate -> answer on the canvas
 class AnswerCanvasPageTest {
     private final DrawingCanvas canvas = new DrawingCanvas();
     private final SharedCanvas shared = new SharedCanvas(canvas);
@@ -31,22 +35,31 @@ class AnswerCanvasPageTest {
                 new InMemoryFunctionDataAccessObject(), new EvaluatePresenter(viewModel)));
         SwingUtilities.invokeAndWait(() -> {
             page = new AnswerCanvasPage(shared, controller, viewModel);
+            page.setRecalculateDelay(100);
             canvas.setSize(900, 500);
             shared.attachTo(page);
         });
     }
 
-    private void write() {
+    // ink box (100,100)-(200,150)
+    private void write() throws Exception {
         drag(100, 100, 200, 150);
     }
 
-    private void drag(int... xy) {
-        canvas.dispatchEvent(new MouseEvent(canvas, MouseEvent.MOUSE_PRESSED, 0, 0, xy[0], xy[1], 1, false, MouseEvent.BUTTON1));
-        for (int i = 2; i < xy.length; i += 2) {
-            canvas.dispatchEvent(new MouseEvent(canvas, MouseEvent.MOUSE_DRAGGED, 0, 0, xy[i], xy[i + 1], 1, false, MouseEvent.BUTTON1));
-        }
-        canvas.dispatchEvent(new MouseEvent(canvas, MouseEvent.MOUSE_RELEASED, 0, 0,
-                xy[xy.length - 2], xy[xy.length - 1], 1, false, MouseEvent.BUTTON1));
+    // a stroke right on the formula
+    private void editFormula() throws Exception {
+        drag(205, 100, 205, 150);
+    }
+
+    private void drag(int... xy) throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            canvas.dispatchEvent(new MouseEvent(canvas, MouseEvent.MOUSE_PRESSED, 0, 0, xy[0], xy[1], 1, false, MouseEvent.BUTTON1));
+            for (int i = 2; i < xy.length; i += 2) {
+                canvas.dispatchEvent(new MouseEvent(canvas, MouseEvent.MOUSE_DRAGGED, 0, 0, xy[i], xy[i + 1], 1, false, MouseEvent.BUTTON1));
+            }
+            canvas.dispatchEvent(new MouseEvent(canvas, MouseEvent.MOUSE_RELEASED, 0, 0,
+                    xy[xy.length - 2], xy[xy.length - 1], 1, false, MouseEvent.BUTTON1));
+        });
     }
 
     private void clickCalculate() throws Exception {
@@ -63,18 +76,19 @@ class AnswerCanvasPageTest {
         assertTrue(met.get(), "timed out waiting for " + what);
     }
 
-    private boolean errorShown(String text) {
-        return page.isMessageError() && page.currentMessage().contains(text);
+    private List<CanvasAnswer> answers() throws Exception {
+        AtomicReference<List<CanvasAnswer>> seen = new AtomicReference<>();
+        SwingUtilities.invokeAndWait(() -> seen.set(shared.getAnswers()));
+        return seen.get();
     }
 
-    @Test
-    void withoutRecognitionItSaysSoAndShowsNoAnswer() throws Exception {
-        openPage();
-        write();
-        clickCalculate();
+    private boolean answerIs(String text) {
+        List<CanvasAnswer> all = canvas.getAnswers();
+        return all.size() == 1 && text.equals(all.get(0).getText());
+    }
 
-        waitFor(() -> errorShown("not connected"), "the not-connected message");
-        assertEquals("", page.currentAnswer());
+    private boolean errorShown(String text) {
+        return page.isMessageError() && page.currentMessage() != null && page.currentMessage().contains(text);
     }
 
     @Test
@@ -84,30 +98,131 @@ class AnswerCanvasPageTest {
         write();
         clickCalculate();
 
-        waitFor(() -> "= 8.5".equals(page.currentAnswer()), "the answer");
-        assertFalse(page.isAnswerError());
+        waitFor(() -> answerIs("= 8.5"), "the answer");
+        CanvasAnswer a = answers().get(0);
+        assertFalse(a.isError());
+        assertTrue(a.getX() > 200, "right of the ink");
         waitFor(() -> page.currentMessage() == null, "the progress message to go away");
     }
 
     @Test
-    void recognisedEquationIsSolved() throws Exception {
+    void trailingEqualsAnswerHasNoEqualsSign() throws Exception {
+        shared.setFormulaRecognizer(image -> "1+1=");
+        openPage();
+        write();
+        clickCalculate();
+
+        waitFor(() -> answerIs("2"), "the answer");
+        assertTrue(answers().get(0).getX() > 200);
+    }
+
+    @Test
+    void recognisedEquationIsSolvedBelow() throws Exception {
         shared.setFormulaRecognizer(image -> "2x+1=7");
         openPage();
         write();
         clickCalculate();
 
-        waitFor(() -> "x = 3".equals(page.currentAnswer()), "the solution");
+        waitFor(() -> answerIs("x = 3"), "the solution");
+        assertTrue(answers().get(0).getY() > 150, "below the ink");
     }
 
     @Test
-    void anExpressionThatCannotBeEvaluatedIsShownInRed() throws Exception {
+    void uncalculableShowsARedQuestionMark() throws Exception {
         shared.setFormulaRecognizer(image -> "\\int");
         openPage();
         write();
         clickCalculate();
 
-        waitFor(page::isAnswerError, "the error");
-        assertEquals("Uncalculable", page.currentAnswer());
+        waitFor(() -> answerIs("?"), "the red ?");
+        assertTrue(answers().get(0).isError());
+        waitFor(() -> errorShown("Uncalculable"), "the reason");
+    }
+
+    @Test
+    void withoutRecognitionItSaysSo() throws Exception {
+        openPage();
+        write();
+        clickCalculate();
+
+        waitFor(() -> errorShown("not connected"), "the not-connected message");
+        assertTrue(answerIs("?"));
+        assertTrue(answers().get(0).isError());
+    }
+
+    @Test
+    void editingTheFormulaRecalculates() throws Exception {
+        AtomicReference<String> latex = new AtomicReference<>("1+1=");
+        shared.setFormulaRecognizer(image -> latex.get());
+        openPage();
+        write();
+        clickCalculate();
+        waitFor(() -> answerIs("2"), "the first answer");
+
+        latex.set("1+2=");
+        editFormula();
+        assertTrue(answers().isEmpty(), "old answer gone at once");
+        waitFor(() -> answerIs("3"), "the new answer");
+    }
+
+    @Test
+    void staleResultIsDropped() throws Exception {
+        CountDownLatch first = new CountDownLatch(1);
+        CountDownLatch second = new CountDownLatch(1);
+        AtomicInteger calls = new AtomicInteger();
+        shared.setFormulaRecognizer(image -> {
+            if (calls.incrementAndGet() == 1) {
+                first.await();
+                return "1+1=";
+            }
+            second.await();
+            return "1+2=";
+        });
+        openPage();
+        write();
+        clickCalculate();
+        waitFor(() -> calls.get() == 1, "the first recognition to start");
+
+        editFormula();
+        Thread.sleep(300);  // recalc queued behind the first job
+        first.countDown();
+        waitFor(() -> calls.get() == 2, "the second recognition to start");
+        SwingUtilities.invokeAndWait(() -> { });
+        assertTrue(answers().isEmpty(), "the stale answer was not drawn");
+
+        second.countDown();
+        waitFor(() -> answerIs("3"), "the fresh answer");
+    }
+
+    @Test
+    void undoToAnsweredStateDoesNotRecalculate() throws Exception {
+        AtomicInteger calls = new AtomicInteger();
+        shared.setFormulaRecognizer(image -> {
+            calls.incrementAndGet();
+            return "1+1=";
+        });
+        openPage();
+        write();
+        clickCalculate();
+        waitFor(() -> answerIs("2"), "the answer");
+
+        editFormula();
+        SwingUtilities.invokeAndWait(shared::undo);
+        Thread.sleep(300);
+        assertEquals(1, calls.get());
+        assertTrue(answerIs("2"));
+    }
+
+    @Test
+    void functionDefinitionOnlyShowsAMessage() throws Exception {
+        shared.setFormulaRecognizer(image -> "f(x)=x^{2}");
+        openPage();
+        write();
+        clickCalculate();
+
+        waitFor(() -> page.currentMessage() != null && page.currentMessage().startsWith("Defined"), "the message");
+        assertFalse(page.isMessageError());
+        assertTrue(answers().isEmpty());
     }
 
     @Test
@@ -120,11 +235,11 @@ class AnswerCanvasPageTest {
         openPage();
         write();                                    // formula A: (100,100)-(200,150)
         drag(400, 400, 420, 420);                   // formula B, far away
-        canvas.setTool(DrawingCanvas.Tool.LASSO);
+        SwingUtilities.invokeAndWait(() -> canvas.setTool(DrawingCanvas.Tool.LASSO));
         drag(80, 80, 220, 80, 220, 170, 80, 170);   // circle A
         clickCalculate();
 
-        waitFor(() -> "= 2".equals(page.currentAnswer()), "the answer");
+        waitFor(() -> answerIs("= 2"), "the answer");
         assertEquals(51 + 2 * 18, seen.get().getHeight(), "the image holds only A");
     }
 

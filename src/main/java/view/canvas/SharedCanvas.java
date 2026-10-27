@@ -1,7 +1,10 @@
 package view.canvas;
 
+import entity.AnswerKind;
+import entity.CanvasAnswer;
 import interface_adapter.recognize.FormulaRecognizer;
 import view.DrawingCanvas;
+import view.FormulaCapture;
 
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
@@ -11,8 +14,10 @@ import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
 import java.lang.reflect.InvocationTargetException;
+import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.DoubleConsumer;
+import java.util.function.LongConsumer;
 
 /**
  * The one handwriting canvas shared by every {@link CanvasPage}.
@@ -151,6 +156,27 @@ public class SharedCanvas {
 
     public boolean isBlank() {
         return canvas.isBlank();
+    }
+
+    // answers on the canvas, all EDT
+    public List<FormulaCapture> takeFormulasToCalculate() {
+        return canvas.takeFormulasToCalculate();
+    }
+
+    public FormulaCapture captureForRecalculation(long id) {
+        return canvas.captureForRecalculation(id);
+    }
+
+    public boolean showAnswer(long id, long revision, AnswerKind kind, String text, boolean error) {
+        return canvas.showAnswer(id, revision, kind, text, error);
+    }
+
+    public void addFormulaChangeListener(LongConsumer listener) {
+        canvas.addFormulaChangeListener(listener);
+    }
+
+    public List<CanvasAnswer> getAnswers() {
+        return canvas.getAnswers();
     }
 
     /**
