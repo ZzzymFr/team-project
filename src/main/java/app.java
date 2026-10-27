@@ -19,9 +19,6 @@ public class app {
             } catch (Exception ignored) {
                 // Fall back to the default look.
             }
-            AppBuilder evaluator = new AppBuilder()
-                    .addExpressionView()
-                    .addEvaluateUseCase();
             frame = new StackedAppBuilder()
                     .addGraphPage()
                     .addPdfPage()

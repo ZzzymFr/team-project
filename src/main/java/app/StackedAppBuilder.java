@@ -1,11 +1,16 @@
 package app;
 
+import data_access.InMemoryFunctionDataAccessObject;
 import data_access.QuickChartGraphRenderer;
 import entity.LatexFunctionParser;
+import interface_adapter.MathLabViewModel;
+import interface_adapter.evaluate.EvaluateController;
+import interface_adapter.evaluate.EvaluatePresenter;
 import interface_adapter.graph.GraphController;
 import interface_adapter.graph.GraphPresenter;
 import interface_adapter.graph.GraphViewModel;
 import interface_adapter.recognize.FormulaRecognizer;
+import use_case.evaluate.EvaluateInteractor;
 import use_case.graph_function.GraphFunctionInteractor;
 import view.DrawingCanvas;
 import view.canvas.AnswerCanvasPage;
@@ -47,8 +52,13 @@ public class StackedAppBuilder {
         return this;
     }
 
+    // answer page -> evaluate use case
     public StackedAppBuilder addAnswerPage() {
-        pages.addPage("Answer", ANSWER_GREEN, new AnswerCanvasPage(sharedCanvas));
+        MathLabViewModel viewModel = new MathLabViewModel();
+        EvaluateInteractor interactor = new EvaluateInteractor(
+                new InMemoryFunctionDataAccessObject(), new EvaluatePresenter(viewModel));
+        EvaluateController controller = new EvaluateController(interactor);
+        pages.addPage("Answer", ANSWER_GREEN, new AnswerCanvasPage(sharedCanvas, controller, viewModel));
         return this;
     }
 
