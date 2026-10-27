@@ -32,6 +32,7 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
     private static final int MAX_PLUS_MINUS = 4;
     private static final int APPROXIMATE_DIGITS = 9;
     private static final double[] SIDE_PROBES = {0.5, -7.3, 2.9};
+    private static final int MAX_ROOTS_BEYOND = 10;
 
     private final FunctionDataAccessInterface functionDataAccess;
     private final EvaluateOutputBoundary presenter;
@@ -205,7 +206,8 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
             // equal on a whole stretch, intervals only
             solveInequality(node, variable, functions, masks);
         } else if (!excluding) {
-            presenter.prepareSolutionsView(variable, solutions);
+            presenter.prepareSolutionsView(variable, solutions.isEmpty() && !stretch
+                    ? rootsBeyond(node, variable, functions, masks) : solutions);
         } else if (masks > 1 && !solutions.isEmpty() && !stretch) {
             presenter.prepareExcludedView(variable, solutions);
         } else {
@@ -230,13 +232,51 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
         return true;
     }
 
+    // no root in range -> use roots past it if few (R31)
+    private List<Double> rootsBeyond(Node node, String variable, Map<String, UserFunction> functions, int masks) {
+        List<Double> all = new ArrayList<>();
+        for (int mask = 0; mask < masks; mask++) {
+            List<Double> roots = new ConditionSolver(node, variable, new Context(functions).withSigns(mask))
+                    .rootsBeyond(MAX_ROOTS_BEYOND);
+            if (roots == null) {
+                throw new UncalculableException();
+            }
+            all.addAll(roots);
+        }
+        Collections.sort(all);
+        List<Double> roots = new ArrayList<>();
+        for (double root : all) {
+            if (roots.isEmpty() || !isSame(root, roots.get(roots.size() - 1))) {
+                roots.add(root);
+            }
+        }
+        if (roots.size() > MAX_ROOTS_BEYOND) {
+            throw new UncalculableException();
+        }
+        return roots;
+    }
+
     // exclude where a side is undefined too
     private void excludeUndefinedPoints(Node node, String variable, Map<String, UserFunction> functions,
                                         int masks, List<Double> solutions) {
         if (masks > 1) {
             throw new UncalculableException();
         }
-        List<Interval> intervals = new ConditionSolver(node, variable, new Context(functions)).solve();
+        ConditionSolver solver = new ConditionSolver(node, variable, new Context(functions));
+        if (solutions.isEmpty()) {
+            List<Double> beyond = rootsBeyond(node, variable, functions, masks);
+            if (!beyond.isEmpty()) {
+                // x != 200: true in range, false only past it
+                List<Interval> inRange = solver.solveInRange();
+                if (inRange.size() != 1 || inRange.get(0).getLow() != Double.NEGATIVE_INFINITY
+                        || inRange.get(0).getHigh() != Double.POSITIVE_INFINITY) {
+                    throw new UncalculableException();
+                }
+                presenter.prepareExcludedView(variable, beyond);
+                return;
+            }
+        }
+        List<Interval> intervals = solver.solve();
         if (!solutions.isEmpty() && isEverythingBut(intervals, solutions)) {
             presenter.prepareExcludedView(variable, solutions);
         } else {

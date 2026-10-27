@@ -77,6 +77,7 @@ public class ConditionSolver {
     private boolean skippedRoot;
     private boolean lostInSample;
     private boolean undersampled;
+    private boolean nearMiss;
 
     public ConditionSolver(Node condition, String variable, Context context) {
         this.condition = condition;
@@ -98,7 +99,21 @@ public class ConditionSolver {
         return false;
     }
 
+    // intervals where it holds, only [-100,100] searched (R31)
     public List<Interval> solve() {
+        List<Interval> intervals = solveInRange();
+        boolean below = intervals.isEmpty() || intervals.get(0).getLow() == Double.NEGATIVE_INFINITY;
+        boolean above = intervals.isEmpty()
+                || intervals.get(intervals.size() - 1).getHigh() == Double.POSITIVE_INFINITY;
+        if (below && changesBeyond(-1, new ArrayList<Double>(), 0)
+                || above && changesBeyond(1, new ArrayList<Double>(), 0)) {
+            throw new UncalculableException();
+        }
+        return intervals;
+    }
+
+    // intervals in range, ends as unbounded
+    public List<Interval> solveInRange() {
         double[] points = sortedCandidates();
         if (undersampled) {
             throw new UncalculableException();
@@ -420,7 +435,9 @@ public class ConditionSolver {
             }
         }
         int result = scanFar(wanted, mode);
-        if (result == NOT_FOUND && (skippedRoot || !sawVerdict || undersampled)) {
+        // nested quantifier: close call might hold elsewhere
+        boolean nestedMiss = nearMiss && !context.getVariableValues().isEmpty();
+        if (result == NOT_FOUND && (skippedRoot || !sawVerdict || undersampled || nestedMiss)) {
             throw new UndecidableException();
         }
         return result;
@@ -428,7 +445,12 @@ public class ConditionSolver {
 
     // real root: 0 sides are expected, dont skip
     private int checkRoot(double root, Pair pair, int wanted, int mode, double offset) {
-        boolean genuine = isGenuineRoot(pair, root, offset);
+        return checkRoot(root, pair, wanted, mode, offset, false);
+    }
+
+    // exact meet at domain edge counts
+    private int checkRoot(double root, Pair pair, int wanted, int mode, double offset, boolean edgeRoot) {
+        boolean genuine = edgeRoot || isGenuineRoot(pair, root, offset);
         List<Double> samples = new ArrayList<>();
         if (mode == REAL) {
             samples.add(root - offset);
@@ -525,15 +547,20 @@ public class ConditionSolver {
             for (int side = 0; side < 2; side++) {
                 double sign = side == 0 ? 1 : -1;
                 for (int i = 0; i < pairs.size(); i++) {
-                    double d = difference(pairs.get(i), sign * size);
-                    if (pairs.get(i).isNoise()) {
-                        // approx equal within error crosses nothing
-                        d = Double.NaN;
-                    }
+                    double d = scanValue(pairs.get(i), sign * size);
                     double before = last[side][i];
                     double twoBefore = beforeLast[side][i];
                     beforeLast[side][i] = before;
                     last[side][i] = d;
+                    if (k > 0 && isDomainEdge(before, d)) {
+                        // side might just hit the other at domain edge
+                        double edge = edgeBetween(pairs.get(i), sign * lastSize, before, sign * size);
+                        int result = checkRoot(edge, pairs.get(i), wanted, mode, PROBE * Math.max(1, Math.abs(edge)),
+                                scanValue(pairs.get(i), edge) == 0);
+                        if (result != NOT_FOUND) {
+                            return result;
+                        }
+                    }
                     if (dips && k >= 2 && isDip(twoBefore, before, d)) {
                         int result = checkDip(pairs.get(i), sign * beforeLastSize, twoBefore, sign * size,
                                 wanted, mode);
@@ -577,6 +604,142 @@ public class ConditionSolver {
             return FOUND;
         }
         return result;
+    }
+
+    // left - right for far scans, NaN/inf when unknown
+    private double scanValue(Pair pair, double point) {
+        context.spendStep();
+        context.setAbsorbed(false);
+        double d;
+        try {
+            d = pair.differenceAt(context.withVariable(variable, point));
+        } catch (UndefinedException e) {
+            return Double.NaN;
+        } catch (BudgetExceededException | UndecidableException e) {
+            throw e;
+        } catch (UncalculableException e) {
+            return Double.POSITIVE_INFINITY;
+        }
+        // lost value can give NaN too (inf - inf)
+        if (Double.isInfinite(d) || context.isAbsorbed() || pair.isNoise()) {
+            return Double.POSITIVE_INFINITY;
+        }
+        return d;
+    }
+
+    private static boolean isDomainEdge(double before, double now) {
+        return Double.isNaN(before) && isFinite(now) || isFinite(before) && Double.isNaN(now);
+    }
+
+    // defined end of the edge
+    private double edgeBetween(Pair pair, double from, double dFrom, double to) {
+        double defined = Double.isNaN(dFrom) ? to : from;
+        double undefined = Double.isNaN(dFrom) ? from : to;
+        for (int round = 0; round < ROUNDS; round++) {
+            double middle = (defined + undefined) / 2;
+            if (Double.isNaN(scanValue(pair, middle))) {
+                undefined = middle;
+            } else {
+                defined = middle;
+            }
+        }
+        return defined;
+    }
+
+    // scan past the search end for sign changes
+    private boolean changesBeyond(double sign, List<Double> roots, int limit) {
+        boolean changes = false;
+        for (Pair pair : numericPairs()) {
+            double known = Double.POSITIVE_INFINITY;
+            double knownPoint = 0;
+            double before = Double.POSITIVE_INFINITY;
+            double twoBefore = Double.POSITIVE_INFINITY;
+            double lastPoint = 0;
+            double beforeLastPoint = 0;
+            for (int k = 0; k <= SCAN_POINTS && roots.size() <= limit; k++) {
+                double point = sign * EquationSolver.SEARCH_END * Math.pow(10, k / (double) POINTS_PER_DECADE);
+                double d = scanValue(pair, point);
+                if (d != 0 && isFinite(d) && Values.areAlmostEqual(pair.lastLeft, pair.lastRight)) {
+                    // within tol only rounding shows
+                    d = Double.POSITIVE_INFINITY;
+                }
+                if (Double.isInfinite(d)) {
+                    twoBefore = before;
+                    before = d;
+                    continue;
+                }
+                if (k > 0 && !Double.isInfinite(known)) {
+                    if (isFinite(d) && isFinite(known) && Math.signum(d) != Math.signum(known)) {
+                        changes = true;
+                        if (d == 0) {
+                            addRoot(roots, point);
+                        } else if (known != 0) {
+                            addCheckedRoot(roots, pair, bisect(pair, knownPoint, point, known));
+                        }
+                    } else if (isDomainEdge(known, d)) {
+                        changes = true;
+                        addCheckedRoot(roots, pair, edgeBetween(pair, knownPoint, known, point));
+                    }
+                }
+                known = d;
+                knownPoint = point;
+                if (k >= 2 && isDip(twoBefore, before, d)) {
+                    double from = beforeLastPoint;
+                    double dipSign = Math.signum(twoBefore);
+                    double[] lowest = EquationSolver.lowest(x -> dipSign * difference(pair, x),
+                            Math.min(from, point), Math.max(from, point));
+                    if (isFinite(lowest[1]) && lowest[1] <= 0) {
+                        changes = true;
+                        addCheckedRoot(roots, pair, bisect(pair, from, lowest[0], twoBefore));
+                        addCheckedRoot(roots, pair, bisect(pair, point, lowest[0], d));
+                    }
+                }
+                twoBefore = before;
+                before = d;
+                beforeLastPoint = lastPoint;
+                lastPoint = point;
+            }
+        }
+        return changes;
+    }
+
+    // scan root, only where sides really meet
+    private void addCheckedRoot(List<Double> roots, Pair found, double root) {
+        context.spendStep();
+        Pair pair = found.whole == null ? found : found.whole;
+        try {
+            Context at = context.withVariable(variable, root);
+            double a = pair.leftAt(at);
+            double b = pair.rightAt(at);
+            if (isFinite(a) && isFinite(b) && Values.areAlmostEqual(a, b)) {
+                addRoot(roots, root);
+            }
+        } catch (BudgetExceededException | UndecidableException e) {
+            throw e;
+        } catch (UncalculableException e) {
+            // no root
+        }
+    }
+
+    private static void addRoot(List<Double> roots, double root) {
+        for (double other : roots) {
+            if (Math.abs(other - root) <= ROOT_OFFSET * Math.max(1, Math.abs(root))) {
+                return;
+            }
+        }
+        roots.add(root);
+    }
+
+    // roots past range out to 1e300, null if too many
+    public List<Double> rootsBeyond(int limit) {
+        List<Double> roots = new ArrayList<>();
+        changesBeyond(-1, roots, limit);
+        changesBeyond(1, roots, limit);
+        if (roots.size() > limit) {
+            return null;
+        }
+        Collections.sort(roots);
+        return roots;
     }
 
     // 3 same sign vals, middle closest to 0
@@ -950,6 +1113,7 @@ public class ConditionSolver {
                     roots.add(new Root(value, pair, solver.isStretchEnd(value)));
                 }
                 undersampled = undersampled || solver.isUndersampled();
+                nearMiss = nearMiss || solver.isNearMiss();
             }
         }
     }
@@ -960,11 +1124,59 @@ public class ConditionSolver {
             List<Node> operands = relation.getOperands();
             for (int i = 0; i + 1 < operands.size(); i++) {
                 if (!isSetOperator(relation.getOperators().get(i))) {
-                    pairs.addAll(pairsOf(operands.get(i), operands.get(i + 1)));
+                    Node left = operands.get(i);
+                    Node right = operands.get(i + 1);
+                    pairs.addAll(pairsOf(left, right));
+                    if (isZero(right)) {
+                        addFactorPairs(pairs, left, right);
+                    } else if (isZero(left)) {
+                        addFactorPairs(pairs, right, left);
+                    }
                 }
             }
         }
         return pairs;
+    }
+
+    // check each factor of a product separately
+    private void addFactorPairs(List<Pair> pairs, Node product, Node zero) {
+        List<Node> factors = new ArrayList<>();
+        collectFactors(product, factors);
+        if (factors.size() > 1) {
+            Pair whole = new Pair(product, zero, EquationSolver.WHOLE, EquationSolver.WHOLE);
+            for (Node factor : factors) {
+                pairs.add(new Pair(factor, zero, EquationSolver.WHOLE, EquationSolver.WHOLE, whole));
+            }
+        }
+    }
+
+    private static void collectFactors(Node node, List<Node> factors) {
+        if (node instanceof BinaryNode && ((BinaryNode) node).getOp() == BinaryNode.Op.MULTIPLY) {
+            collectFactors(((BinaryNode) node).getLeft(), factors);
+            collectFactors(((BinaryNode) node).getRight(), factors);
+        } else if (node instanceof BinaryNode && ((BinaryNode) node).getOp() == BinaryNode.Op.DIVIDE) {
+            collectFactors(((BinaryNode) node).getLeft(), factors);
+        } else if (node instanceof UnaryNode && ((UnaryNode) node).getOp() == UnaryNode.Op.NEGATE) {
+            collectFactors(((UnaryNode) node).getOperand(), factors);
+        } else {
+            factors.add(node);
+        }
+    }
+
+    private boolean isZero(Node node) {
+        Set<String> names = new HashSet<>();
+        node.collectFreeVariables(names);
+        if (!names.isEmpty()) {
+            return false;
+        }
+        try {
+            Value value = node.evaluate(context);
+            return value instanceof NumberValue && ((NumberValue) value).getValue() == 0;
+        } catch (BudgetExceededException | UndecidableException e) {
+            throw e;
+        } catch (UncalculableException e) {
+            return false;
+        }
     }
 
     // compare nums whole, vectors/sets part by part
@@ -1106,11 +1318,19 @@ public class ConditionSolver {
         private final int leftPart;
         private final int rightPart;
 
+        // comparison for a factor of a product
+        private final Pair whole;
+
         private Pair(Node left, Node right, int leftPart, int rightPart) {
+            this(left, right, leftPart, rightPart, null);
+        }
+
+        private Pair(Node left, Node right, int leftPart, int rightPart, Pair whole) {
             this.left = left;
             this.right = right;
             this.leftPart = leftPart;
             this.rightPart = rightPart;
+            this.whole = whole;
         }
 
         private double lastLeft = Double.NaN;

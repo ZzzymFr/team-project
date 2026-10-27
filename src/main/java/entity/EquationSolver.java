@@ -27,6 +27,7 @@ public class EquationSolver {
     // turns too often = grid too coarse
     private static final double MAX_TURNS_PER_POINT = 0.5;
     private static final double TURN_NOISE = 1e-6;
+    private static final double NEAR_MISS_SHARE = 1e-2;
     private static final double[] IRRATIONAL_POINTS = {-Math.PI * 7, -Math.sqrt(2), Math.E, Math.sqrt(97)};
 
     private final Node left;
@@ -38,6 +39,7 @@ public class EquationSolver {
     private final int rightPart;
     private boolean hasStretch;
     private boolean undersampled;
+    private boolean nearMiss;
     private final boolean approximate;
     private List<Double> solutions;
     private final List<Double> stretchEnds = new ArrayList<>();
@@ -94,6 +96,7 @@ public class EquationSolver {
         boolean[] noise = new boolean[count];
         boolean[] equal = new boolean[count];
         alwaysTrue = true;
+        boolean absorbedBefore = false;
         for (int i = 0; i < count; i++) {
             xs[i] = SEARCH_START + i * step;
             ds[i] = difference(xs[i]);
@@ -103,8 +106,11 @@ public class EquationSolver {
             hasStretch = hasStretch || ds[i] == 0 && absorbed;
             // approx side within its error counts as 0
             noise[i] = !exactZero[i] && approximate && isNumber(ds[i]) && isWithinApproximation();
-            equal[i] = !absorbed && isNumber(ds[i]) && (Values.areAlmostEqual(lastLeft, lastRight) || noise[i]);
-            alwaysTrue = alwaysTrue && equal[i];
+            boolean sidesEqual = isNumber(ds[i]) && (Values.areAlmostEqual(lastLeft, lastRight) || noise[i]);
+            equal[i] = !absorbed && sidesEqual;
+            // one lost pt is fine, a stretch isnt
+            alwaysTrue = alwaysTrue && sidesEqual && !(absorbed && absorbedBefore);
+            absorbedBefore = absorbed;
         }
 
         undersampled = turnsTooOften(ds, noise);
@@ -153,27 +159,51 @@ public class EquationSolver {
                 if (sameSides) {
                     addHiddenCrossing(solutions, xs[i + 1], ds[i + 1], xs[i]);
                 }
-            } else if (isTouchingCandidate(ds, i)) {
-                // dip might cross 0 twice or touch
-                double sign = Math.signum(ds[i]);
-                double[] lowest = lowest(x -> sign * searchDifference(x), xs[i - 1], xs[i + 1]);
-                if (isNumber(lowest[1]) && lowest[1] < 0) {
-                    double first = bisect(xs[i - 1], lowest[0], ds[i - 1]);
-                    double second = bisect(lowest[0], xs[i + 1], difference(lowest[0]));
-                    for (double root : new double[] {first, second}) {
-                        if (isNumber(root)) {
-                            addSolution(solutions, root);
-                        }
-                    }
-                } else {
-                    double root = touchingRoot(xs[i - 1], xs[i + 1], Math.abs(ds[i]));
-                    if (isNumber(root)) {
-                        addSolution(solutions, root);
-                    }
-                }
+            } else if (isTouchingCandidate(ds, i) || isNarrowMiss(ds, i)) {
+                int found = solutions.size();
+                searchDip(xs, ds, i);
+                // close dip might hit 0 for other outer vals
+                nearMiss = nearMiss || solutions.size() == found && isNarrowMiss(ds, i);
             }
         }
         return solutions;
+    }
+
+    // true if dip got close to 0 but no root
+    public boolean isNearMiss() {
+        return nearMiss;
+    }
+
+    private boolean isNarrowMiss(double[] ds, int i) {
+        if (i == 0 || i == ds.length - 1 || !isNumber(ds[i - 1]) || !isNumber(ds[i]) || !isNumber(ds[i + 1])) {
+            return false;
+        }
+        double b = Math.abs(ds[i]);
+        return ds[i - 1] * ds[i] > 0 && ds[i] * ds[i + 1] > 0
+                && b <= NEAR_MISS_SHARE * Math.min(Math.abs(ds[i - 1]), Math.abs(ds[i + 1]));
+    }
+
+    // dip might cross 0 twice or touch
+    private void searchDip(double[] xs, double[] ds, int i) {
+        if (!isTouchingCandidate(ds, i)) {
+            return;
+        }
+        double sign = Math.signum(ds[i]);
+        double[] lowest = lowest(x -> sign * searchDifference(x), xs[i - 1], xs[i + 1]);
+        if (isNumber(lowest[1]) && lowest[1] < 0) {
+            double first = bisect(xs[i - 1], lowest[0], ds[i - 1]);
+            double second = bisect(lowest[0], xs[i + 1], difference(lowest[0]));
+            for (double root : new double[] {first, second}) {
+                if (isNumber(root)) {
+                    addSolution(solutions, root);
+                }
+            }
+        } else {
+            double root = touchingRoot(xs[i - 1], xs[i + 1], Math.abs(ds[i]));
+            if (isNumber(root)) {
+                addSolution(solutions, root);
+            }
+        }
     }
 
     // true if equal stretch or lost value, list incomplete
@@ -343,7 +373,7 @@ public class EquationSolver {
         for (double x : IRRATIONAL_POINTS) {
             double d = difference(x);
             boolean equal = Values.areAlmostEqual(lastLeft, lastRight) || approximate && isWithinApproximation();
-            if (!isNumber(d) || context.isAbsorbed() || !equal) {
+            if (!isNumber(d) || !equal && !context.isAbsorbed()) {
                 return false;
             }
         }

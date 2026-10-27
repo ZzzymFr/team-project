@@ -123,4 +123,35 @@ class FinalReviewTest {
         assertEquals("x = -100 or x = 100", quick("x^2=10000"));
         assertEquals("no solution", quick("e^{-x^2}=0"));
     }
+
+    @Test
+    void answersBeyondTheSearchRangeAreNotDenied() {
+        assertEquals("x = 200", quick("x=200"));
+        assertEquals("x = -200 or x = 200", quick("x^2=40000"));
+        correctOrUncalculable("x > 200", "x>200");
+        assertEquals(UNCALCULABLE, quick("\\sin(x)>0"));
+        assertTrue(quick("\\sin(x)=0").endsWith("(and 53 more)"));
+        assertEquals("x > 0", quick("x>0"));
+        assertEquals("no solution", quick("x^2=-1"));
+        assertEquals("true for all x", quick("x^2\\geq0"));
+        assertEquals("x ≠ 200", quick("x\\neq200"));
+        assertEquals("x = 1000", quick("\\sqrt{x-1000}=0"));
+        assertEquals("no solution", quick("\\frac{1}{x-200}=0"));
+        assertEquals("x = -300 or x = 200", quick("(x-200)(x+300)=0"));
+        correctOrUncalculable("x = 1000", "e^{-x}(x-1000)=0");
+        assertEquals(UNCALCULABLE, quick("|x-500|<0.01"));
+        assertEquals(UNCALCULABLE, quick("\\sin(\\frac{x}{1000})>0"));
+    }
+
+    @Test
+    void domainEdgeAndTouchingRootsInQuantifiers() {
+        assertEquals("true", quick("\\exists x, \\sqrt{x-1000}=0"));
+        correctOrUncalculable("true", "\\exists x, e^{-x}(x-1000)=0");
+        correctOrUncalculable("true", "\\exists x\\exists y, \\sin x+\\cos y=2");
+        assertEquals("false", quick("\\exists x, e^{-x}=0"));
+        assertEquals("true", quick("\\exists x, \\sqrt{x-1234}=0"));
+        assertEquals("true", quick("\\exists x\\exists y, \\sin x+\\cos y=1.5"));
+        assertEquals("false", quick("\\exists x\\exists y, x^2+y^2=-1"));
+        assertEquals("false", quick("\\forall x, e^{-x}(x-1000)\\neq0"));
+    }
 }
