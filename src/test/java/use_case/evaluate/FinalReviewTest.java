@@ -180,4 +180,17 @@ class FinalReviewTest {
         assertEquals("x = 0", quick("x^6\\leq0"));
         assertEquals("x ≥ 0", quick("\\sqrt{x}^2=x"));
     }
+
+    @Test
+    void manyIntervalsAreCapped() {
+        // keeps going past range -> uncalc (R31)
+        String answer = quick("\\sin(100x)>0\\land|x|<50");
+        assertTrue(answer.length() < 1000 && answer.matches(".* \\(and \\d+ more\\)"), answer);
+    }
+
+    @Test
+    void plusMinusExclusionKeepsUndefinedPoints() {
+        assertEquals("x ≠ -1 and x ≠ 0 and x ≠ 1", quick("\\frac{1}{x}\\neq\\pm1"));
+        assertEquals("x ≠ -1 and x ≠ 1", quick("x\\neq\\pm1"));
+    }
 }

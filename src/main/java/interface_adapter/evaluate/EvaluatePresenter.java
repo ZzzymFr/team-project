@@ -49,17 +49,14 @@ public class EvaluatePresenter implements EvaluateOutputBoundary {
             showResult("no solution");
             return;
         }
-        String text = "";
+        StringBuilder text = new StringBuilder();
         for (int i = 0; i < solutions.size() && i < MAX_SOLUTIONS_SHOWN; i++) {
             if (i > 0) {
-                text = text + " or ";
+                text.append(" or ");
             }
-            text = text + variable + " = " + format(solutions.get(i));
+            text.append(variable).append(" = ").append(format(solutions.get(i)));
         }
-        if (solutions.size() > MAX_SOLUTIONS_SHOWN) {
-            text = text + " (and " + (solutions.size() - MAX_SOLUTIONS_SHOWN) + " more)";
-        }
-        showResult(text);
+        showResult(text + more(solutions.size()));
     }
 
     @Override
@@ -68,14 +65,14 @@ public class EvaluatePresenter implements EvaluateOutputBoundary {
             showResult("no solution");
             return;
         }
-        String text = "";
-        for (int i = 0; i < intervals.size(); i++) {
+        StringBuilder text = new StringBuilder();
+        for (int i = 0; i < intervals.size() && i < MAX_SOLUTIONS_SHOWN; i++) {
             if (i > 0) {
-                text = text + " or ";
+                text.append(" or ");
             }
-            text = text + formatInterval(variable, intervals.get(i));
+            text.append(formatInterval(variable, intervals.get(i)));
         }
-        showResult(text);
+        showResult(text + more(intervals.size()));
     }
 
     @Override
@@ -84,14 +81,22 @@ public class EvaluatePresenter implements EvaluateOutputBoundary {
             prepareAlwaysTrueView(variable);
             return;
         }
-        String text = "";
-        for (int i = 0; i < excluded.size(); i++) {
+        StringBuilder text = new StringBuilder();
+        for (int i = 0; i < excluded.size() && i < MAX_SOLUTIONS_SHOWN; i++) {
             if (i > 0) {
-                text = text + " and ";
+                text.append(" and ");
             }
-            text = text + variable + " ≠ " + format(excluded.get(i));
+            text.append(variable).append(" ≠ ").append(format(excluded.get(i)));
         }
-        showResult(text);
+        showResult(text + more(excluded.size()));
+    }
+
+    // "n more" note for long lists
+    private static String more(int count) {
+        if (count <= MAX_SOLUTIONS_SHOWN) {
+            return "";
+        }
+        return " (and " + (count - MAX_SOLUTIONS_SHOWN) + " more)";
     }
 
     @Override

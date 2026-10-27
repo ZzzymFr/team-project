@@ -208,8 +208,8 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
         } else if (!excluding) {
             presenter.prepareSolutionsView(variable, solutions.isEmpty() && !stretch
                     ? rootsBeyond(node, variable, functions, masks) : solutions);
-        } else if (masks > 1 && !solutions.isEmpty() && !stretch) {
-            presenter.prepareExcludedView(variable, solutions);
+        } else if (masks > 1) {
+            excludeWithSigns(node, variable, functions, masks);
         } else {
             excludeUndefinedPoints(node, variable, functions, masks, solutions);
         }
@@ -282,6 +282,35 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
         } else {
             showIntervals(variable, intervals);
         }
+    }
+
+    // \pm: exclude points from every sign choice
+    private void excludeWithSigns(Node node, String variable, Map<String, UserFunction> functions, int masks) {
+        List<Double> all = new ArrayList<>();
+        for (int mask = 0; mask < masks; mask++) {
+            Context context = new Context(functions).withSigns(mask);
+            List<Interval> intervals = new ConditionSolver(node, variable, context).solve();
+            if (intervals.isEmpty() || intervals.get(0).getLow() != Double.NEGATIVE_INFINITY
+                    || intervals.get(intervals.size() - 1).getHigh() != Double.POSITIVE_INFINITY) {
+                throw new UncalculableException();
+            }
+            List<Double> points = new ArrayList<>();
+            for (int i = 1; i < intervals.size(); i++) {
+                points.add(intervals.get(i).getLow());
+            }
+            if (!isEverythingBut(intervals, points)) {
+                throw new UncalculableException();
+            }
+            all.addAll(points);
+        }
+        Collections.sort(all);
+        List<Double> excluded = new ArrayList<>();
+        for (double point : all) {
+            if (excluded.isEmpty() || !isSame(point, excluded.get(excluded.size() - 1))) {
+                excluded.add(point);
+            }
+        }
+        presenter.prepareExcludedView(variable, excluded);
     }
 
     private boolean isEverythingBut(List<Interval> intervals, List<Double> points) {
