@@ -147,19 +147,25 @@ public class ConditionSolver {
     }
 
     public boolean isTrueForSome(List<Double> points) {
-        for (double point : points) {
-            if (isTrueAt(point)) {
-                return true;
-            }
-        }
-        return false;
+        return !noMemberGives(points, TRUE);
     }
 
     public boolean isTrueForEvery(List<Double> points) {
+        return noMemberGives(points, FALSE);
+    }
+
+    // true if checked every member and none matched
+    private boolean noMemberGives(List<Double> points, int wanted) {
+        boolean open = false;
         for (double point : points) {
-            if (!isTrueAt(point)) {
+            int result = verdict(point, false);
+            if (result == wanted) {
                 return false;
             }
+            open = open || result == SKIP;
+        }
+        if (open) {
+            throw new UndecidableException();
         }
         return true;
     }
@@ -226,15 +232,16 @@ public class ConditionSolver {
         if (reliability == OUT_OF_RANGE && genuine) {
             skippedRoot = true;
         }
-        return reliability == RELIABLE ? verdict(point) : SKIP;
+        return reliability == RELIABLE ? verdict(point, genuine) : SKIP;
     }
 
-    // sides cross or meet w/ gaps both sides
+    // sides really cross, nothing lost to rounding
     private boolean isGenuineRoot(Node[] pair, double root, double offset) {
+        context.setAbsorbed(false);
         double here = difference(pair, root);
         double below = difference(pair, root - offset);
         double above = difference(pair, root + offset);
-        if (!isFinite(below) || !isFinite(above)) {
+        if (context.isAbsorbed() || !isFinite(below) || !isFinite(above)) {
             return false;
         }
         return below * above < 0 || (here == 0 && Math.abs(below) >= TINY && Math.abs(above) >= TINY);
@@ -314,12 +321,18 @@ public class ConditionSolver {
     }
 
     private int verdictAt(double point) {
-        return reliabilityAt(point, false) == RELIABLE ? verdict(point) : SKIP;
+        return reliabilityAt(point, false) == RELIABLE ? verdict(point, false) : SKIP;
     }
 
-    private int verdict(double point) {
+    // lost value proves nothing unless real root
+    private int verdict(double point, boolean atRoot) {
+        context.setAbsorbed(false);
+        boolean truth = isTrueAt(point);
+        if (context.isAbsorbed() && !atRoot) {
+            return SKIP;
+        }
         sawVerdict = true;
-        return isTrueAt(point) ? TRUE : FALSE;
+        return truth ? TRUE : FALSE;
     }
 
     // skip samples that only show rounding

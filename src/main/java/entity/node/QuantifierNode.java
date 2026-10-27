@@ -70,8 +70,18 @@ public class QuantifierNode extends Node {
         return true;
     }
 
+    // inner samples judge their own rounding
     @Override
     public Value evaluate(Context context) {
+        boolean absorbed = context.isAbsorbed();
+        try {
+            return decide(context);
+        } finally {
+            context.setAbsorbed(absorbed);
+        }
+    }
+
+    private Value decide(Context context) {
         Value set = domain == null ? new NumberSetValue(NumberSetValue.Kind.REAL, 1) : domain.evaluate(context);
         ConditionSolver solver = new ConditionSolver(body, variable, context);
         if (set instanceof FiniteSetValue) {

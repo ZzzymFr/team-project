@@ -75,9 +75,42 @@ public class BinaryNode extends Node {
             return ((FiniteSetValue) a).intersect((FiniteSetValue) b);
         }
         if (a instanceof VectorValue || b instanceof VectorValue) {
-            return vectorCalculate(a, b);
+            return vectorCalculate(a, b, context);
         }
-        return new NumberValue(calculate(Values.toNumber(a), Values.toNumber(b)));
+        double x = Values.toNumber(a);
+        double y = Values.toNumber(b);
+        double result = calculate(x, y);
+        if (isAbsorbed(x, y, result)) {
+            context.markAbsorbed();
+        }
+        return new NumberValue(result);
+    }
+
+    // a+b == a or underflow/overflow -> lost value
+    private boolean isAbsorbed(double x, double y, double result) {
+        if (Double.isInfinite(result) && isFinite(x) && isFinite(y)) {
+            return true;
+        }
+        switch (op) {
+            case ADD:
+            case SUBTRACT:
+                double other = op == Op.ADD ? y : -y;
+                return (result == x && isNonzeroFinite(other)) || (result == other && isNonzeroFinite(x));
+            case MULTIPLY:
+            case DIVIDE:
+            case POWER:
+                return result == 0 && isNonzeroFinite(x) && isNonzeroFinite(y);
+            default:
+                return false;
+        }
+    }
+
+    private static boolean isNonzeroFinite(double value) {
+        return value != 0 && isFinite(value);
+    }
+
+    private static boolean isFinite(double value) {
+        return !Double.isNaN(value) && !Double.isInfinite(value);
     }
 
     // number/set joined by connective isnt a statement
@@ -88,14 +121,14 @@ public class BinaryNode extends Node {
         return ((BooleanValue) value).getValue();
     }
 
-    private Value vectorCalculate(Value a, Value b) {
+    private Value vectorCalculate(Value a, Value b, Context context) {
         if (a instanceof VectorValue && b instanceof VectorValue) {
             List<Double> x = ((VectorValue) a).getComponents();
             List<Double> y = ((VectorValue) b).getComponents();
             switch (op) {
                 case ADD:
                 case SUBTRACT:
-                    return combine(x, y);
+                    return combine(x, y, context);
                 case MULTIPLY:
                 case DOT:
                     return new NumberValue(dot(x, y));
@@ -145,13 +178,17 @@ public class BinaryNode extends Node {
         return new VectorValue(components);
     }
 
-    private Value combine(List<Double> x, List<Double> y) {
+    private Value combine(List<Double> x, List<Double> y, Context context) {
         if (x.size() != y.size()) {
             throw new UncalculableException();
         }
         List<Double> result = new ArrayList<>();
         for (int i = 0; i < x.size(); i++) {
-            result.add(op == Op.ADD ? x.get(i) + y.get(i) : x.get(i) - y.get(i));
+            double component = calculate(x.get(i), y.get(i));
+            if (isAbsorbed(x.get(i), y.get(i), component)) {
+                context.markAbsorbed();
+            }
+            result.add(component);
         }
         return finiteVector(result);
     }

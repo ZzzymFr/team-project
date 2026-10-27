@@ -168,4 +168,52 @@ class QuantifierTest {
         assertEquals("true", Calc.once("\\forall x, x=x"));
         assertEquals("true", Calc.once("\\forall x, x+1-x=1"));
     }
+
+    @Test
+    void absorbedSumsAtNearSamplesGiveNoVerdict() {
+        assertEquals("true", Calc.once("\\forall x\\in\\mathbb{R}, e^{x}+1>e^{x}"));
+        assertEquals("false", Calc.once("\\exists x\\in\\mathbb{R}, e^x+1=e^x"));
+        assertEquals("false", Calc.once("\\exists x\\in\\mathbb{R}, 1+e^{-x}=1"));
+        assertEquals("true", Calc.once("\\forall x\\in\\mathbb{R}, 1+e^{-x}>1"));
+    }
+
+    @Test
+    void absorptionLeavesExactIdentitiesDecided() {
+        assertEquals("true", Calc.once("\\forall x, x+1>x"));
+        assertEquals("false", Calc.once("\\exists x, x+1=x"));
+        assertEquals("true", Calc.once("\\forall x, x=x"));
+        assertEquals("true", Calc.once("\\forall x\\in\\mathbb{R}, \\sin(x)^2+\\cos(x)^2=1"));
+        assertEquals("true", Calc.once("\\forall x, 0.1x+0.2x=0.3x"));
+        assertEquals("true", Calc.once("\\forall x, e^x>0"));
+        assertEquals("false", Calc.once("\\exists x, e^x=0"));
+        assertEquals("true", Calc.once("\\exists x, x^2=2"));
+        assertEquals("false", Calc.once("\\forall n\\in\\mathbb{N}, n<2000"));
+        assertTimeout(Duration.ofSeconds(2), () -> {
+            assertEquals("true", Calc.once("\\forall x, \\forall y, (x+y)-y=x"));
+            assertEquals("true", Calc.once("\\forall x, \\exists y, x+y=0"));
+        });
+    }
+
+    @Test
+    void absorbedSetMembersGiveNoVerdict() {
+        assertEquals("Uncalculable", Calc.once("\\exists x\\in\\{10^{20}\\}, x+1=x"));
+        assertEquals("Uncalculable", Calc.once("\\forall x\\in\\{10^{20}\\}, x+1>x"));
+        assertEquals("false", Calc.once("\\forall x\\in\\{10^{20}, 0\\}, x+1=x"));
+    }
+
+    @Test
+    void absorptionInsideAnInnerQuantifierStaysThere() {
+        assertEquals("true", Calc.once("\\exists x\\in\\mathbb{R}, \\forall y\\in\\mathbb{R}, x+y>y-1"));
+        assertEquals("true", Calc.once("\\forall x\\in\\{0, 1\\}, \\forall y\\in\\mathbb{R}, x+y>y-1"));
+        assertEquals("false", Calc.once("\\forall x\\in\\mathbb{R}, \\exists y\\in\\mathbb{R}, x+y>y-1"));
+    }
+
+    @Test
+    void underflowAndOverflowAtNearSamplesGiveNoVerdict() {
+        assertEquals("false", Calc.once("\\exists x\\in\\mathbb{R}, 1+e^{-x^2}=1"));
+        assertEquals("true", Calc.once("\\forall x\\in\\mathbb{R}, 1+e^{-x^2}>1"));
+        assertEquals("false", Calc.once("\\exists x\\in\\mathbb{R}, e^{-x^2}=0"));
+        assertEquals("true", Calc.once("\\forall x\\in\\mathbb{R}, e^{-x^2}>0"));
+        assertEquals("true", Calc.once("\\forall x\\in\\mathbb{R}, \\frac{1}{e^{x^2}}>0"));
+    }
 }

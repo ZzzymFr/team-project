@@ -95,6 +95,19 @@ public final class Context {
         }
     }
 
+    // set when something lost to rounding (x+1=x at 1e16)
+    public void markAbsorbed() {
+        budget.absorbed = true;
+    }
+
+    public boolean isAbsorbed() {
+        return budget.absorbed;
+    }
+
+    public void setAbsorbed(boolean absorbed) {
+        budget.absorbed = absorbed;
+    }
+
     private Binding find(String name) {
         for (Binding binding = variables; binding != null; binding = binding.next) {
             if (binding.name.equals(name)) {
@@ -118,5 +131,6 @@ public final class Context {
 
     private static final class Budget {
         private int steps;
+        private boolean absorbed;
     }
 }
