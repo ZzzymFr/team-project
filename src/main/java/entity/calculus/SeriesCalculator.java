@@ -85,6 +85,8 @@ public final class SeriesCalculator {
         private static final double LEVELLING = 0.6;
         private static final double LEVELLED = 1e-4;
         private static final double NOT_SHRINKING = 1e-3;
+        private static final double EXPONENT_SLACK = 1e-3;
+        private static final double EXPONENT_NOISE = 1e-4;
         private static final int LOOK_AHEAD = 3;
         private static final int ALL_INFINITE = 64;
         private static final int RECENT = 4;
@@ -279,12 +281,38 @@ public final class SeriesCalculator {
         // +1/-1 if partials keep moving one way, else 0
         private int steadyGrowth() {
             for (int direction = -1; direction <= 1; direction += 2) {
-                double[] edge = direction > 0 ? low : high;
-                if (isSteady(edge, direction)) {
+                if (isSteady(low, direction) && isSteady(high, direction) && !mayDecayFasterThanOneOverN()) {
                     return direction;
                 }
             }
             return 0;
+        }
+
+        // terms ~ n^-p, need p <= 1
+        private boolean mayDecayFasterThanOneOverN() {
+            double[] exponent = new double[3];
+            for (int j = 0; j < 3; j++) {
+                int k = LEVELS - 2 + j;
+                double ratio = size[k - 1] / size[k];
+                if (!isFinite(ratio) || ratio <= 0) {
+                    return true;
+                }
+                exponent[j] = Math.log(ratio) / Math.log(2);
+            }
+            double last = exponent[2];
+            double increase = exponent[2] - exponent[1];
+            double before = exponent[1] - exponent[0];
+            if (last > 1 + EXPONENT_SLACK) {
+                return true;
+            }
+            if (increase <= EXPONENT_NOISE) {
+                return false;
+            }
+            if (before <= 0 || increase >= before) {
+                return true;
+            }
+            double shrink = increase / before;
+            return last + increase * shrink / (1 - shrink) > 1 + EXPONENT_SLACK;
         }
 
         private boolean isSteady(double[] edge, int direction) {

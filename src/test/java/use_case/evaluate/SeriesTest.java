@@ -70,4 +70,27 @@ class SeriesTest {
                 calc.show("f(x)=\\sum_{n=0}^{\\infty}\\frac{x^n}{n!}"));
         assertEquals("= 7.3890561", calc.show("f(2)"));
     }
+
+    @Test
+    void slowlyShrinkingTermsAreNotDivergence() {
+        assertEquals("Uncalculable", Calc.once("\\sum_{n=0}^{\\infty}0.999999^n"));
+        assertEquals("Uncalculable", Calc.once("\\sum_{n=0}^{\\infty}(-0.999999)^n"));
+        assertEquals("Uncalculable", Calc.once("\\sum_{n=1}^{\\infty}\\frac{1}{(n+3\\cdot10^5)^2}"));
+    }
+
+    @Test
+    void anUpperBoundThatBecomesInfinityIsRounded() {
+        Calc calc = new Calc();
+        calc.show("g(n)=\\sum_{i=1}^{n}\\frac{1}{i^2}");
+        assertEquals("= 1.64493407", calc.show("g(\\infty)"));
+        assertEquals("= 1.25", calc.show("g(2)"));
+    }
+
+    @Test
+    void onlyAnEqualsOutsideBracesStartsAnEquation() {
+        assertEquals("Please use only one \"=\".", Calc.once("f(x)=\\sum_{i=1}^{3}i=6"));
+        Calc calc = new Calc();
+        assertEquals("Defined f(x) = \\sum_{i=1}^{3}i", calc.show("f(x)=\\sum_{i=1}^{3}i"));
+        assertEquals("= 6", calc.show("f(0)"));
+    }
 }

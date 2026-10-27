@@ -69,10 +69,12 @@ public class SeriesNode extends Node {
         return true;
     }
 
-    // infinite series is extrapolated so approx
+    // infinite series is approx, upper bound var can be inf
     @Override
     public boolean isApproximate() {
-        return upper.canBeInfinite() || super.isApproximate();
+        Set<String> inUpper = new HashSet<>();
+        upper.collectFreeVariables(inUpper);
+        return upper.canBeInfinite() || !inUpper.isEmpty() || super.isApproximate();
     }
 
     @Override

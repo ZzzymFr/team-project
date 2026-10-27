@@ -74,6 +74,26 @@ class SeriesCalculatorTest {
         assertThrows(UncalculableException.class, () -> infinite(n -> Math.pow(100, n) / factorial(n), 0, false));
     }
 
+    // almost constant terms != divergence
+    @Test
+    void slowlyShrinkingTermsAreNotDivergence() {
+        assertNotInfinite(() -> infinite(n -> Math.pow(0.999999, n), 0, false), 1e6);
+        assertNotInfinite(() -> infinite(n -> Math.pow(-0.999999, n), 0, false), 1 / 1.999999);
+        assertNotInfinite(() -> infinite(n -> 1 / Math.pow(n + 3e5, 2), 1, false), 1 / (3e5 + 0.5));
+        assertNotInfinite(() -> infinite(n -> (n % 2 == 0 ? 1 : -1) / Math.pow(n + 1e6, 2), 1, false), 0);
+        assertEquals(Double.POSITIVE_INFINITY, infinite(n -> Math.log(n) / n, 1, false));
+        assertEquals(Double.POSITIVE_INFINITY, infinite(n -> 1.0 / (2 * n - 1), 1, false));
+    }
+
+    // right value or uncalc, never inf
+    private static void assertNotInfinite(java.util.function.DoubleSupplier sum, double expected) {
+        try {
+            assertEquals(expected, sum.getAsDouble(), 1e-6 * Math.max(1, Math.abs(expected)));
+        } catch (UncalculableException e) {
+            // inconclusive ok
+        }
+    }
+
     private static double factorial(long n) {
         double result = 1;
         for (long i = 2; i <= n; i++) {
