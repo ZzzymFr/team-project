@@ -157,4 +157,15 @@ class QuantifierTest {
         assertEquals("true", Calc.once("\\forall x, \\forall y, (x+y)^2-x^2-2xy-y^2=0"));
         assertEquals("false", Calc.once("\\exists x\\in\\mathbb{R}, e^{-x}=0"));
     }
+
+    @Test
+    void absorbedSidesAtFarSamplesGiveNoVerdict() {
+        assertEquals("true", Calc.once("\\forall x\\in\\mathbb{R}, x+1>x"));
+        assertEquals("true", Calc.once("\\forall x\\in\\mathbb{R}, x^2+1>x^2"));
+        assertEquals("false", Calc.once("\\exists x\\in\\mathbb{R}, x+1=x"));
+        assertEquals("true", Calc.once("\\forall x\\in\\mathbb{R}, 10^4x^2+1>10^4x^2"));
+        assertEquals("true", Calc.once("\\forall x\\in\\mathbb{R}, 10^6x\\neq10^6x+10^{-3}"));
+        assertEquals("true", Calc.once("\\forall x, x=x"));
+        assertEquals("true", Calc.once("\\forall x, x+1-x=1"));
+    }
 }

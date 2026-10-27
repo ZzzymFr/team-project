@@ -40,7 +40,6 @@ public class ConditionSolver {
     private static final int SCAN_POINTS = 3 * 298;
     private static final double TINY = 1e-300;
     private static final double HUGE = 1e300;
-    private static final double ABSOLUTE_BAND = 1e-9;
     private static final double NOISE = 1e-12;
     private static final int REAL = 0;
     private static final int INTEGER = 1;
@@ -352,14 +351,19 @@ public class ConditionSolver {
             for (int i = 0; i + 1 < values.length; i++) {
                 double a = values[i];
                 double b = values[i + 1];
-                if (isSetOperator(relation.getOperators().get(i)) || !isFinite(a) || !isFinite(b) || a == b) {
+                if (isSetOperator(relation.getOperators().get(i)) || !isFinite(a) || !isFinite(b)) {
+                    continue;
+                }
+                // x+1 rounds to x far out, equal means nothing
+                boolean absorbing = far && !atRoot;
+                if (a == b && !absorbing) {
                     continue;
                 }
                 double gap = Math.abs(a - b);
-                if (!atRoot && gap <= ABSOLUTE_BAND && Math.max(Math.abs(a), Math.abs(b)) < 1) {
+                if (!atRoot && a != b && Values.areAlmostEqual(a, b)) {
                     return NOISY;
                 }
-                if (!Values.areAlmostEqual(a, b)) {
+                if (absorbing || !Values.areAlmostEqual(a, b)) {
                     double scale = Math.max(Math.abs(point), outerScale());
                     scale = Math.max(scale, Math.max(largestPart(operands.get(i), at), largestPart(operands.get(i + 1), at)));
                     if (gap <= NOISE * scale) {
