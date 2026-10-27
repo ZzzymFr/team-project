@@ -66,6 +66,37 @@ class SharedCanvasTest {
         assertEquals(2 * (31 + 2 * 18), image.getWidth());
     }
 
+    /** Draws a lasso loop around the rectangle (left, top)-(right, bottom). */
+    private void lassoAround(int left, int top, int right, int bottom) {
+        canvas.setTool(DrawingCanvas.Tool.LASSO);
+        canvas.dispatchEvent(new MouseEvent(canvas, MouseEvent.MOUSE_PRESSED, 0, 0, left, top, 1, false, MouseEvent.BUTTON1));
+        canvas.dispatchEvent(new MouseEvent(canvas, MouseEvent.MOUSE_DRAGGED, 0, 0, right, top, 1, false, MouseEvent.BUTTON1));
+        canvas.dispatchEvent(new MouseEvent(canvas, MouseEvent.MOUSE_DRAGGED, 0, 0, right, bottom, 1, false, MouseEvent.BUTTON1));
+        canvas.dispatchEvent(new MouseEvent(canvas, MouseEvent.MOUSE_DRAGGED, 0, 0, left, bottom, 1, false, MouseEvent.BUTTON1));
+        canvas.dispatchEvent(new MouseEvent(canvas, MouseEvent.MOUSE_RELEASED, 0, 0, left, bottom, 1, false, MouseEvent.BUTTON1));
+    }
+
+    @Test
+    void withALassoSelectionOnlyThatFormulaIsCaptured() {
+        drawLine(0, 0, 30, 0);        // formula A
+        drawLine(300, 300, 400, 300); // formula B
+        assertEquals(674, shared.captureFormulaImage().getWidth(), "no selection: both formulas");
+
+        lassoAround(-20, -20, 60, 20);
+
+        BufferedImage image = shared.captureFormulaImage();
+        assertEquals(1 + 2 * 18, image.getHeight(), "only A's height");
+        assertEquals(2 * (1 + 2 * 18), image.getWidth(), "only A's width (made landscape)");
+        assertEquals(new java.awt.Rectangle(0, 0, 30, 0), shared.getFormulaBounds());
+    }
+
+    @Test
+    void withoutASelectionTheFormulaIsAllTheInk() {
+        drawLine(0, 0, 30, 0);
+        drawLine(300, 300, 400, 300);
+        assertEquals(new java.awt.Rectangle(0, 0, 400, 300), shared.getFormulaBounds());
+    }
+
     @Test
     void captureWorksOffTheEventThread() throws Exception {
         drawLine(10, 10, 20, 20);

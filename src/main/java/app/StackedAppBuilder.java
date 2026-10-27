@@ -1,6 +1,12 @@
 package app;
 
+import data_access.QuickChartGraphRenderer;
+import entity.LatexFunctionParser;
+import interface_adapter.graph.GraphController;
+import interface_adapter.graph.GraphPresenter;
+import interface_adapter.graph.GraphViewModel;
 import interface_adapter.recognize.FormulaRecognizer;
+import use_case.graph_function.GraphFunctionInteractor;
 import view.DrawingCanvas;
 import view.canvas.AnswerCanvasPage;
 import view.canvas.CanvasPage;
@@ -26,8 +32,13 @@ public class StackedAppBuilder {
     private final SharedCanvas sharedCanvas = new SharedCanvas(new DrawingCanvas());
     private final StackedPages pages = new StackedPages();
 
+    /** The Graph page, wired to the graph use case: LaTeX -> parse and sample -> QuickChart -> graph card. */
     public StackedAppBuilder addGraphPage() {
-        pages.addPage("Graph", GRAPH_BLUE, new GraphCanvasPage(sharedCanvas));
+        GraphViewModel viewModel = new GraphViewModel();
+        GraphFunctionInteractor interactor = new GraphFunctionInteractor(
+                new LatexFunctionParser(), new QuickChartGraphRenderer(), new GraphPresenter(viewModel));
+        GraphController controller = new GraphController(interactor);
+        pages.addPage("Graph", GRAPH_BLUE, new GraphCanvasPage(sharedCanvas, controller, viewModel));
         return this;
     }
 

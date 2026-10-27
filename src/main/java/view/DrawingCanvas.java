@@ -25,6 +25,7 @@ import java.awt.geom.Ellipse2D;
 import java.awt.geom.Path2D;
 import java.awt.geom.Point2D;
 import java.awt.geom.Rectangle2D;
+import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -42,6 +43,7 @@ import java.util.function.UnaryOperator;
  * zoomed. Scroll to move up and down, Shift+scroll to move sideways, drag with the right or middle
  * button (or with Space held) to move freely, and Ctrl+scroll to zoom around the mouse pointer.
  * Strokes are stored in world coordinates, so moving or zooming never changes the ink.
+ * A picture such as the graph of the formula can be shown as a card beside the ink ({@link #showGraph}).
  *
  * <p>Three tools: the pen writes, the eraser removes ink, and the lasso selects the strokes it is
  * drawn around. The eraser has two modes: precise rubs out only the ink under it (cutting strokes
@@ -86,6 +88,13 @@ public class DrawingCanvas extends JPanel {
     private static final int HANDLE_REACH = 9;       // how close (screen px) a press must be to grab one
     private static final double MIN_RESIZE = 0.1;
     private static final double MAX_RESIZE = 20;
+    private static final Color GRAPH_CARD_BORDER = new Color(203, 213, 225);
+    private static final double GRAPH_CARD_WIDTH = 0.4;   // of the visible canvas width
+    private static final int GRAPH_CARD_PADDING = 10;     // white border around the graph, on screen
+    private static final int GRAPH_CARD_GAP = 48;         // space between the formula and the card, on screen
+    private static final int GRAPH_CLOSE_RADIUS = 11;     // close button, on screen
+    private static final int VIEW_MARGIN_X = 16;          // keep a new card this far inside the view...
+    private static final int VIEW_MARGIN_Y = 60;          // ...and clear of the floating controls
     private static final int[] HANDLE_CURSORS = {Cursor.NW_RESIZE_CURSOR, Cursor.NE_RESIZE_CURSOR,
         Cursor.SE_RESIZE_CURSOR, Cursor.SW_RESIZE_CURSOR};
 
@@ -113,6 +122,12 @@ public class DrawingCanvas extends JPanel {
     private Point2D moveStart;        // where a drag of the selection started
     private int moveDx;
     private int moveDy;
+    // graph card: a picture shown next to the formula, in world coordinates so it pans and zooms with the ink
+    private BufferedImage graphImage;
+    private Rectangle2D graphCard;
+    private double graphPadding;
+    private boolean overGraphClose;
+
     private int resizeHandle = -1;    // corner being dragged to resize (0 top-left, clockwise), or -1
     private Point2D resizeAnchor;     // the opposite corner, which stays put
     private Point2D resizeCorner;     // where the dragged corner started
@@ -127,6 +142,10 @@ public class DrawingCanvas extends JPanel {
             @Override
             public void mousePressed(MouseEvent e) {
                 requestFocusInWindow();  // so Delete, Ctrl+Z and Space reach the canvas
+                if (e.getButton() == MouseEvent.BUTTON1 && graphCloseContains(e.getPoint())) {
+                    removeGraph();
+                    return;
+                }
                 if (spaceDown || e.getButton() != MouseEvent.BUTTON1) {
                     panFrom = e.getPoint();
                     setCursor(Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR));
@@ -186,6 +205,15 @@ public class DrawingCanvas extends JPanel {
 
             @Override
             public void mouseMoved(MouseEvent e) {
+                boolean onClose = graphCloseContains(e.getPoint());
+                if (onClose != overGraphClose) {
+                    overGraphClose = onClose;
+                    setCursor(Cursor.getPredefinedCursor(onClose ? Cursor.HAND_CURSOR : Cursor.CROSSHAIR_CURSOR));
+                    repaint();
+                }
+                if (onClose) {
+                    return;
+                }
                 if (tool == Tool.ERASER) {
                     eraserAt = e.getPoint();
                     repaint();
@@ -291,6 +319,125 @@ public class DrawingCanvas extends JPanel {
         }
         repaint();
         firePropertyChange(ZOOM_PROPERTY, old, scale);
+    }
+
+    // ---------------------------------------------------------------- graph card
+
+    /** Shows a graph card beside the formula as it is now (the lasso selection, or all the ink). */
+    public void showGraph(BufferedImage image) {
+        showGraph(image, getFormulaBounds());
+    }
+
+    /**
+     * Shows a picture (the graph of a written function) as a card beside the given formula: to its
+     * right, centred on it vertically, 40% of the visible width, so it never fills the canvas.
+     * The view moves if needed so the card can be seen. The card replaces any earlier one, moves
+     * and zooms with the ink, closes with its × button, and is never part of the formula image.
+     *
+     * @param formula where the formula is, in world coordinates ({@link #getFormulaBounds()} when it
+     *                was captured); null puts the card in the middle of the view
+     */
+    public void showGraph(BufferedImage image, Rectangle formula) {
+        double viewWidth = (getWidth() > 0 ? getWidth() : getPreferredSize().width) / scale;
+        double imageWidth = viewWidth * GRAPH_CARD_WIDTH;
+        double imageHeight = imageWidth * image.getHeight() / image.getWidth();
+        graphImage = downscaled(image, (int) Math.ceil(imageWidth * 2));  // sharp up to 200% (and on HiDPI)
+        graphPadding = GRAPH_CARD_PADDING / scale;
+        double w = imageWidth + 2 * graphPadding;
+        double h = imageHeight + 2 * graphPadding;
+
+        double x;
+        double y;
+        if (formula != null) {
+            x = formula.getMaxX() + GRAPH_CARD_GAP / scale;
+            y = formula.getCenterY() - h / 2;
+        } else {
+            x = (getWidth() / 2.0 - originX) / scale - w / 2;
+            y = (getHeight() / 2.0 - originY) / scale - h / 2;
+        }
+        graphCard = new Rectangle2D.Double(x, y, w, h);
+        bringIntoView(formula == null ? graphCard : graphCard.createUnion(formula));
+        repaint();
+    }
+
+    public void removeGraph() {
+        if (graphCard == null) {
+            return;
+        }
+        graphImage = null;
+        graphCard = null;
+        overGraphClose = false;
+        setCursor(Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR));
+        repaint();
+    }
+
+    public boolean hasGraph() {
+        return graphCard != null;
+    }
+
+    /** Where the graph card is on screen right now, or null if there is none. */
+    public Rectangle2D getGraphCardOnScreen() {
+        return graphCard == null ? null : toScreen(graphCard);
+    }
+
+    /** The point to click to close the graph card, on screen, or null if there is none. */
+    public Point2D getGraphCloseOnScreen() {
+        if (graphCard == null) {
+            return null;
+        }
+        Rectangle2D card = toScreen(graphCard);
+        return new Point2D.Double(card.getMaxX() - GRAPH_CLOSE_RADIUS - 5, card.getMinY() + GRAPH_CLOSE_RADIUS + 5);
+    }
+
+    private boolean graphCloseContains(Point p) {
+        Point2D close = getGraphCloseOnScreen();
+        return close != null && close.distance(p) <= GRAPH_CLOSE_RADIUS + 2;
+    }
+
+    /** Pans (without zooming) so the world rectangle, or at least the graph card, is in view. */
+    private void bringIntoView(Rectangle2D world) {
+        if (getWidth() <= 0 || getHeight() <= 0) {
+            return;
+        }
+        double left = VIEW_MARGIN_X;
+        double right = getWidth() - VIEW_MARGIN_X;
+        double top = VIEW_MARGIN_Y;
+        double bottom = getHeight() - VIEW_MARGIN_Y;
+        Rectangle2D target = toScreen(world);
+        if (target.getWidth() > right - left || target.getHeight() > bottom - top) {
+            target = toScreen(graphCard);  // the formula and the card do not both fit: show the card
+        }
+        panBy(shiftInto(target.getMinX(), target.getMaxX(), left, right),
+                shiftInto(target.getMinY(), target.getMaxY(), top, bottom));
+    }
+
+    /** How far to move [min, max] to bring it inside [low, high]; the start wins if it cannot fit. */
+    private static double shiftInto(double min, double max, double low, double high) {
+        if (min < low) {
+            return low - min;
+        }
+        if (max > high) {
+            return Math.max(high - max, low - min);
+        }
+        return 0;
+    }
+
+    private Rectangle2D toScreen(Rectangle2D world) {
+        return new Rectangle2D.Double(world.getX() * scale + originX, world.getY() * scale + originY,
+                world.getWidth() * scale, world.getHeight() * scale);
+    }
+
+    /** A smooth, smaller copy of a big image (QuickChart sends 1600 px), so it draws cleanly. */
+    private static BufferedImage downscaled(BufferedImage image, int maxWidth) {
+        if (image.getWidth() <= maxWidth || maxWidth <= 0) {
+            return image;
+        }
+        int height = Math.max(1, (int) Math.round((double) image.getHeight() * maxWidth / image.getWidth()));
+        BufferedImage small = new BufferedImage(maxWidth, height, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = small.createGraphics();
+        g.drawImage(image.getScaledInstance(maxWidth, height, java.awt.Image.SCALE_SMOOTH), 0, 0, null);
+        g.dispose();
+        return small;
     }
 
     private Point2D toWorld(Point screen) {
@@ -611,9 +758,32 @@ public class DrawingCanvas extends JPanel {
     }
 
     /**
-     * Screenshot of just the formula: all the ink, cropped to its bounding box with a white margin,
-     * dark strokes on white, at 100% whatever the current zoom. This is the image handed to
-     * handwriting recognition.
+     * The strokes that make up "the formula": the lasso selection if there is one (so one formula
+     * can be picked out when several are written), otherwise all the ink. In drawing order.
+     */
+    private List<Stroke> formulaStrokes() {
+        if (selection.isEmpty()) {
+            return strokes;
+        }
+        List<Stroke> picked = new ArrayList<>();
+        for (Stroke stroke : strokes) {
+            if (selection.contains(stroke)) {
+                picked.add(stroke);
+            }
+        }
+        return picked;
+    }
+
+    /** Where the formula is (world coordinates): the lasso selection, or all the ink; null if blank. */
+    public Rectangle getFormulaBounds() {
+        List<Stroke> formula = formulaStrokes();
+        return formula.isEmpty() ? null : boundsOf(formula);
+    }
+
+    /**
+     * Screenshot of just the formula: the lasso selection if there is one, otherwise all the ink,
+     * cropped to its bounding box with a white margin, dark strokes on white, at 100% whatever the
+     * current zoom. This is the image handed to handwriting recognition.
      *
      * <p>The image is always a landscape rectangle, at least {@value #FORMULA_MIN_ASPECT} times as
      * wide as it is tall, like a line of formula; narrow ink (a single tall symbol, a fraction) is
@@ -625,7 +795,8 @@ public class DrawingCanvas extends JPanel {
         if (isBlank()) {
             throw new IllegalStateException("The canvas is empty.");
         }
-        Rectangle ink = inkBounds();
+        List<Stroke> formula = formulaStrokes();
+        Rectangle ink = boundsOf(formula);
         int margin = FORMULA_MARGIN + (int) Math.ceil(INK_WIDTH / 2);
         int inkWidth = ink.width + 1 + 2 * margin;
         int height = ink.height + 1 + 2 * margin;
@@ -635,7 +806,10 @@ public class DrawingCanvas extends JPanel {
         g2.setColor(Color.WHITE);
         g2.fillRect(0, 0, width, height);
         g2.translate(margin - ink.x + (width - inkWidth) / 2, margin - ink.y);
-        drawStrokes(g2);
+        setUpInk(g2);
+        for (Stroke stroke : formula) {
+            drawStroke(g2, stroke);
+        }
         g2.dispose();
         return image;
     }
@@ -649,10 +823,20 @@ public class DrawingCanvas extends JPanel {
         world.dispose();
     }
 
-    /** Draws the grid and the ink (no background) as they appear on screen. */
+    /** Draws the graph card and the ink (no background) as they appear on screen. */
+    public void paintContent(Graphics2D g2) {
+        Graphics2D world = (Graphics2D) g2.create();
+        world.translate(originX, originY);
+        world.scale(scale, scale);
+        paintGraphCard(world);
+        drawStrokes(world);
+        world.dispose();
+    }
+
+    /** Draws the grid, the graph card and the ink (no background) as they appear on screen. */
     public void paintView(Graphics2D g2) {
         paintGrid(g2);
-        paintInk(g2);
+        paintContent(g2);
     }
 
     // ---------------------------------------------------------------- painting
@@ -666,6 +850,7 @@ public class DrawingCanvas extends JPanel {
         Graphics2D world = (Graphics2D) g2.create();
         world.translate(originX, originY);
         world.scale(scale, scale);
+        paintGraphCard(world);  // under the ink, so writing over it stays visible
         setUpInk(world);
         for (Stroke stroke : strokes) {
             if (!selection.contains(stroke)) {
@@ -680,6 +865,7 @@ public class DrawingCanvas extends JPanel {
         }
         world.dispose();
 
+        paintGraphClose(g2);
         if (tool == Tool.ERASER && eraserAt != null) {
             int r = eraserRadius();
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
@@ -688,6 +874,63 @@ public class DrawingCanvas extends JPanel {
             g2.draw(new Ellipse2D.Double(eraserAt.x - r, eraserAt.y - r, 2 * r, 2 * r));
         }
         g2.dispose();
+    }
+
+    /** The graph card in world coordinates: a soft shadow, a white rounded card, the picture inside. */
+    private void paintGraphCard(Graphics2D world) {
+        if (graphCard == null) {
+            return;
+        }
+        Graphics2D g = (Graphics2D) world.create();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        double unit = 1 / scale;  // one screen pixel in world units
+        double arc = 16 * unit;
+        for (int i = 1; i <= 5; i++) {
+            g.setColor(new Color(15, 23, 42, 7));
+            g.fill(new RoundRectangle2D.Double(graphCard.getX() - i * 0.6 * unit, graphCard.getY() + i * 0.8 * unit,
+                    graphCard.getWidth() + i * 1.2 * unit, graphCard.getHeight() + i * 0.6 * unit, arc + i * unit, arc + i * unit));
+        }
+        RoundRectangle2D card = new RoundRectangle2D.Double(graphCard.getX(), graphCard.getY(),
+                graphCard.getWidth(), graphCard.getHeight(), arc, arc);
+        g.setColor(Color.WHITE);
+        g.fill(card);
+
+        Graphics2D picture = (Graphics2D) g.create();
+        picture.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+        picture.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+        picture.translate(graphCard.getX() + graphPadding, graphCard.getY() + graphPadding);
+        picture.scale((graphCard.getWidth() - 2 * graphPadding) / graphImage.getWidth(),
+                (graphCard.getHeight() - 2 * graphPadding) / graphImage.getHeight());
+        picture.drawImage(graphImage, 0, 0, null);
+        picture.dispose();
+
+        g.setStroke(new BasicStroke((float) unit));
+        g.setColor(GRAPH_CARD_BORDER);
+        g.draw(card);
+        g.dispose();
+    }
+
+    /** The card's × button, on screen so it stays the same size at every zoom. */
+    private void paintGraphClose(Graphics2D g2) {
+        Point2D c = getGraphCloseOnScreen();
+        if (c == null) {
+            return;
+        }
+        Graphics2D g = (Graphics2D) g2.create();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        int r = GRAPH_CLOSE_RADIUS;
+        Ellipse2D circle = new Ellipse2D.Double(c.getX() - r, c.getY() - r, 2 * r, 2 * r);
+        g.setColor(overGraphClose ? new Color(254, 226, 226) : new Color(255, 255, 255, 235));
+        g.fill(circle);
+        g.setStroke(new BasicStroke(1f));
+        g.setColor(GRAPH_CARD_BORDER);
+        g.draw(circle);
+        g.setStroke(new BasicStroke(1.6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g.setColor(overGraphClose ? new Color(185, 28, 28) : new Color(71, 85, 105));
+        double s = 3.8;
+        g.draw(new java.awt.geom.Line2D.Double(c.getX() - s, c.getY() - s, c.getX() + s, c.getY() + s));
+        g.draw(new java.awt.geom.Line2D.Double(c.getX() - s, c.getY() + s, c.getX() + s, c.getY() - s));
+        g.dispose();
     }
 
     /** Light dots that move and zoom with the world, so you can see the canvas moving. */

@@ -13,6 +13,7 @@ import java.awt.Graphics2D;
 public class GlassLabel extends JComponent {
     private static final int HEIGHT = 28;
     private static final int PADDING = 14;
+    private static final int TEXT_SLACK = 6;
 
     private String text;
 
@@ -36,7 +37,22 @@ public class GlassLabel extends JComponent {
     @Override
     public Dimension getPreferredSize() {
         FontMetrics fm = getFontMetrics(getFont());
-        return new Dimension(fm.stringWidth(text) + 2 * PADDING + 2 * Glass.SHADOW, HEIGHT + 2 * Glass.SHADOW);
+        // a few px of slack: text drawn with fractional metrics can be slightly wider than measured here
+        return new Dimension(fm.stringWidth(text) + 2 * PADDING + 2 * Glass.SHADOW + TEXT_SLACK,
+                HEIGHT + 2 * Glass.SHADOW);
+    }
+
+    /** The text, shortened with … if it is wider than the space it has. */
+    private String fitted(FontMetrics fm, int available) {
+        if (fm.stringWidth(text) <= available) {
+            return text;
+        }
+        String ellipsis = "…";
+        int end = text.length();
+        while (end > 0 && fm.stringWidth(text.substring(0, end) + ellipsis) > available) {
+            end--;
+        }
+        return text.substring(0, end).trim() + ellipsis;
     }
 
     @Override
@@ -48,7 +64,8 @@ public class GlassLabel extends JComponent {
         g2.setFont(getFont());
         FontMetrics fm = g2.getFontMetrics();
         int textY = (int) Math.round((getHeight() + fm.getAscent() - fm.getDescent()) / 2.0);
-        Glass.drawText(g2, text, getWidth() / 2.0, textY, getForeground());
+        Glass.drawText(g2, fitted(fm, getWidth() - 2 * PADDING - 2 * Glass.SHADOW), getWidth() / 2.0, textY,
+                getForeground());
         g2.dispose();
     }
 }
