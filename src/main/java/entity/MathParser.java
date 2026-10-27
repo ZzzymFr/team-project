@@ -22,10 +22,20 @@ import entity.value.NumberSetValue;
 import entity.value.NumberValue;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
 public final class MathParser {
+    // stuff we cant calc (integrals, ..., maps)
+    private static final List<String> MEANINGLESS = Arrays.asList("\\int", "\\ldots", "\\rightarrow",
+            "\\partial", ":", ";");
+    // tokens that cant start a value
+    private static final List<String> OPERATORS = Arrays.asList("\\leq", "\\geq", "\\neq", "\\approx",
+            "\\times", "\\cdot", "\\land", "\\lor", "\\oplus", "\\Rightarrow", "\\Leftrightarrow",
+            "\\leftrightarrow", "\\in", "\\notin", "\\subset", "\\cup", "\\cap", "\\perp", "\\rangle",
+            "\\}");
+
     private final List<String> tokens;
     private final Map<String, UserFunction> functions;
     private int position = 0;
@@ -41,11 +51,21 @@ public final class MathParser {
         if (tokens.isEmpty()) {
             throw new MathSyntaxException("The expression is empty.");
         }
-        Node result = parseStatement();
-        if (position < tokens.size()) {
-            throw new MathSyntaxException("Unexpected \"" + peek() + "\".");
+        try {
+            Node result = parseStatement();
+            if (position < tokens.size()) {
+                throw new MathSyntaxException("Unexpected \"" + peek() + "\".");
+            }
+            return result;
+        } catch (UncalculableException e) {
+            throw e;
+        } catch (MathSyntaxException e) {
+            // leftover : or ; is just prose
+            if (tokens.contains(":") || tokens.contains(";")) {
+                throw new UncalculableException();
+            }
+            throw e;
         }
-        return result;
     }
 
     public int getPlusMinusCount() {
@@ -311,7 +331,9 @@ public final class MathParser {
             return parseLog();
         }
         if (token.equals("\\sin") || token.equals("\\cos") || token.equals("\\tan") || token.equals("\\ln")) {
-            return new FunctionNode(token, parseFunctionArgument(), null);
+            Node power = parseFunctionPower();
+            Node value = new FunctionNode(token, parseFunctionArgument(), null);
+            return power == null ? value : new BinaryNode(BinaryNode.Op.POWER, value, power);
         }
         if (token.equals("\\infty")) {
             return new LiteralNode(new NumberValue(Double.POSITIVE_INFINITY), true);
@@ -335,6 +357,12 @@ public final class MathParser {
                 throw new UncalculableException();
             }
             return new VariableNode(name);
+        }
+        if (MEANINGLESS.contains(token)) {
+            throw new UncalculableException();
+        }
+        if (OPERATORS.contains(token)) {
+            throw new MathSyntaxException("Unexpected \"" + token + "\".");
         }
         if (token.startsWith("\\") && token.length() > 1) {
             throw new MathSyntaxException("\"" + token + "\" is not supported.");
@@ -412,7 +440,7 @@ public final class MathParser {
                 kind = NumberSetValue.Kind.COMPLEX;
                 break;
             default:
-                throw new MathSyntaxException("\"\\mathbb{" + letter + "}\" is not supported.");
+                throw new UncalculableException();
         }
         int dimension = 1;
         if (peekIs("^")) {
@@ -714,6 +742,18 @@ public final class MathParser {
             base = parsePrimary();
         }
         return new FunctionNode("\\log", parseFunctionArgument(), base);
+    }
+
+    // \sin^2 x = (\sin x)^2, \sin^{-1} is ambiguous
+    private Node parseFunctionPower() {
+        if (!peekIs("^")) {
+            return null;
+        }
+        next();
+        if (peekIs("-") || (peekIs("{") && "-".equals(tokenAt(position + 1)))) {
+            throw new UncalculableException();
+        }
+        return parsePrimary();
     }
 
     private Node parseFunctionArgument() {
