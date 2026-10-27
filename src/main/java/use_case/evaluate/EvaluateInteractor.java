@@ -31,6 +31,7 @@ import java.util.Set;
 public class EvaluateInteractor implements EvaluateInputBoundary {
     private static final int MAX_PLUS_MINUS = 4;
     private static final int APPROXIMATE_DIGITS = 9;
+    private static final double[] SIDE_PROBES = {0.5, -7.3, 2.9};
 
     private final FunctionDataAccessInterface functionDataAccess;
     private final EvaluateOutputBoundary presenter;
@@ -169,6 +170,11 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
         }
         boolean excluding = ((RelationNode) node).getOperators().get(0).equals("\\neq");
         List<Node> sides = ((RelationNode) node).getOperands();
+        if (!hasNumberSides(sides, variable, functions)) {
+            // sets/vectors need the condition solver
+            solveInequality(node, variable, functions, masks);
+            return;
+        }
         List<Double> all = new ArrayList<>();
         boolean stretch = false;
         for (int mask = 0; mask < masks; mask++) {
@@ -202,6 +208,23 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
         } else {
             excludeUndefinedPoints(node, variable, functions, masks, solutions);
         }
+    }
+
+    private boolean hasNumberSides(List<Node> sides, String variable, Map<String, UserFunction> functions) {
+        Context context = new Context(functions);
+        for (double point : SIDE_PROBES) {
+            for (Node side : sides) {
+                try {
+                    Value value = side.evaluate(context.withVariable(variable, point));
+                    if (!(value instanceof NumberValue)) {
+                        return false;
+                    }
+                } catch (UncalculableException e) {
+                    // undefined here, try another point
+                }
+            }
+        }
+        return true;
     }
 
     // exclude where a side is undefined too

@@ -52,4 +52,17 @@ class FinalReviewTest {
         assertEquals("true", quick("\\lim_{x\\to0}\\frac{1}{x^2}=\\infty"));
         assertEquals("x > 0.1609437912", quick("e^{10x}>5"));
     }
+
+    @Test
+    void setAndVectorEquationsAreSolved() {
+        assertEquals("x = 2", quick("\\{x\\}=\\{2\\}"));
+        assertEquals("x = 2", quick("(x,1)=(2,1)"));
+        assertEquals("true for all x", quick("(x,1)=(x,1)"));
+        assertEquals("x = 1 or x = 2", quick("\\{1,2\\}\\cup\\{x\\}=\\{1,2\\}"));
+        assertEquals("x = 2.505", quick("(x,1)=(2.505,1)"));
+        assertEquals("no solution", quick("(x,1)=(2,3)"));
+        assertEquals("x = 0 or x = 1", quick("\\{x,1\\}=\\{1,x^2\\}"));
+        assertEquals("x = 2", quick("(x,x^2)=(2,4)"));
+        assertEquals("true", quick("\\exists x, (x,1)=(200,1)"));
+    }
 }

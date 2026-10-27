@@ -12,6 +12,7 @@ import entity.value.FiniteSetValue;
 import entity.value.NumberValue;
 import entity.value.Value;
 import entity.value.Values;
+import entity.value.VectorValue;
 
 import java.math.BigDecimal;
 import java.math.MathContext;
@@ -56,6 +57,12 @@ public class ConditionSolver {
     private static final int FOUND = 0;
     private static final int FOUND_AT_ROOT = 1;
     private static final int NOT_FOUND = 2;
+    private static final int NUMBER_SHAPE = 0;
+    private static final int VECTOR_SHAPE = 1;
+    private static final int SET_SHAPE = 2;
+    private static final int OTHER_SHAPE = 3;
+    private static final int MAX_ELEMENT_PAIRS = 16;
+    private static final double[] SHAPE_POINTS = {0.5, -7.3, 2.9, 13.7};
 
     private final Node condition;
     private final String variable;
@@ -92,7 +99,7 @@ public class ConditionSolver {
         Set<Double> genuineRoots = new HashSet<>();
         for (Root root : getRoots()) {
             double offset = PROBE * Math.max(1, Math.abs(root.value));
-            if (isGenuineRoot(new Node[] {root.left, root.right}, root.value, offset)) {
+            if (isGenuineRoot(root.pair, root.value, offset)) {
                 genuineRoots.add(root.value);
             }
         }
@@ -391,7 +398,7 @@ public class ConditionSolver {
             }
         }
         for (Root root : getRoots()) {
-            int result = checkRoot(root.value, new Node[] {root.left, root.right}, wanted, mode);
+            int result = checkRoot(root.value, root.pair, wanted, mode);
             if (result != NOT_FOUND) {
                 return result;
             }
@@ -404,7 +411,7 @@ public class ConditionSolver {
     }
 
     // real root: 0 sides are expected, dont skip
-    private int checkRoot(double root, Node[] pair, int wanted, int mode) {
+    private int checkRoot(double root, Pair pair, int wanted, int mode) {
         double offset = PROBE * Math.max(1, Math.abs(root));
         boolean genuine = isGenuineRoot(pair, root, offset);
         List<Double> samples = new ArrayList<>();
@@ -440,7 +447,7 @@ public class ConditionSolver {
     }
 
     // sides cross/meet w/ gaps, nothing lost to rounding
-    private boolean isGenuineRoot(Node[] pair, double root, double offset) {
+    private boolean isGenuineRoot(Pair pair, double root, double offset) {
         context.setAbsorbed(false);
         double here = difference(pair, root);
         double below = difference(pair, root - offset);
@@ -454,7 +461,7 @@ public class ConditionSolver {
 
     // sign changes 3 per decade out to 1e300
     private int scanFar(int wanted, int mode) {
-        List<Node[]> pairs = numericPairs();
+        List<Pair> pairs = numericPairs();
         if (pairs.isEmpty()) {
             return NOT_FOUND;
         }
@@ -491,7 +498,7 @@ public class ConditionSolver {
         return scale;
     }
 
-    private double bisect(Node[] pair, double low, double high, double dLow) {
+    private double bisect(Pair pair, double low, double high, double dLow) {
         for (int round = 0; round < ROUNDS; round++) {
             double middle = (low + high) / 2;
             double dMiddle = difference(pair, middle);
@@ -508,16 +515,10 @@ public class ConditionSolver {
         return (low + high) / 2;
     }
 
-    private double difference(Node[] pair, double point) {
+    private double difference(Pair pair, double point) {
         context.spendStep();
-        Context at = context.withVariable(variable, point);
         try {
-            Value left = pair[0].evaluate(at);
-            Value right = pair[1].evaluate(at);
-            if (!(left instanceof NumberValue) || !(right instanceof NumberValue)) {
-                return Double.NaN;
-            }
-            return ((NumberValue) left).getValue() - ((NumberValue) right).getValue();
+            return pair.differenceAt(context.withVariable(variable, point));
         } catch (BudgetExceededException | UndecidableException e) {
             throw e;
         } catch (UncalculableException e) {
@@ -767,8 +768,11 @@ public class ConditionSolver {
     private boolean isNearlyEqualAt(Root root, double point) {
         Context withPoint = context.withVariable(variable, point);
         try {
-            double a = Values.toNumber(root.left.evaluate(withPoint));
-            double b = Values.toNumber(root.right.evaluate(withPoint));
+            double a = root.pair.leftAt(withPoint);
+            double b = root.pair.rightAt(withPoint);
+            if (!isFinite(a) || !isFinite(b)) {
+                return false;
+            }
             double size = Math.max(1, Math.max(Math.abs(a), Math.abs(b)));
             return Math.abs(a - b) <= NEARLY_EQUAL * size;
         } catch (BudgetExceededException | UndecidableException e) {
@@ -812,23 +816,77 @@ public class ConditionSolver {
                 addMembershipRoots(left, right);
                 continue;
             }
-            for (double value : new EquationSolver(left, right, variable, context, step).solve()) {
-                roots.add(new Root(value, left, right));
+            for (Pair pair : pairsOf(left, right)) {
+                EquationSolver solver = new EquationSolver(left, right, variable, context, step,
+                        pair.leftPart, pair.rightPart);
+                for (double value : solver.solve()) {
+                    roots.add(new Root(value, pair));
+                }
             }
         }
     }
 
-    private List<Node[]> numericPairs() {
-        List<Node[]> pairs = new ArrayList<>();
+    private List<Pair> numericPairs() {
+        List<Pair> pairs = new ArrayList<>();
         for (RelationNode relation : eligibleRelations()) {
             List<Node> operands = relation.getOperands();
             for (int i = 0; i + 1 < operands.size(); i++) {
                 if (!isSetOperator(relation.getOperators().get(i))) {
-                    pairs.add(new Node[] {operands.get(i), operands.get(i + 1)});
+                    pairs.addAll(pairsOf(operands.get(i), operands.get(i + 1)));
                 }
             }
         }
         return pairs;
+    }
+
+    // compare nums whole, vectors/sets part by part
+    private List<Pair> pairsOf(Node left, Node right) {
+        int[] leftShape = shapeOf(left);
+        int[] rightShape = shapeOf(right);
+        List<Pair> pairs = new ArrayList<>();
+        if (leftShape[0] == NUMBER_SHAPE && rightShape[0] == NUMBER_SHAPE) {
+            pairs.add(new Pair(left, right, EquationSolver.WHOLE, EquationSolver.WHOLE));
+        } else if (leftShape[0] == VECTOR_SHAPE && rightShape[0] == VECTOR_SHAPE) {
+            for (int i = 0; i < Math.min(leftShape[1], rightShape[1]); i++) {
+                pairs.add(new Pair(left, right, i, i));
+            }
+        } else if (leftShape[0] == SET_SHAPE && rightShape[0] == SET_SHAPE) {
+            if (leftShape[1] * rightShape[1] > MAX_ELEMENT_PAIRS) {
+                throw new UncalculableException();
+            }
+            for (int j = 0; j < leftShape[1]; j++) {
+                for (int k = 0; k < rightShape[1]; k++) {
+                    pairs.add(new Pair(left, right, j, k));
+                }
+            }
+        }
+        return pairs;
+    }
+
+    // {kind, max size} from a few points
+    private int[] shapeOf(Node side) {
+        int kind = NUMBER_SHAPE;
+        int size = 0;
+        for (double point : SHAPE_POINTS) {
+            Value value;
+            try {
+                value = side.evaluate(context.withVariable(variable, point));
+            } catch (BudgetExceededException | UndecidableException e) {
+                throw e;
+            } catch (UncalculableException e) {
+                continue;
+            }
+            if (value instanceof VectorValue) {
+                kind = VECTOR_SHAPE;
+                size = Math.max(size, ((VectorValue) value).getComponents().size());
+            } else if (value instanceof FiniteSetValue) {
+                kind = SET_SHAPE;
+                size = Math.max(size, ((FiniteSetValue) value).getElements().size());
+            } else if (!(value instanceof NumberValue)) {
+                kind = OTHER_SHAPE;
+            }
+        }
+        return new int[] {kind, size};
     }
 
     // rels w/ all vars known after solving (R1)
@@ -865,7 +923,8 @@ public class ConditionSolver {
                 for (double element : ((FiniteSetValue) set).getElements()) {
                     Node target = new LiteralNode(new NumberValue(element), false);
                     for (double value : new EquationSolver(left, target, variable, context, step).solve()) {
-                        roots.add(new Root(value, left, target));
+                        roots.add(new Root(value,
+                                new Pair(left, target, EquationSolver.WHOLE, EquationSolver.WHOLE)));
                     }
                 }
             }
@@ -901,13 +960,38 @@ public class ConditionSolver {
 
     private static final class Root {
         private final double value;
+        private final Pair pair;
+
+        private Root(double value, Pair pair) {
+            this.value = value;
+            this.pair = pair;
+        }
+    }
+
+    // compare two sides or one part each
+    private static final class Pair {
         private final Node left;
         private final Node right;
+        private final int leftPart;
+        private final int rightPart;
 
-        private Root(double value, Node left, Node right) {
-            this.value = value;
+        private Pair(Node left, Node right, int leftPart, int rightPart) {
             this.left = left;
             this.right = right;
+            this.leftPart = leftPart;
+            this.rightPart = rightPart;
+        }
+
+        private double leftAt(Context at) {
+            return EquationSolver.partOf(left.evaluate(at), leftPart);
+        }
+
+        private double rightAt(Context at) {
+            return EquationSolver.partOf(right.evaluate(at), rightPart);
+        }
+
+        private double differenceAt(Context at) {
+            return leftAt(at) - rightAt(at);
         }
     }
 }

@@ -1,8 +1,10 @@
 package entity;
 
 import entity.node.Node;
+import entity.value.FiniteSetValue;
 import entity.value.NumberValue;
 import entity.value.Value;
+import entity.value.VectorValue;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -10,6 +12,7 @@ import java.util.List;
 public class EquationSolver {
     public static final double SEARCH_START = -100;
     public static final double SEARCH_END = 100;
+    public static final int WHOLE = -1;
     private static final double STEP = 0.01;
 
     private static final double ZERO = 1e-9;
@@ -25,6 +28,8 @@ public class EquationSolver {
     private final String variable;
     private final Context context;
     private final double step;
+    private final int leftPart;
+    private final int rightPart;
     private boolean hasStretch;
 
     public EquationSolver(Node left, Node right, String variable, Context context) {
@@ -32,11 +37,35 @@ public class EquationSolver {
     }
 
     public EquationSolver(Node left, Node right, String variable, Context context, double step) {
+        this(left, right, variable, context, step, WHOLE, WHOLE);
+    }
+
+    // solve one part of left = one part of right
+    public EquationSolver(Node left, Node right, String variable, Context context, double step,
+                          int leftPart, int rightPart) {
         this.left = left;
         this.right = right;
         this.variable = variable;
         this.context = context;
         this.step = step;
+        this.leftPart = leftPart;
+        this.rightPart = rightPart;
+    }
+
+    // number at that part or NaN
+    public static double partOf(Value value, int part) {
+        if (part == WHOLE) {
+            return value instanceof NumberValue ? ((NumberValue) value).getValue() : Double.NaN;
+        }
+        List<Double> parts;
+        if (value instanceof VectorValue) {
+            parts = ((VectorValue) value).getComponents();
+        } else if (value instanceof FiniteSetValue) {
+            parts = ((FiniteSetValue) value).getElements();
+        } else {
+            return Double.NaN;
+        }
+        return part < parts.size() ? parts.get(part) : Double.NaN;
     }
 
     public List<Double> solve() {
@@ -187,12 +216,7 @@ public class EquationSolver {
         context.setAbsorbed(false);
         Context withX = context.withVariable(variable, x);
         try {
-            Value leftValue = left.evaluate(withX);
-            Value rightValue = right.evaluate(withX);
-            if (!(leftValue instanceof NumberValue) || !(rightValue instanceof NumberValue)) {
-                return Double.NaN;
-            }
-            return ((NumberValue) leftValue).getValue() - ((NumberValue) rightValue).getValue();
+            return partOf(left.evaluate(withX), leftPart) - partOf(right.evaluate(withX), rightPart);
         } catch (UndefinedException e) {
             return Double.NaN;
         }
