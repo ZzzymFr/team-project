@@ -75,11 +75,13 @@ public class QuantifierNode extends Node {
     public Value evaluate(Context context) {
         boolean absorbed = context.isAbsorbed();
         boolean tolerated = context.isTolerated();
+        double approximation = context.getApproximation();
         try {
             return decide(context);
         } finally {
             context.setAbsorbed(absorbed);
             context.setTolerated(tolerated);
+            context.setApproximation(approximation);
         }
     }
 

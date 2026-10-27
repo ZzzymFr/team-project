@@ -56,8 +56,10 @@ public class DerivativeNode extends Node {
     @Override
     public Value evaluate(Context context) {
         double x = context.getVariable(variable);
-        return new NumberValue(DerivativeCalculator.derivative(
-                t -> numberAt(body, context.withVariable(variable, t)), x, order));
+        double[] result = DerivativeCalculator.derivativeWithError(
+                t -> numberAt(body, context.withVariable(variable, t)), x, order);
+        context.noteApproximation(result[1]);
+        return new NumberValue(result[0]);
     }
 
     static double numberAt(Node node, Context context) {

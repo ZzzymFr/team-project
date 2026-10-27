@@ -4,6 +4,7 @@ import entity.node.Node;
 import entity.value.FiniteSetValue;
 import entity.value.NumberValue;
 import entity.value.Value;
+import entity.value.Values;
 import entity.value.VectorValue;
 
 import java.util.ArrayList;
@@ -26,6 +27,7 @@ public class EquationSolver {
     // turns too often = grid too coarse
     private static final double MAX_TURNS_PER_POINT = 0.5;
     private static final double TURN_NOISE = 1e-6;
+    private static final double[] IRRATIONAL_POINTS = {-Math.PI * 7, -Math.sqrt(2), Math.E, Math.sqrt(97)};
 
     private final Node left;
     private final Node right;
@@ -36,6 +38,13 @@ public class EquationSolver {
     private final int rightPart;
     private boolean hasStretch;
     private boolean undersampled;
+    private final boolean approximate;
+    private List<Double> solutions;
+    private final List<Double> stretchEnds = new ArrayList<>();
+    private boolean alwaysTrue;
+    private double lastLeft;
+    private double lastRight;
+    private double lastError;
 
     public EquationSolver(Node left, Node right, String variable, Context context) {
         this(left, right, variable, context, STEP);
@@ -55,6 +64,7 @@ public class EquationSolver {
         this.step = step;
         this.leftPart = leftPart;
         this.rightPart = rightPart;
+        this.approximate = left.isApproximate() || right.isApproximate();
     }
 
     // number at that part or NaN
@@ -74,21 +84,50 @@ public class EquationSolver {
     }
 
     public List<Double> solve() {
+        if (solutions != null) {
+            return solutions;
+        }
         int count = (int) Math.round((SEARCH_END - SEARCH_START) / step) + 1;
         double[] xs = new double[count];
         double[] ds = new double[count];
         boolean[] exactZero = new boolean[count];
+        boolean[] noise = new boolean[count];
+        boolean[] equal = new boolean[count];
+        alwaysTrue = true;
         for (int i = 0; i < count; i++) {
             xs[i] = SEARCH_START + i * step;
             ds[i] = difference(xs[i]);
-            // 0 from lost value isnt a root
-            exactZero[i] = ds[i] == 0 && !context.isAbsorbed();
+            boolean absorbed = context.isAbsorbed();
+            // 0 from lost value isnt a root, leave to condition solver
+            exactZero[i] = ds[i] == 0 && !absorbed;
+            hasStretch = hasStretch || ds[i] == 0 && absorbed;
+            // approx side within its error counts as 0
+            noise[i] = !exactZero[i] && approximate && isNumber(ds[i]) && isWithinApproximation();
+            equal[i] = !absorbed && isNumber(ds[i]) && (Values.areAlmostEqual(lastLeft, lastRight) || noise[i]);
+            alwaysTrue = alwaysTrue && equal[i];
         }
 
-        undersampled = turnsTooOften(ds);
-        List<Double> solutions = new ArrayList<>();
+        undersampled = turnsTooOften(ds, noise);
+        solutions = new ArrayList<>();
         for (int i = 0; i < count; i++) {
-            if (i > 0 && isNumber(ds[i - 1]) && isNumber(ds[i]) && ds[i - 1] * ds[i] < 0) {
+            // root at the very end shows up as tol gap
+            boolean end = i == 0 || i == count - 1;
+            if (end && equal[i] && !exactZero[i] && !noise[i] && !equal[i == 0 ? 1 : count - 2]) {
+                addSolution(solutions, xs[i]);
+            }
+            if (noise[i]) {
+                // approx noise, keep stretch ends only
+                boolean noiseBefore = i > 0 && (noise[i - 1] || exactZero[i - 1]);
+                boolean noiseAfter = i < count - 1 && (noise[i + 1] || exactZero[i + 1]);
+                hasStretch = hasStretch || noiseBefore || noiseAfter;
+                if (!noiseBefore || !noiseAfter) {
+                    addSolution(solutions, xs[i]);
+                    stretchEnds.add(xs[i]);
+                }
+                continue;
+            }
+            boolean afterNoise = i > 0 && noise[i - 1];
+            if (i > 0 && !afterNoise && isNumber(ds[i - 1]) && isNumber(ds[i]) && ds[i - 1] * ds[i] < 0) {
                 double root = bisect(xs[i - 1], xs[i], ds[i - 1]);
                 if (isNumber(root)) {
                     addSolution(solutions, root);
@@ -107,6 +146,9 @@ public class EquationSolver {
                 }
                 if (!zeroBefore || !zeroAfter) {
                     addSolution(solutions, xs[i]);
+                    if (zeroBefore || zeroAfter) {
+                        stretchEnds.add(xs[i]);
+                    }
                 }
                 if (sameSides) {
                     addHiddenCrossing(solutions, xs[i + 1], ds[i + 1], xs[i]);
@@ -134,7 +176,7 @@ public class EquationSolver {
         return solutions;
     }
 
-    // true if solve hit an equal stretch, list incomplete
+    // true if equal stretch or lost value, list incomplete
     public boolean hasStretch() {
         return hasStretch;
     }
@@ -188,17 +230,25 @@ public class EquationSolver {
         return undersampled;
     }
 
-    private static boolean turnsTooOften(double[] ds) {
+    private static boolean turnsTooOften(double[] ds, boolean[] noise) {
         int turns = 0;
         for (int i = 1; i + 1 < ds.length; i++) {
+            if (noise[i - 1] || noise[i] || noise[i + 1]) {
+                continue;
+            }
             double before = ds[i] - ds[i - 1];
             double after = ds[i + 1] - ds[i];
-            double noise = TURN_NOISE * Math.max(1, Math.abs(ds[i]));
-            if (before * after < 0 && Math.abs(before) > noise && Math.abs(after) > noise) {
+            double threshold = TURN_NOISE * Math.max(1, Math.abs(ds[i]));
+            if (before * after < 0 && Math.abs(before) > threshold && Math.abs(after) > threshold) {
                 turns++;
             }
         }
         return turns > MAX_TURNS_PER_POINT * ds.length;
+    }
+
+    // ends of equal stretches, not roots
+    public boolean isStretchEnd(double solution) {
+        return stretchEnds.contains(solution);
     }
 
     // dip w/ no sign change might touch 0, search if deep or curve says so
@@ -284,15 +334,24 @@ public class EquationSolver {
         return inside;
     }
 
+    // equal everywhere incl irrational pts
     public boolean isAlwaysTrue() {
-        double[] testValues = {-7.3, -1.1, 0, 0.5, 2.9, 13.7};
-        for (double x : testValues) {
+        solve();
+        if (!alwaysTrue) {
+            return false;
+        }
+        for (double x : IRRATIONAL_POINTS) {
             double d = difference(x);
-            if (!isNumber(d) || Math.abs(d) > ZERO) {
+            boolean equal = Values.areAlmostEqual(lastLeft, lastRight) || approximate && isWithinApproximation();
+            if (!isNumber(d) || context.isAbsorbed() || !equal) {
                 return false;
             }
         }
         return true;
+    }
+
+    private boolean isWithinApproximation() {
+        return Values.areApproximatelyEqual(lastLeft, lastRight, lastError);
     }
 
     // dip searches share the budget, too many -> uncalc
@@ -304,10 +363,16 @@ public class EquationSolver {
     // ctx says if anything got lost to rounding
     private double difference(double x) {
         context.setAbsorbed(false);
+        context.setApproximation(0);
         Context withX = context.withVariable(variable, x);
         try {
-            return partOf(left.evaluate(withX), leftPart) - partOf(right.evaluate(withX), rightPart);
+            lastLeft = partOf(left.evaluate(withX), leftPart);
+            lastRight = partOf(right.evaluate(withX), rightPart);
+            lastError = context.getApproximation();
+            return lastLeft - lastRight;
         } catch (UndefinedException e) {
+            lastLeft = Double.NaN;
+            lastRight = Double.NaN;
             return Double.NaN;
         }
     }

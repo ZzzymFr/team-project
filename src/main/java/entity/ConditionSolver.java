@@ -526,6 +526,10 @@ public class ConditionSolver {
                 double sign = side == 0 ? 1 : -1;
                 for (int i = 0; i < pairs.size(); i++) {
                     double d = difference(pairs.get(i), sign * size);
+                    if (pairs.get(i).isNoise()) {
+                        // approx equal within error crosses nothing
+                        d = Double.NaN;
+                    }
                     double before = last[side][i];
                     double twoBefore = beforeLast[side][i];
                     beforeLast[side][i] = before;
@@ -667,10 +671,13 @@ public class ConditionSolver {
         for (RelationNode relation : eligibleRelations()) {
             List<Node> operands = relation.getOperands();
             double[] values = new double[operands.size()];
+            double[] errors = new double[operands.size()];
             for (int i = 0; i < values.length; i++) {
                 values[i] = Double.NaN;
                 try {
+                    context.setApproximation(0);
                     Value value = operands.get(i).evaluate(at);
+                    errors[i] = context.getApproximation();
                     if (value instanceof NumberValue) {
                         values[i] = ((NumberValue) value).getValue();
                         double size = Math.abs(values[i]);
@@ -699,6 +706,11 @@ public class ConditionSolver {
                 }
                 double gap = Math.abs(a - b);
                 if (!atRoot && a != b && Values.areAlmostEqual(a, b)) {
+                    return NOISY;
+                }
+                boolean approximate = operands.get(i).isApproximate() || operands.get(i + 1).isApproximate();
+                if (!atRoot && a != b && approximate
+                        && Values.areApproximatelyEqual(a, b, Math.max(errors[i], errors[i + 1]))) {
                     return NOISY;
                 }
                 if (absorbing || !Values.areAlmostEqual(a, b)) {
@@ -869,7 +881,7 @@ public class ConditionSolver {
         }
         if (nearest != null) {
             double distance = Math.abs(nearest.value - point);
-            if (distance < SNAP || isNearlyEqualAt(nearest, point)) {
+            if (distance < SNAP || !nearest.stretchEnd && isNearlyEqualAt(nearest, point)) {
                 return nearest.value;
             }
         }
@@ -935,7 +947,7 @@ public class ConditionSolver {
                 EquationSolver solver = new EquationSolver(left, right, variable, context, step,
                         pair.leftPart, pair.rightPart);
                 for (double value : solver.solve()) {
-                    roots.add(new Root(value, pair));
+                    roots.add(new Root(value, pair, solver.isStretchEnd(value)));
                 }
                 undersampled = undersampled || solver.isUndersampled();
             }
@@ -1040,7 +1052,7 @@ public class ConditionSolver {
                     Node target = new LiteralNode(new NumberValue(element), false);
                     for (double value : new EquationSolver(left, target, variable, context, step).solve()) {
                         roots.add(new Root(value,
-                                new Pair(left, target, EquationSolver.WHOLE, EquationSolver.WHOLE)));
+                                new Pair(left, target, EquationSolver.WHOLE, EquationSolver.WHOLE), false));
                     }
                 }
             }
@@ -1077,10 +1089,13 @@ public class ConditionSolver {
     private static final class Root {
         private final double value;
         private final Pair pair;
+        // just the end of an equal stretch
+        private final boolean stretchEnd;
 
-        private Root(double value, Pair pair) {
+        private Root(double value, Pair pair, boolean stretchEnd) {
             this.value = value;
             this.pair = pair;
+            this.stretchEnd = stretchEnd;
         }
     }
 
@@ -1098,6 +1113,10 @@ public class ConditionSolver {
             this.rightPart = rightPart;
         }
 
+        private double lastLeft = Double.NaN;
+        private double lastRight = Double.NaN;
+        private double lastError;
+
         private double leftAt(Context at) {
             return EquationSolver.partOf(left.evaluate(at), leftPart);
         }
@@ -1107,7 +1126,19 @@ public class ConditionSolver {
         }
 
         private double differenceAt(Context at) {
-            return leftAt(at) - rightAt(at);
+            lastLeft = Double.NaN;
+            lastRight = Double.NaN;
+            at.setApproximation(0);
+            lastLeft = leftAt(at);
+            lastRight = rightAt(at);
+            lastError = at.getApproximation();
+            return lastLeft - lastRight;
+        }
+
+        // approx sides equal within error
+        private boolean isNoise() {
+            return (left.isApproximate() || right.isApproximate()) && lastLeft != lastRight
+                    && Values.areApproximatelyEqual(lastLeft, lastRight, lastError);
         }
     }
 }

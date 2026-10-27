@@ -121,6 +121,19 @@ public final class Context {
         budget.tolerated = tolerated;
     }
 
+    // max rel err from approx since last reset
+    public void noteApproximation(double error) {
+        budget.approximation = Math.max(budget.approximation, error);
+    }
+
+    public double getApproximation() {
+        return budget.approximation;
+    }
+
+    public void setApproximation(double error) {
+        budget.approximation = error;
+    }
+
     private Binding find(String name) {
         for (Binding binding = variables; binding != null; binding = binding.next) {
             if (binding.name.equals(name)) {
@@ -146,5 +159,6 @@ public final class Context {
         private int steps;
         private boolean absorbed;
         private boolean tolerated;
+        private double approximation;
     }
 }

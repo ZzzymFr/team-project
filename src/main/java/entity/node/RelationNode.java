@@ -45,17 +45,27 @@ public class RelationNode extends Node {
 
     @Override
     public Value evaluate(Context context) {
+        double outer = context.getApproximation();
+        context.setApproximation(0);
         Value left = comparable(operands.get(0), context);
+        double leftError = context.getApproximation();
         boolean result = true;
         for (int i = 0; i < operators.size(); i++) {
+            context.setApproximation(0);
             Value right = comparable(operands.get(i + 1), context);
+            double rightError = context.getApproximation();
             String operator = operators.get(i);
-            if (result && isDecidedByTolerance(operator, left, right)) {
+            boolean approximate = operands.get(i).isApproximate() || operands.get(i + 1).isApproximate();
+            double error = approximate ? Math.max(leftError, rightError) : -1;
+            if (result && isDecidedByTolerance(operator, left, right, error)) {
                 context.markTolerated();
             }
             result = result && holds(operator, left, right, operands.get(i), operands.get(i + 1));
             left = right;
+            leftError = rightError;
+            outer = Math.max(outer, rightError);
         }
+        context.setApproximation(Math.max(outer, leftError));
         return BooleanValue.of(result);
     }
 
@@ -74,14 +84,21 @@ public class RelationNode extends Node {
         return value;
     }
 
-    // unequal but within tol
-    private static boolean isDecidedByTolerance(String operator, Value left, Value right) {
+    // within tol or within approx error
+    private static boolean isDecidedByTolerance(String operator, Value left, Value right, double error) {
         if (!(left instanceof NumberValue) || !(right instanceof NumberValue)) {
             return false;
         }
         double a = ((NumberValue) left).getValue();
         double b = ((NumberValue) right).getValue();
-        if (a == b || !Values.areAlmostEqual(a, b)) {
+        if (a == b) {
+            return false;
+        }
+        if (error >= 0 && Values.areApproximatelyEqual(a, b, error) && !Values.areAlmostEqual(a, b)) {
+            return operator.equals("=") || operator.equals("\\neq") || operator.equals("<")
+                    || operator.equals(">") || operator.equals("\\leq") || operator.equals("\\geq");
+        }
+        if (!Values.areAlmostEqual(a, b)) {
             return false;
         }
         switch (operator) {

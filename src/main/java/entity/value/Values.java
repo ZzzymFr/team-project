@@ -5,6 +5,10 @@ import entity.UncalculableException;
 import java.util.List;
 
 public final class Values {
+    // approx values only good to about this
+    public static final double APPROXIMATION = 1e-7;
+    private static final double REPORTED_ERROR_MARGIN = 10;
+
     private Values() {
     }
 
@@ -31,6 +35,16 @@ public final class Values {
         }
         double size = Math.max(1, Math.max(Math.abs(a), Math.abs(b)));
         return Math.abs(a - b) <= 1e-9 * size;
+    }
+
+    // within error of approx value
+    public static boolean areApproximatelyEqual(double a, double b, double reportedError) {
+        if (Double.isNaN(a) || Double.isNaN(b) || Double.isInfinite(a) || Double.isInfinite(b)) {
+            return a == b;
+        }
+        double size = Math.max(1, Math.max(Math.abs(a), Math.abs(b)));
+        double band = Math.max(APPROXIMATION, REPORTED_ERROR_MARGIN * reportedError);
+        return Math.abs(a - b) <= band * size;
     }
 
     public static boolean areEqual(Value a, Value b) {

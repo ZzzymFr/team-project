@@ -84,4 +84,43 @@ class FinalReviewTest {
         assertEquals(UNCALCULABLE, quick("\\sin(1000x)=1"));
         assertTrue(quick("\\sin(100x)=0.9999").startsWith("x = -99.9499117 or x = -99.94962885 or "));
     }
+
+    @Test
+    void derivativeIdentitiesAreNotNoise() {
+        assertEquals("true for all x", quick("\\frac{d}{dx}e^x=e^x"));
+        assertEquals("x > 0", quick("\\frac{d}{dx}|x|=1"));
+        correctOrUncalculable("true", "\\forall x, \\frac{d}{dx}\\sin(x)=\\cos(x)");
+        assertEquals("x > 0", quick("\\frac{d}{dx}|x|>0"));
+        correctOrUncalculable("x > 0", "\\lim_{t\\to0}\\frac{|x+t|-|x|}{t}=1");
+        Calc c = new Calc();
+        c.show("f(x)=|x|");
+        assertEquals("x > 0", c.show("f'(x)=1"));
+        assertEquals("= 1", c.show("f'(0.0001)"));
+        assertEquals("= undefined", c.show("f'(0)"));
+        c.show("g(x)=|x-5|");
+        assertEquals("= 1", c.show("g'(5.0002)"));
+        c.show("h(x)=\\sqrt{x}");
+        assertEquals("= 500", c.show("h'(0.000001)"));
+        assertEquals("= 50", c.show("h'(0.0001)"));
+        c.show("s(x)=\\sin(x)");
+        assertEquals("= 0.936752128", c.show("s'(1000000)"));
+        assertEquals("x = 0.6931471806", c.show("\\frac{d}{dx}e^{x}=2"));
+        correctOrUncalculable("true", "\\forall x, \\frac{d}{dx}x^2=2x");
+    }
+
+    @Test
+    void alwaysTrueNeedsMoreThanSixPoints() {
+        String zeros = quick("\\sin(10\\pi x)=0");
+        assertTrue(zeros.equals(UNCALCULABLE) || zeros.startsWith("x = -100 or x = -99.9 or "), zeros);
+        String nonZeros = quick("\\sin(10\\pi x)\\neq0");
+        assertTrue(!nonZeros.equals("no solution") && !nonZeros.startsWith("true"), nonZeros);
+        correctOrUncalculable("x = 0", "x\\cdot(1+10^{-20})=x");
+        correctOrUncalculable("x = 0", "x+10^{20}=10^{20}");
+        assertEquals("true for all x", quick("x+0=x"));
+        assertEquals("true for all x", quick("\\sin(x)^2+\\cos(x)^2=1"));
+        assertEquals("true for all x", quick("(x+1)^4=x^4+4x^3+6x^2+4x+1"));
+        assertTrue(!quick("\\sin(100\\pi x)=0").startsWith("true"));
+        assertEquals("x = -100 or x = 100", quick("x^2=10000"));
+        assertEquals("no solution", quick("e^{-x^2}=0"));
+    }
 }

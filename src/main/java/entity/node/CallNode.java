@@ -115,8 +115,10 @@ public class CallNode extends Node {
         }
         String parameter = parameters.get(derivativeParameter);
         Context fixed = bound;
-        return new NumberValue(DerivativeCalculator.derivative(
+        double[] result = DerivativeCalculator.derivativeWithError(
                 t -> DerivativeNode.numberAt(body, fixed.withVariable(parameter, t)),
-                values[derivativeParameter], derivativeOrder));
+                values[derivativeParameter], derivativeOrder);
+        context.noteApproximation(result[1]);
+        return new NumberValue(result[0]);
     }
 }
