@@ -170,6 +170,7 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
         boolean excluding = ((RelationNode) node).getOperators().get(0).equals("\\neq");
         List<Node> sides = ((RelationNode) node).getOperands();
         List<Double> all = new ArrayList<>();
+        boolean stretch = false;
         for (int mask = 0; mask < masks; mask++) {
             Context context = new Context(functions).withSigns(mask);
             EquationSolver solver = new EquationSolver(sides.get(0), sides.get(1), variable, context);
@@ -182,6 +183,7 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
                 return;
             }
             all.addAll(solver.solve());
+            stretch = stretch || solver.hasStretch();
         }
         Collections.sort(all);
         List<Double> solutions = new ArrayList<>();
@@ -190,9 +192,12 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
                 solutions.add(solution);
             }
         }
-        if (!excluding) {
+        if (stretch && !excluding) {
+            // equal on a whole stretch, intervals only
+            solveInequality(node, variable, functions, masks);
+        } else if (!excluding) {
             presenter.prepareSolutionsView(variable, solutions);
-        } else if (masks > 1 && !solutions.isEmpty()) {
+        } else if (masks > 1 && !solutions.isEmpty() && !stretch) {
             presenter.prepareExcludedView(variable, solutions);
         } else {
             excludeUndefinedPoints(node, variable, functions, masks, solutions);

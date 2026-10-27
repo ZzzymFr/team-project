@@ -19,12 +19,42 @@ class HardeningTest {
     }
 
     @Test
+    void touchingRootsAreSearchedOverTheWholeRange() {
+        assertEquals("x = 50.42256209", Calc.once("\\sin(10x)=1\\land x>50\\land x<51"));
+        assertEquals("true", Calc.once("\\exists x\\in\\mathbb{R}, \\sin(10x)=1\\land x>90"));
+        assertTrue(Calc.once("\\sin(10x)=1").endsWith("(and 308 more)"), Calc.once("\\sin(10x)=1"));
+        assertTrue(Calc.once("\\sin(x)=0").endsWith("(and 53 more)"), Calc.once("\\sin(x)=0"));
+    }
+
+    @Test
+    void sidesEqualOnlyByLosingAValueGiveNoRoots() {
+        assertEquals("no solution", Calc.once("e^{-x^2}=0"));
+        assertEquals("no solution", Calc.once("2^{-x^2}=0"));
+        assertEquals("no solution", Calc.once("\\frac{1}{e^{x^2}}=0"));
+        assertEquals("no solution", Calc.once("e^{-x}=0"));
+        assertEquals("no solution", Calc.once("e^{x}=0"));
+        assertEquals("x = -6.786140424 or x = 6.786140424", Calc.once("e^{-x^2}=10^{-20}"));
+        assertEquals("x = 0", Calc.once("x^{10}=0"));
+        assertEquals("x = 1", Calc.once("(x-1)^2=0"));
+        assertEquals("no solution", Calc.once("\\frac{1}{x}=0"));
+        assertEquals("x = 100", Calc.once("x=100"));
+        assertEquals("x ≥ 0", Calc.once("|x|=x"));
+        assertEquals("x < 0", Calc.once("|x|\\neq x"));
+    }
+
+    @Test
     void domainsOfIsolatedPointsGiveNoWrongInterval() {
         assertEquals("Uncalculable", Calc.once("\\sum_{i=1}^{n}i>10"));
         assertEquals("Uncalculable", Calc.once("x\\in\\mathbb{Z}"));
         assertEquals("Uncalculable", Calc.once("x!>100"));
         assertEquals("Uncalculable", Calc.once("\\sin(1000x)>0.9999"));
         assertEquals("x = 0", Calc.once("\\sqrt{-x^2}\\geq0"));
+        assertEquals("x = 0", Calc.once("\\sqrt{-x^2}+1>0"));
+        assertEquals("x = 0", Calc.once("\\sqrt{-x^2}<1"));
+        assertEquals("x = 0", Calc.once("\\sqrt{x}+\\sqrt{-x}>-1"));
+        assertEquals("x = 1", Calc.once("\\sqrt{x-1}+\\sqrt{1-x}<5"));
+        assertEquals("x = 1 or x = 2 or x = 3", Calc.once("x\\in\\mathbb{Z}\\land x>0\\land x<4"));
+        assertEquals("Uncalculable", Calc.once("x\\in\\mathbb{Z}\\land x>0\\land x<20"));
     }
 
     @Test
@@ -36,6 +66,7 @@ class HardeningTest {
         assertEquals("x > 0", Calc.once("\\sqrt{x}\\neq0"));
         assertEquals("x < 0 or 0 < x < 1 or x > 1", Calc.once("\\frac{1}{x}\\neq1"));
         assertEquals("x ≠ -2 and x ≠ 2", Calc.once("x^2\\neq4"));
+        assertEquals("x < 1 or x > 1", Calc.once("\\frac{x^2-1}{x-1}\\neq2"));
     }
 
     @Test

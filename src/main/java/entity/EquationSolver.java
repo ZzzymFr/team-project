@@ -17,13 +17,15 @@ public class EquationSolver {
     private static final int GOLDEN_ROUNDS = 100;
     private static final double TOUCHING_SHARE = 0.5;
     private static final double FLAT_BOTTOM = 1e-12;
-    private static final int MAX_TOUCHING_SEARCHES = 200;
+    private static final int EDGE_ROUNDS = 50;
+    private static final double DEEP = 1e-6;
 
     private final Node left;
     private final Node right;
     private final String variable;
     private final Context context;
     private final double step;
+    private boolean hasStretch;
 
     public EquationSolver(Node left, Node right, String variable, Context context) {
         this(left, right, variable, context, STEP);
@@ -41,13 +43,15 @@ public class EquationSolver {
         int count = (int) Math.round((SEARCH_END - SEARCH_START) / step) + 1;
         double[] xs = new double[count];
         double[] ds = new double[count];
+        boolean[] exactZero = new boolean[count];
         for (int i = 0; i < count; i++) {
             xs[i] = SEARCH_START + i * step;
             ds[i] = difference(xs[i]);
+            // 0 from lost value isnt a root
+            exactZero[i] = ds[i] == 0 && !context.isAbsorbed();
         }
 
         List<Double> solutions = new ArrayList<>();
-        int touchingSearches = 0;
         for (int i = 0; i < count; i++) {
             if (i > 0 && isNumber(ds[i - 1]) && isNumber(ds[i]) && ds[i - 1] * ds[i] < 0) {
                 double root = bisect(xs[i - 1], xs[i], ds[i - 1]);
@@ -55,11 +59,16 @@ public class EquationSolver {
                     addSolution(solutions, root);
                 }
             }
-            if (isNumber(ds[i]) && Math.abs(ds[i]) < ZERO && isSmallerThanNeighbours(ds, i)) {
-                addSolution(solutions, xs[i]);
-            } else if (touchingSearches < MAX_TOUCHING_SEARCHES && isTouchingCandidate(ds, i)) {
-                touchingSearches++;
-                double root = touchingRoot(xs[i - 1], xs[i + 1]);
+            if (exactZero[i]) {
+                boolean zeroBefore = i > 0 && exactZero[i - 1];
+                boolean zeroAfter = i < count - 1 && exactZero[i + 1];
+                // flat stretch: keep only the ends as hints
+                hasStretch = hasStretch || zeroBefore || zeroAfter;
+                if (!zeroBefore || !zeroAfter) {
+                    addSolution(solutions, xs[i]);
+                }
+            } else if (isTouchingCandidate(ds, i)) {
+                double root = touchingRoot(xs[i - 1], xs[i + 1], Math.abs(ds[i]));
                 if (isNumber(root)) {
                     addSolution(solutions, root);
                 }
@@ -68,7 +77,12 @@ public class EquationSolver {
         return solutions;
     }
 
-    // dip that doesnt change sign might still touch 0
+    // true if solve hit an equal stretch, list incomplete
+    public boolean hasStretch() {
+        return hasStretch;
+    }
+
+    // dip w/ no sign change might touch 0, search if deep or curve says so
     private boolean isTouchingCandidate(double[] ds, int i) {
         if (i == 0 || i == ds.length - 1 || !isNumber(ds[i - 1]) || !isNumber(ds[i]) || !isNumber(ds[i + 1])) {
             return false;
@@ -79,6 +93,9 @@ public class EquationSolver {
         if (ds[i - 1] * ds[i] <= 0 || ds[i] * ds[i + 1] <= 0 || b > a || b >= c) {
             return false;
         }
+        if (b <= DEEP * Math.min(a, c)) {
+            return true;
+        }
         double curvature = a + c - 2 * b;
         double parabolaLowest = b - (c - a) * (c - a) / (8 * curvature);
         double cornerLowest = (2 * b + Math.min(a, c) - Math.max(a, c)) / 2;
@@ -86,13 +103,13 @@ public class EquationSolver {
     }
 
     // golden section for min |diff|, mid of flat bottom
-    private double touchingRoot(double low, double high) {
+    private double touchingRoot(double low, double high, double atGrid) {
         double a = low;
         double b = high;
         double c = b - GOLDEN * (b - a);
         double d = a + GOLDEN * (b - a);
-        double fc = Math.abs(difference(c));
-        double fd = Math.abs(difference(d));
+        double fc = Math.abs(searchDifference(c));
+        double fd = Math.abs(searchDifference(d));
         for (int round = 0; round < GOLDEN_ROUNDS && b - a > 1e-15 * Math.max(1, Math.abs(a)); round++) {
             if (!isNumber(fc) || !isNumber(fd)) {
                 return Double.NaN;
@@ -102,34 +119,40 @@ public class EquationSolver {
                 d = c;
                 fd = fc;
                 c = b - GOLDEN * (b - a);
-                fc = Math.abs(difference(c));
+                fc = Math.abs(searchDifference(c));
             } else {
                 a = c;
                 c = d;
                 fc = fd;
                 d = a + GOLDEN * (b - a);
-                fd = Math.abs(difference(d));
+                fd = Math.abs(searchDifference(d));
             }
         }
         double best = fc <= fd ? c : d;
         double lowest = Math.min(fc, fd);
-        if (!isNumber(lowest) || lowest >= ZERO) {
+        // real touch dips way below grid val, noise doesnt
+        if (!isNumber(lowest) || lowest >= ZERO || lowest > DEEP * atGrid) {
             return Double.NaN;
         }
         double left = edgeOfBottom(best, low);
         double right = edgeOfBottom(best, high);
-        return (left + right) / 2;
+        double root = (left + right) / 2;
+        double dRoot = searchDifference(root);
+        if (!isNumber(dRoot) || Math.abs(dRoot) >= ZERO || context.isAbsorbed()) {
+            return Double.NaN;
+        }
+        return root;
     }
 
     // where |diff| goes past FLAT_BOTTOM
     private double edgeOfBottom(double inside, double outside) {
-        double dOutside = Math.abs(difference(outside));
+        double dOutside = Math.abs(searchDifference(outside));
         if (!isNumber(dOutside) || dOutside <= FLAT_BOTTOM) {
             return inside;
         }
-        for (int round = 0; round < 60; round++) {
+        for (int round = 0; round < EDGE_ROUNDS; round++) {
             double middle = (inside + outside) / 2;
-            double dMiddle = Math.abs(difference(middle));
+            double dMiddle = Math.abs(searchDifference(middle));
             if (!isNumber(dMiddle)) {
                 return inside;
             }
@@ -153,7 +176,15 @@ public class EquationSolver {
         return true;
     }
 
+    // dip searches share the budget, too many -> uncalc
+    private double searchDifference(double x) {
+        context.spendStep();
+        return difference(x);
+    }
+
+    // ctx says if anything got lost to rounding
     private double difference(double x) {
+        context.setAbsorbed(false);
         Context withX = context.withVariable(variable, x);
         try {
             Value leftValue = left.evaluate(withX);
@@ -194,17 +225,6 @@ public class EquationSolver {
             return high;
         }
         return Double.NaN;
-    }
-
-    private boolean isSmallerThanNeighbours(double[] ds, int i) {
-        double here = Math.abs(ds[i]);
-        if (i > 0 && isNumber(ds[i - 1]) && Math.abs(ds[i - 1]) < here) {
-            return false;
-        }
-        if (i < ds.length - 1 && isNumber(ds[i + 1]) && Math.abs(ds[i + 1]) < here) {
-            return false;
-        }
-        return true;
     }
 
     private void addSolution(List<Double> solutions, double x) {

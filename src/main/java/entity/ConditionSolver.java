@@ -42,6 +42,7 @@ public class ConditionSolver {
     private static final double HUGE = 1e300;
     private static final double NOISE = 1e-12;
     private static final double TOUCHING = 1e-6;
+    private static final int MAX_ISOLATED_POINTS = 10;
     private static final int REAL = 0;
     private static final int INTEGER = 1;
     private static final int NATURAL = 2;
@@ -103,6 +104,7 @@ public class ConditionSolver {
         Set<Double> rootValues = new HashSet<>(boundaryRoots());
 
         List<Interval> intervals = new ArrayList<>();
+        int isolatedPoints = 0;
         int i = 0;
         while (i < points.length) {
             if (!truth[i]) {
@@ -114,20 +116,30 @@ public class ConditionSolver {
                 i++;
             }
             int end = i;
-            // lone true sample = isolated points or too narrow
+            // lone true sample only shown if false right next to it
             if (start == end && !rootValues.contains(points[start])) {
-                throw new UncalculableException();
+                isolatedPoints++;
+                if (isolatedPoints > MAX_ISOLATED_POINTS || !isIsolated(points[start], true)) {
+                    throw new UncalculableException();
+                }
+                addInterval(intervals, new Interval(points[start], true, points[start], true));
+                i++;
+                continue;
             }
 
             double low = Double.NEGATIVE_INFINITY;
             boolean lowIncluded = false;
-            if (start > 0) {
+            if (start > 0 && isLoneExclusion(points, truth, start - 1)) {
+                low = points[start - 1];
+            } else if (start > 0) {
                 low = boundary(points[start - 1], points[start]);
                 lowIncluded = isTrueAt(low);
             }
             double high = Double.POSITIVE_INFINITY;
             boolean highIncluded = false;
-            if (end < points.length - 1) {
+            if (end < points.length - 1 && isLoneExclusion(points, truth, end + 1)) {
+                high = points[end + 1];
+            } else if (end < points.length - 1) {
                 high = boundary(points[end + 1], points[end]);
                 highIncluded = isTrueAt(high);
             }
@@ -135,6 +147,18 @@ public class ConditionSolver {
             i++;
         }
         return intervals;
+    }
+
+    // single false between trues is the boundary itself
+    private boolean isLoneExclusion(double[] points, boolean[] truth, int index) {
+        return index > 0 && index < points.length - 1 && truth[index - 1] && truth[index + 1]
+                && isIsolated(points[index], false);
+    }
+
+    // true if differs right below and above
+    private boolean isIsolated(double point, boolean truth) {
+        double offset = ROOT_OFFSET * Math.max(1, Math.abs(point));
+        return isTrueAt(point - offset) != truth && isTrueAt(point + offset) != truth;
     }
 
     // rounding runs take truth from neighbours
