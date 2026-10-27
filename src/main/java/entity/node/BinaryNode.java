@@ -2,6 +2,7 @@ package entity.node;
 
 import entity.Context;
 import entity.UncalculableException;
+import entity.UndecidableException;
 import entity.value.BooleanValue;
 import entity.value.FiniteSetValue;
 import entity.value.NumberValue;
@@ -55,8 +56,11 @@ public class BinaryNode extends Node {
     @Override
     public Value evaluate(Context context) {
         if (isLogic()) {
-            boolean p = Values.toBoolean(left.evaluate(context));
-            boolean q = Values.toBoolean(right.evaluate(context));
+            boolean p = truth(left.evaluate(context));
+            if ((op == Op.AND && !p) || (op == Op.OR && p) || (op == Op.IMPLIES && !p)) {
+                return BooleanValue.of(op != Op.AND);
+            }
+            boolean q = truth(right.evaluate(context));
             return BooleanValue.of(logic(p, q));
         }
         Value a = left.evaluate(context);
@@ -74,6 +78,14 @@ public class BinaryNode extends Node {
             return vectorCalculate(a, b);
         }
         return new NumberValue(calculate(Values.toNumber(a), Values.toNumber(b)));
+    }
+
+    // number/set joined by connective isnt a statement
+    static boolean truth(Value value) {
+        if (!(value instanceof BooleanValue)) {
+            throw new UndecidableException();
+        }
+        return ((BooleanValue) value).getValue();
     }
 
     private Value vectorCalculate(Value a, Value b) {

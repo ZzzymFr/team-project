@@ -45,7 +45,7 @@ public class UnaryNode extends Node {
     @Override
     public Value evaluate(Context context) {
         if (op == Op.NOT) {
-            return BooleanValue.of(!Values.toBoolean(operand.evaluate(context)));
+            return BooleanValue.of(!BinaryNode.truth(operand.evaluate(context)));
         }
         Value operandValue = operand.evaluate(context);
         if (op == Op.ABSOLUTE && operandValue instanceof FiniteSetValue) {

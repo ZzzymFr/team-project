@@ -30,6 +30,7 @@ public final class MathParser {
     private final Map<String, UserFunction> functions;
     private int position = 0;
     private int plusMinusCount = 0;
+    private final List<String> boundNames = new ArrayList<>();
 
     public MathParser(List<String> tokens, Map<String, UserFunction> functions) {
         this.tokens = tokens;
@@ -132,7 +133,9 @@ public final class MathParser {
         if (peek() == null || peekIs(")") || peekIs("}") || peekIs("]") || peekIs("\\}")) {
             throw new UncalculableException();
         }
+        boundNames.add(variable);
         Node body = parseStatement();
+        boundNames.remove(boundNames.size() - 1);
         if (plusMinusCount > plusMinusBefore) {
             throw new UncalculableException();
         }
@@ -281,7 +284,7 @@ public final class MathParser {
         if (token.equals("\\pi")) {
             return new LiteralNode(new NumberValue(Math.PI), false);
         }
-        if (token.equals("e")) {
+        if (token.equals("e") && !boundNames.contains("e")) {
             return new LiteralNode(new NumberValue(Math.E), false);
         }
         if (token.equals("\\frac")) {

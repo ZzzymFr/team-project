@@ -1,16 +1,13 @@
 package entity.node;
 
-import entity.BudgetExceededException;
 import entity.ConditionSolver;
 import entity.Context;
-import entity.UncalculableException;
+import entity.UndecidableException;
 import entity.value.BooleanValue;
 import entity.value.FiniteSetValue;
 import entity.value.NumberSetValue;
 import entity.value.Value;
-import entity.value.Values;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -20,7 +17,6 @@ import java.util.Set;
 public class QuantifierNode extends Node {
     private static final int RANGE = 1000;
     private static final int NESTED_RANGE = 100;
-    private static final double MAX_EXACT = 0x1p53;
 
     private final boolean isForAll;
     private final String variable;
@@ -77,81 +73,39 @@ public class QuantifierNode extends Node {
     @Override
     public Value evaluate(Context context) {
         Value set = domain == null ? new NumberSetValue(NumberSetValue.Kind.REAL, 1) : domain.evaluate(context);
+        ConditionSolver solver = new ConditionSolver(body, variable, context);
         if (set instanceof FiniteSetValue) {
-            return BooleanValue.of(checkAll(context, ((FiniteSetValue) set).getElements()));
+            List<Double> elements = ((FiniteSetValue) set).getElements();
+            return BooleanValue.of(isForAll ? solver.isTrueForEvery(elements) : solver.isTrueForSome(elements));
         }
         if (!(set instanceof NumberSetValue) || ((NumberSetValue) set).getDimension() != 1) {
-            throw new UncalculableException();
+            throw new UndecidableException();
         }
         int range = context.getVariableValues().isEmpty() ? RANGE : NESTED_RANGE;
         switch (((NumberSetValue) set).getKind()) {
             case NATURAL:
-                return BooleanValue.of(checkAll(context, integers(context, 0, range)));
             case INTEGER:
-                return BooleanValue.of(checkAll(context, integers(context, -range, range)));
+                boolean naturalOnly = ((NumberSetValue) set).getKind() == NumberSetValue.Kind.NATURAL;
+                return BooleanValue.of(isForAll ? solver.isTrueForEveryInteger(naturalOnly, range)
+                        : solver.isTrueForSomeInteger(naturalOnly, range));
             case RATIONAL:
-                ConditionSolver overRationals = new ConditionSolver(body, variable, context);
-                return BooleanValue.of(isForAll ? overRationals.isTrueEverywhereRational()
-                        : overRationals.isTrueSomewhereRational());
+                return BooleanValue.of(isForAll ? solver.isTrueEverywhereRational()
+                        : solver.isTrueSomewhereRational());
             case REAL:
-                ConditionSolver overReals = new ConditionSolver(body, variable, context);
-                return BooleanValue.of(isForAll ? overReals.isTrueEverywhere() : overReals.isTrueSomewhere());
+                return BooleanValue.of(isForAll ? solver.isTrueEverywhere() : solver.isTrueSomewhere());
             default:
-                return BooleanValue.of(overComplexNumbers(context));
+                return BooleanValue.of(overComplexNumbers(solver));
         }
     }
 
     // only reals sampled, cant prove the opposite
-    private boolean overComplexNumbers(Context context) {
-        ConditionSolver solver = new ConditionSolver(body, variable, context);
+    private boolean overComplexNumbers(ConditionSolver solver) {
         if (isForAll && !solver.isTrueEverywhere()) {
             return false;
         }
         if (!isForAll && solver.isTrueSomewhere()) {
             return true;
         }
-        throw new UncalculableException();
-    }
-
-    // from..to plus ints around outer values
-    private static List<Double> integers(Context context, int from, int to) {
-        List<Double> values = new ArrayList<>();
-        for (int n = from; n <= to; n++) {
-            values.add((double) n);
-        }
-        for (double value : context.getVariableValues()) {
-            if (Math.abs(value) > MAX_EXACT) {
-                continue;
-            }
-            double[] near = {Math.floor(value) - 1, Math.floor(value), Math.ceil(value), Math.ceil(value) + 1,
-                    -Math.floor(value), -Math.ceil(value)};
-            for (double n : near) {
-                if ((n < from || n > to) && (from < 0 || n >= 0) && !values.contains(n)) {
-                    values.add(n);
-                }
-            }
-        }
-        return values;
-    }
-
-    private boolean checkAll(Context context, List<Double> elements) {
-        for (double element : elements) {
-            if (isTrueAt(context, element) != isForAll) {
-                return !isForAll;
-            }
-        }
-        return isForAll;
-    }
-
-    // undefined or non bool body doesnt count
-    private boolean isTrueAt(Context context, double value) {
-        context.spendStep();
-        try {
-            return Values.toBoolean(body.evaluate(context.withVariable(variable, value)));
-        } catch (BudgetExceededException e) {
-            throw e;
-        } catch (UncalculableException e) {
-            return false;
-        }
+        throw new UndecidableException();
     }
 }
