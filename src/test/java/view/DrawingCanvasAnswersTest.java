@@ -194,4 +194,120 @@ class DrawingCanvasAnswersTest {
         canvas.undo();
         assertEquals(1, canvas.getAnswers().size());
     }
+
+    // ---- lasso + eraser on answers
+
+    private void lasso(int left, int top, int right, int bottom) {
+        canvas.setTool(DrawingCanvas.Tool.LASSO);
+        drag(left, top, right, top, right, bottom, left, bottom);
+    }
+
+    // lasso just the answer of "1=" -> "2"
+    private CanvasAnswer selectAnswer() {
+        writeOneEquals();
+        CanvasAnswer a = answer(AnswerKind.AFTER_EQUALS, "2");
+        Rectangle2D box = a.getBox();
+        lasso(176, (int) box.getMinY() - 10, (int) box.getMaxX() + 10, (int) box.getMaxY() + 10);
+        assertTrue(canvas.hasSelection());
+        return a;
+    }
+
+    @Test
+    void lassoSelectsAnAnswerAndDeleteRemovesIt() {
+        selectAnswer();
+        canvas.deleteSelection();
+        assertTrue(canvas.getAnswers().isEmpty());
+        assertTrue(canvas.getFormulas().isEmpty());
+        assertEquals(3, canvas.getStrokes().size());
+    }
+
+    @Test
+    void draggingAnAnswerMovesOnlyIt() {
+        CanvasAnswer a = selectAnswer();
+        int cx = (int) a.getBox().getCenterX();
+        int cy = (int) a.getBox().getCenterY();
+        drag(cx, cy, cx + 100, cy + 50);
+        CanvasAnswer moved = canvas.getAnswers().get(0);
+        assertEquals(a.getX() + 100, moved.getX(), 0.01);
+        assertEquals(a.getY() + 50, moved.getY(), 0.01);
+        assertEquals(100, canvas.getStrokes().get(0).getPoints().get(0).getX());
+        assertTrue(changed.isEmpty());
+    }
+
+    @Test
+    void draggingTheWholeFormulaTakesTheAnswerAlong() {
+        writeOneEquals();
+        CanvasAnswer a = answer(AnswerKind.AFTER_EQUALS, "2");
+        lasso(90, 90, 175, 150);
+        drag(135, 120, 135, 220);
+        assertTrue(changed.isEmpty());
+        assertEquals(1, canvas.getAnswers().size());
+        assertEquals(a.getY() + 100, canvas.getAnswers().get(0).getY(), 0.01);
+        assertEquals(3, canvas.getFormulas().get(0).getStrokes().size());
+        assertEquals(200, canvas.getStrokes().get(0).getPoints().get(0).getY());
+    }
+
+    @Test
+    void draggingPartOfTheFormulaAwayChangesIt() {
+        writeOneEquals();
+        answer(AnswerKind.AFTER_EQUALS, "2");
+        long id = canvas.getFormulas().get(0).getId();
+        lasso(90, 90, 110, 150);
+        drag(100, 120, 100, 420);
+        assertEquals(List.of(id), changed);
+        assertTrue(canvas.getAnswers().isEmpty());
+    }
+
+    @Test
+    void resizingAnAnswerScalesItsFont() {
+        CanvasAnswer a = selectAnswer();
+        // bottom-right handle sits 8px outside the box
+        double ax = a.getBox().getMinX() - 8;
+        double ay = a.getBox().getMinY() - 8;
+        double bx = a.getBox().getMaxX() + 8;
+        double by = a.getBox().getMaxY() + 8;
+        Rectangle2D sel = new Rectangle2D.Double(ax, ay, bx - ax, by - ay).getBounds2D();
+        int px = (int) Math.ceil(sel.getMaxX());
+        int py = (int) Math.ceil(sel.getMaxY());
+        drag(px, py, (int) Math.round(ax + 2 * (px - ax)), (int) Math.round(ay + 2 * (py - ay)));
+        float ratio = canvas.getAnswers().get(0).getFontSize() / a.getFontSize();
+        assertTrue(ratio > 1.8 && ratio < 2.2, "ratio " + ratio);
+        assertTrue(changed.isEmpty());
+    }
+
+    @Test
+    void eraserRemovesAWholeAnswer() {
+        writeOneEquals();
+        CanvasAnswer a = answer(AnswerKind.AFTER_EQUALS, "2");
+        canvas.setTool(DrawingCanvas.Tool.ERASER);
+        int cx = (int) a.getBox().getCenterX();
+        drag(cx + 4, 110, cx + 4, 130);
+        assertTrue(canvas.getAnswers().isEmpty());
+        assertTrue(canvas.getFormulas().isEmpty());
+        assertEquals(3, canvas.getStrokes().size());
+        canvas.undo();
+        assertEquals(1, canvas.getAnswers().size());
+    }
+
+    @Test
+    void selectionOfOnlyAnswersFallsBackToUnboundInk() {
+        selectAnswer();
+        canvas.setTool(DrawingCanvas.Tool.PEN);
+        drag(100, 300, 140, 330);
+        lasso(176, 90, 260, 150);
+        assertTrue(canvas.hasSelection());
+        FormulaCapture c = calculateOne();
+        assertEquals(30 + 1 + 2 * 18, c.getImage().getHeight());
+        canvas.getFormulas().forEach(f -> assertFalse(f.getStrokes().isEmpty()));
+        assertEquals(2, canvas.getFormulas().size());
+    }
+
+    @Test
+    void undoRestoresADeletedAnswer() {
+        selectAnswer();
+        canvas.deleteSelection();
+        canvas.undo();
+        assertEquals(1, canvas.getAnswers().size());
+        assertEquals(1, canvas.getFormulas().size());
+    }
 }
