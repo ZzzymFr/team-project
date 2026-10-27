@@ -47,7 +47,11 @@ public class RelationNode extends Node {
         boolean result = true;
         for (int i = 0; i < operators.size(); i++) {
             Value right = defined(operands.get(i + 1).evaluate(context));
-            result = result && holds(operators.get(i), left, right, operands.get(i), operands.get(i + 1));
+            String operator = operators.get(i);
+            if (result && isDecidedByTolerance(operator, left, right)) {
+                context.markTolerated();
+            }
+            result = result && holds(operator, left, right, operands.get(i), operands.get(i + 1));
             left = right;
         }
         return BooleanValue.of(result);
@@ -59,6 +63,31 @@ public class RelationNode extends Node {
             throw new UncalculableException();
         }
         return value;
+    }
+
+    // unequal but within tol
+    private static boolean isDecidedByTolerance(String operator, Value left, Value right) {
+        if (!(left instanceof NumberValue) || !(right instanceof NumberValue)) {
+            return false;
+        }
+        double a = ((NumberValue) left).getValue();
+        double b = ((NumberValue) right).getValue();
+        if (a == b || !Values.areAlmostEqual(a, b)) {
+            return false;
+        }
+        switch (operator) {
+            case "=":
+            case "\\neq":
+                return true;
+            case "<":
+            case "\\geq":
+                return a < b;
+            case ">":
+            case "\\leq":
+                return a > b;
+            default:
+                return false;
+        }
     }
 
     private boolean holds(String operator, Value left, Value right, Node leftNode, Node rightNode) {

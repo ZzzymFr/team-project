@@ -41,12 +41,14 @@ public class ConditionSolver {
     private static final double TINY = 1e-300;
     private static final double HUGE = 1e300;
     private static final double NOISE = 1e-12;
+    private static final double TOUCHING = 1e-6;
     private static final int REAL = 0;
     private static final int INTEGER = 1;
     private static final int NATURAL = 2;
     private static final int TRUE = 1;
     private static final int FALSE = 0;
     private static final int SKIP = -1;
+    private static final int UNKNOWN = 2;
     private static final int RELIABLE = 0;
     private static final int NOISY = 1;
     private static final int OUT_OF_RANGE = 2;
@@ -62,6 +64,7 @@ public class ConditionSolver {
     private List<RelationNode> relations;
     private boolean sawVerdict;
     private boolean skippedRoot;
+    private boolean lostInSample;
 
     public ConditionSolver(Node condition, String variable, Context context) {
         this.condition = condition;
@@ -85,10 +88,19 @@ public class ConditionSolver {
 
     public List<Interval> solve() {
         double[] points = sortedCandidates();
-        boolean[] truth = new boolean[points.length];
-        for (int i = 0; i < points.length; i++) {
-            truth[i] = isTrueAt(points[i]);
+        Set<Double> genuineRoots = new HashSet<>();
+        for (Root root : getRoots()) {
+            double offset = PROBE * Math.max(1, Math.abs(root.value));
+            if (isGenuineRoot(new Node[] {root.left, root.right}, root.value, offset)) {
+                genuineRoots.add(root.value);
+            }
         }
+        Sample[] samples = new Sample[points.length];
+        for (int i = 0; i < points.length; i++) {
+            samples[i] = sampleAt(points[i], genuineRoots.contains(points[i]));
+        }
+        boolean[] truth = withRoundingRunsFilled(samples);
+        Set<Double> rootValues = new HashSet<>(boundaryRoots());
 
         List<Interval> intervals = new ArrayList<>();
         int i = 0;
@@ -102,6 +114,10 @@ public class ConditionSolver {
                 i++;
             }
             int end = i;
+            // lone true sample = isolated points or too narrow
+            if (start == end && !rootValues.contains(points[start])) {
+                throw new UncalculableException();
+            }
 
             double low = Double.NEGATIVE_INFINITY;
             boolean lowIncluded = false;
@@ -119,6 +135,164 @@ public class ConditionSolver {
             i++;
         }
         return intervals;
+    }
+
+    // rounding runs take truth from neighbours
+    private static boolean[] withRoundingRunsFilled(Sample[] samples) {
+        boolean[] truth = new boolean[samples.length];
+        int i = 0;
+        while (i < samples.length) {
+            if (samples[i].known != UNKNOWN) {
+                truth[i] = samples[i].known == TRUE;
+                i++;
+                continue;
+            }
+            int start = i;
+            boolean lost = false;
+            while (i < samples.length && samples[i].known == UNKNOWN) {
+                truth[i] = samples[i].truth;
+                lost = lost || samples[i].lost;
+                i++;
+            }
+            int before = start > 0 ? samples[start - 1].known : UNKNOWN;
+            int after = i < samples.length ? samples[i].known : UNKNOWN;
+            // only fill from a stretch at the end, not one point
+            boolean atEnd = start == 0 || i == samples.length;
+            if (lost && atEnd && !(isBacked(samples, start - 1, -1) && isBacked(samples, i, 1))) {
+                throw new UncalculableException();
+            }
+            if (before == UNKNOWN && after == UNKNOWN || before != UNKNOWN && after != UNKNOWN && before != after) {
+                if (lost) {
+                    throw new UncalculableException();
+                }
+                continue;
+            }
+            boolean fill = (before == UNKNOWN ? after : before) == TRUE;
+            for (int k = start; k < i; k++) {
+                truth[k] = fill;
+            }
+        }
+        return truth;
+    }
+
+    // true if past the search or next sample agrees
+    private static boolean isBacked(Sample[] samples, int index, int direction) {
+        if (index < 0 || index >= samples.length) {
+            return true;
+        }
+        for (int further = index + direction; further >= 0 && further < samples.length; further += direction) {
+            if (samples[further].known != UNKNOWN) {
+                return samples[further].known == samples[index].known;
+            }
+        }
+        return false;
+    }
+
+    // truth at sample + whether its just rounding
+    private Sample sampleAt(double point, boolean atRoot) {
+        context.setAbsorbed(false);
+        context.setTolerated(false);
+        context.spendStep();
+        Context at = context.withVariable(variable, point);
+        Value value;
+        try {
+            value = condition.evaluate(at);
+        } catch (BudgetExceededException | UndecidableException e) {
+            throw e;
+        } catch (UncalculableException e) {
+            return new Sample(false, FALSE, false);
+        }
+        if (!(value instanceof BooleanValue)) {
+            throw new UndecidableException();
+        }
+        boolean truth = ((BooleanValue) value).getValue();
+        if (!context.isAbsorbed() && (atRoot || !context.isTolerated())) {
+            return new Sample(truth, truth ? TRUE : FALSE, false);
+        }
+        lostInSample = false;
+        int known = partTruth(condition, at, atRoot);
+        return new Sample(truth, known, lostInSample);
+    }
+
+    private int partTruth(Node node, Context at, boolean atRoot) {
+        if (node instanceof UnaryNode && ((UnaryNode) node).getOp() == UnaryNode.Op.NOT) {
+            int inner = partTruth(((UnaryNode) node).getOperand(), at, atRoot);
+            return inner == UNKNOWN ? UNKNOWN : TRUE - inner;
+        }
+        if (node instanceof BinaryNode && node.isCondition()) {
+            BinaryNode binary = (BinaryNode) node;
+            int p = partTruth(binary.getLeft(), at, atRoot);
+            int q = partTruth(binary.getRight(), at, atRoot);
+            switch (binary.getOp()) {
+                case AND:
+                    return p == FALSE || q == FALSE ? FALSE : (p == TRUE && q == TRUE ? TRUE : UNKNOWN);
+                case OR:
+                    return p == TRUE || q == TRUE ? TRUE : (p == FALSE && q == FALSE ? FALSE : UNKNOWN);
+                case IMPLIES:
+                    return p == FALSE || q == TRUE ? TRUE : (p == TRUE && q == FALSE ? FALSE : UNKNOWN);
+                default:
+                    if (p == UNKNOWN || q == UNKNOWN) {
+                        return UNKNOWN;
+                    }
+                    return (binary.getOp() == BinaryNode.Op.IFF) == (p == q) ? TRUE : FALSE;
+            }
+        }
+        context.setAbsorbed(false);
+        context.setTolerated(false);
+        try {
+            Value value = node.evaluate(at);
+            if (!(value instanceof BooleanValue)) {
+                return UNKNOWN;
+            }
+            boolean tolerated = context.isTolerated();
+            if (context.isAbsorbed() && isRoundingOnly(node, at)) {
+                lostInSample = true;
+                return UNKNOWN;
+            }
+            if (tolerated && !atRoot) {
+                return UNKNOWN;
+            }
+            return ((BooleanValue) value).getValue() ? TRUE : FALSE;
+        } catch (BudgetExceededException | UndecidableException e) {
+            throw e;
+        } catch (UncalculableException e) {
+            return UNKNOWN;
+        }
+    }
+
+    // lost value only matters if sides are that close
+    private boolean isRoundingOnly(Node node, Context at) {
+        if (!(node instanceof RelationNode)) {
+            return true;
+        }
+        RelationNode relation = (RelationNode) node;
+        List<Node> operands = relation.getOperands();
+        for (int i = 0; i + 1 < operands.size(); i++) {
+            if (isSetOperator(relation.getOperators().get(i))) {
+                continue;
+            }
+            double a = numberAt(operands.get(i), at);
+            double b = numberAt(operands.get(i + 1), at);
+            if (!isFinite(a) || !isFinite(b)) {
+                return true;
+            }
+            double scale = Math.max(largestPart(operands.get(i), at), largestPart(operands.get(i + 1), at));
+            if (Math.abs(a - b) <= NOISE * scale) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static double numberAt(Node node, Context at) {
+        try {
+            Value value = node.evaluate(at);
+            return value instanceof NumberValue ? ((NumberValue) value).getValue() : Double.NaN;
+        } catch (BudgetExceededException | UndecidableException e) {
+            throw e;
+        } catch (UncalculableException e) {
+            return Double.NaN;
+        }
     }
 
     public boolean isTrueSomewhere() {
@@ -235,7 +409,7 @@ public class ConditionSolver {
         return reliability == RELIABLE ? verdict(point, genuine) : SKIP;
     }
 
-    // sides really cross, nothing lost to rounding
+    // sides cross/meet w/ gaps, nothing lost to rounding
     private boolean isGenuineRoot(Node[] pair, double root, double offset) {
         context.setAbsorbed(false);
         double here = difference(pair, root);
@@ -244,7 +418,8 @@ public class ConditionSolver {
         if (context.isAbsorbed() || !isFinite(below) || !isFinite(above)) {
             return false;
         }
-        return below * above < 0 || (here == 0 && Math.abs(below) >= TINY && Math.abs(above) >= TINY);
+        boolean touching = here == 0 || Math.abs(here) <= TOUCHING * Math.min(Math.abs(below), Math.abs(above));
+        return below * above < 0 || (touching && Math.abs(below) >= TINY && Math.abs(above) >= TINY);
     }
 
     // sign changes 3 per decade out to 1e300
@@ -677,6 +852,18 @@ public class ConditionSolver {
             }
         }
         return true;
+    }
+
+    private static final class Sample {
+        private final boolean truth;
+        private final int known;
+        private final boolean lost;
+
+        private Sample(boolean truth, int known, boolean lost) {
+            this.truth = truth;
+            this.known = known;
+            this.lost = lost;
+        }
     }
 
     private static final class Root {

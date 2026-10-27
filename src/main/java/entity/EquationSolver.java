@@ -13,6 +13,11 @@ public class EquationSolver {
     private static final double STEP = 0.01;
 
     private static final double ZERO = 1e-9;
+    private static final double GOLDEN = (Math.sqrt(5) - 1) / 2;
+    private static final int GOLDEN_ROUNDS = 100;
+    private static final double TOUCHING_SHARE = 0.5;
+    private static final double FLAT_BOTTOM = 1e-12;
+    private static final int MAX_TOUCHING_SEARCHES = 200;
 
     private final Node left;
     private final Node right;
@@ -42,6 +47,7 @@ public class EquationSolver {
         }
 
         List<Double> solutions = new ArrayList<>();
+        int touchingSearches = 0;
         for (int i = 0; i < count; i++) {
             if (i > 0 && isNumber(ds[i - 1]) && isNumber(ds[i]) && ds[i - 1] * ds[i] < 0) {
                 double root = bisect(xs[i - 1], xs[i], ds[i - 1]);
@@ -51,9 +57,89 @@ public class EquationSolver {
             }
             if (isNumber(ds[i]) && Math.abs(ds[i]) < ZERO && isSmallerThanNeighbours(ds, i)) {
                 addSolution(solutions, xs[i]);
+            } else if (touchingSearches < MAX_TOUCHING_SEARCHES && isTouchingCandidate(ds, i)) {
+                touchingSearches++;
+                double root = touchingRoot(xs[i - 1], xs[i + 1]);
+                if (isNumber(root)) {
+                    addSolution(solutions, root);
+                }
             }
         }
         return solutions;
+    }
+
+    // dip that doesnt change sign might still touch 0
+    private boolean isTouchingCandidate(double[] ds, int i) {
+        if (i == 0 || i == ds.length - 1 || !isNumber(ds[i - 1]) || !isNumber(ds[i]) || !isNumber(ds[i + 1])) {
+            return false;
+        }
+        double a = Math.abs(ds[i - 1]);
+        double b = Math.abs(ds[i]);
+        double c = Math.abs(ds[i + 1]);
+        if (ds[i - 1] * ds[i] <= 0 || ds[i] * ds[i + 1] <= 0 || b > a || b >= c) {
+            return false;
+        }
+        double curvature = a + c - 2 * b;
+        double parabolaLowest = b - (c - a) * (c - a) / (8 * curvature);
+        double cornerLowest = (2 * b + Math.min(a, c) - Math.max(a, c)) / 2;
+        return Math.min(parabolaLowest, cornerLowest) < TOUCHING_SHARE * b;
+    }
+
+    // golden section for min |diff|, mid of flat bottom
+    private double touchingRoot(double low, double high) {
+        double a = low;
+        double b = high;
+        double c = b - GOLDEN * (b - a);
+        double d = a + GOLDEN * (b - a);
+        double fc = Math.abs(difference(c));
+        double fd = Math.abs(difference(d));
+        for (int round = 0; round < GOLDEN_ROUNDS && b - a > 1e-15 * Math.max(1, Math.abs(a)); round++) {
+            if (!isNumber(fc) || !isNumber(fd)) {
+                return Double.NaN;
+            }
+            if (fc <= fd) {
+                b = d;
+                d = c;
+                fd = fc;
+                c = b - GOLDEN * (b - a);
+                fc = Math.abs(difference(c));
+            } else {
+                a = c;
+                c = d;
+                fc = fd;
+                d = a + GOLDEN * (b - a);
+                fd = Math.abs(difference(d));
+            }
+        }
+        double best = fc <= fd ? c : d;
+        double lowest = Math.min(fc, fd);
+        if (!isNumber(lowest) || lowest >= ZERO) {
+            return Double.NaN;
+        }
+        double left = edgeOfBottom(best, low);
+        double right = edgeOfBottom(best, high);
+        return (left + right) / 2;
+    }
+
+    // where |diff| goes past FLAT_BOTTOM
+    private double edgeOfBottom(double inside, double outside) {
+        double dOutside = Math.abs(difference(outside));
+        if (!isNumber(dOutside) || dOutside <= FLAT_BOTTOM) {
+            return inside;
+        }
+        for (int round = 0; round < 60; round++) {
+            double middle = (inside + outside) / 2;
+            double dMiddle = Math.abs(difference(middle));
+            if (!isNumber(dMiddle)) {
+                return inside;
+            }
+            if (dMiddle <= FLAT_BOTTOM) {
+                inside = middle;
+            } else {
+                outside = middle;
+            }
+        }
+        return inside;
     }
 
     public boolean isAlwaysTrue() {

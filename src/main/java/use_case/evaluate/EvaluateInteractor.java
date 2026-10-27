@@ -192,18 +192,55 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
         }
         if (!excluding) {
             presenter.prepareSolutionsView(variable, solutions);
-        } else if (solutions.isEmpty()) {
-            presenter.prepareAlwaysTrueView(variable);
-        } else {
+        } else if (masks > 1 && !solutions.isEmpty()) {
             presenter.prepareExcludedView(variable, solutions);
+        } else {
+            excludeUndefinedPoints(node, variable, functions, masks, solutions);
         }
+    }
+
+    // exclude where a side is undefined too
+    private void excludeUndefinedPoints(Node node, String variable, Map<String, UserFunction> functions,
+                                        int masks, List<Double> solutions) {
+        if (masks > 1) {
+            throw new UncalculableException();
+        }
+        List<Interval> intervals = new ConditionSolver(node, variable, new Context(functions)).solve();
+        if (!solutions.isEmpty() && isEverythingBut(intervals, solutions)) {
+            presenter.prepareExcludedView(variable, solutions);
+        } else {
+            showIntervals(variable, intervals);
+        }
+    }
+
+    private boolean isEverythingBut(List<Interval> intervals, List<Double> points) {
+        if (intervals.size() != points.size() + 1) {
+            return false;
+        }
+        for (int i = 0; i < intervals.size(); i++) {
+            Interval interval = intervals.get(i);
+            double low = i == 0 ? Double.NEGATIVE_INFINITY : points.get(i - 1);
+            double high = i == points.size() ? Double.POSITIVE_INFINITY : points.get(i);
+            if (interval.isLowIncluded() || interval.isHighIncluded() || !isSame(interval.getLow(), low)
+                    || !isSame(interval.getHigh(), high)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean isSame(double a, double b) {
+        return a == b || Math.abs(a - b) <= 1e-6 * Math.max(1, Math.abs(b));
     }
 
     private void solveInequality(Node node, String variable, Map<String, UserFunction> functions, int masks) {
         if (masks > 1) {
             throw new UncalculableException();
         }
-        List<Interval> intervals = new ConditionSolver(node, variable, new Context(functions)).solve();
+        showIntervals(variable, new ConditionSolver(node, variable, new Context(functions)).solve());
+    }
+
+    private void showIntervals(String variable, List<Interval> intervals) {
         if (intervals.size() == 1 && intervals.get(0).getLow() == Double.NEGATIVE_INFINITY
                 && intervals.get(0).getHigh() == Double.POSITIVE_INFINITY) {
             presenter.prepareAlwaysTrueView(variable);

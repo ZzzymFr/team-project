@@ -74,10 +74,12 @@ public class QuantifierNode extends Node {
     @Override
     public Value evaluate(Context context) {
         boolean absorbed = context.isAbsorbed();
+        boolean tolerated = context.isTolerated();
         try {
             return decide(context);
         } finally {
             context.setAbsorbed(absorbed);
+            context.setTolerated(tolerated);
         }
     }
 

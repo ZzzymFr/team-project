@@ -108,6 +108,19 @@ public final class Context {
         budget.absorbed = absorbed;
     }
 
+    // set when tol decides the comparison
+    public void markTolerated() {
+        budget.tolerated = true;
+    }
+
+    public boolean isTolerated() {
+        return budget.tolerated;
+    }
+
+    public void setTolerated(boolean tolerated) {
+        budget.tolerated = tolerated;
+    }
+
     private Binding find(String name) {
         for (Binding binding = variables; binding != null; binding = binding.next) {
             if (binding.name.equals(name)) {
@@ -132,5 +145,6 @@ public final class Context {
     private static final class Budget {
         private int steps;
         private boolean absorbed;
+        private boolean tolerated;
     }
 }
