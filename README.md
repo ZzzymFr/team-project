@@ -6,6 +6,7 @@ functions
 3. It can create a pdf file from the formulas and handwriting record.
 4. It can call desmos api to render graph of functions.
 4. Supported formulas are polynomials, functions, sin, cos, tan, derivative, integration, e, log,ln, vector, logic operator.
+5. might supporthandwriting detection for any text in near future, and this will intergrade into the function of pdf editing.
 
 US1 – Handwriting recognition - Yuanmo Zha \
 As a student, I want to write a math expression by hand (on a drawing canvas or by uploading a photo) and have the program recognize it, so that I don’t have to type math notation manually.
