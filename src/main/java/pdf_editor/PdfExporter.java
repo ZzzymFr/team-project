@@ -28,7 +28,7 @@ public final class PdfExporter {
                         if (p.width < 1 || p.height < 1) continue;
                         int w = Math.min(2000, Math.max(1, Math.round(p.width * 2)));
                         int h = Math.min(2000, Math.max(1, Math.round(p.height * 2)));
-                        BufferedImage image = MaterialRenderer.render(p.material, w, h);
+                        BufferedImage image = p.isNote() ? NoteRenderer.render(p, w, h) : MaterialRenderer.render(p.material, w, h);
                         PDImageXObject xobj = LosslessFactory.createFromImage(pdf, image);
                         stream.drawImage(xobj, p.x, PdfDocument.PAGE_HEIGHT - p.y - p.height, p.width, p.height);
                     }
@@ -42,7 +42,7 @@ public final class PdfExporter {
         Map<String, MathLibrary.Material> used = new LinkedHashMap<>();
         for (java.util.List<PdfDocument.Placement> page : document.pages)
             for (PdfDocument.Placement placement : page)
-                if (!placement.material.isGraph()) used.put(placement.material.id, placement.material);
+                if (!placement.isNote() && !placement.material.isGraph()) used.put(placement.material.id, placement.material);
         if (used.isEmpty()) return;
         PDPage page = null;
         PDPageContentStream stream = null;

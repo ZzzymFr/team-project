@@ -19,6 +19,7 @@ import java.awt.Font;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -29,6 +30,8 @@ public class AnswerCanvasPage extends CanvasPage {
     private static final int DEFINED_MESSAGE_MILLIS = 4000;
 
     private final EvaluateController controller;
+    private final BiConsumer<String, String> pdfResultSink;
+    private final Map<Long, Long> exportedRevisions = new HashMap<>();
     private final MathLabViewModel viewModel;
     private final GlassButton calculateButton = new GlassButton("Calculate", 40);
     private final ExecutorService worker;
@@ -41,13 +44,20 @@ public class AnswerCanvasPage extends CanvasPage {
     public AnswerCanvasPage(SharedCanvas sharedCanvas) {
         super(sharedCanvas);
         this.controller = null;
+        this.pdfResultSink = (latex, result) -> {};
         this.viewModel = null;
         this.worker = null;
         setFunctionArea(placeholder("Answer tools go here: evaluate or solve the expression on the canvas."));
     }
 
     public AnswerCanvasPage(SharedCanvas sharedCanvas, EvaluateController controller, MathLabViewModel viewModel) {
+        this(sharedCanvas, controller, viewModel, (latex, result) -> {});
+    }
+
+    public AnswerCanvasPage(SharedCanvas sharedCanvas, EvaluateController controller, MathLabViewModel viewModel,
+                            BiConsumer<String, String> pdfResultSink) {
         super(sharedCanvas);
+        this.pdfResultSink = java.util.Objects.requireNonNull(pdfResultSink);
         this.controller = controller;
         this.viewModel = viewModel;
         // one at a time so jobs don't fight over the view model
@@ -141,11 +151,12 @@ public class AnswerCanvasPage extends CanvasPage {
             AnswerKind kind = AnswerKind.of(latex);
             String r = result;
             String err = error;
-            SwingUtilities.invokeLater(() -> deliver(capture, kind, r, err, manual));  // hop to EDT
+            String recognizedLatex = latex;
+            SwingUtilities.invokeLater(() -> deliver(capture, recognizedLatex, kind, r, err, manual));  // hop to EDT
         });
     }
 
-    private void deliver(FormulaCapture capture, AnswerKind kind, String result, String error, boolean manual) {
+    private void deliver(FormulaCapture capture, String latex, AnswerKind kind, String result, String error, boolean manual) {
         if (!error.isEmpty()) {
             // popup only, nothing drawn
             if (getSharedCanvas().isCurrent(capture.getId(), capture.getRevision())) {
@@ -156,7 +167,12 @@ public class AnswerCanvasPage extends CanvasPage {
             ownMessage(manual);
             showMessage(result, false, DEFINED_MESSAGE_MILLIS);  // nothing to draw
         } else {
-            getSharedCanvas().showAnswer(capture.getId(), capture.getRevision(), kind, kind.answerText(result), false);
+            boolean shown = getSharedCanvas().showAnswer(capture.getId(), capture.getRevision(), kind, kind.answerText(result), false);
+            if (shown && latex != null && !latex.isBlank()
+                    && !java.util.Objects.equals(exportedRevisions.get(capture.getId()), capture.getRevision())) {
+                exportedRevisions.put(capture.getId(), capture.getRevision());
+                pdfResultSink.accept(latex, result);
+            }
         }
         if (manual && --manualLeft == 0 && !manualMessage) {
             hideMessage();

@@ -49,10 +49,11 @@ public final class MaterialRenderer {
             icon.paintIcon(new JLabel(), copy, 0, 0);
             copy.dispose();
         } catch (RuntimeException invalidLatex) {
-            g.setColor(Color.DARK_GRAY); g.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+            g.setColor(Color.DARK_GRAY);
             String plain = text.replace('\n', ' ');
-            int maxChars = Math.max(1, (width - 12) / 7);
-            g.drawString(plain.substring(0, Math.min(plain.length(), maxChars)), 6, top + Math.min(height - 4, 18));
+            float size = Math.max(8f, Math.min(height * .48f, (width - 12f) / Math.max(1, plain.length()) * 1.7f));
+            g.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12).deriveFont(size));
+            g.drawString(plain, 6, top + Math.min(height - 4, (int) (size + 4)));
         }
     }
 }
