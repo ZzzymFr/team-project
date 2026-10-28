@@ -29,6 +29,7 @@ public class EquationSolver {
     private static final double TURN_NOISE = 1e-6;
     private static final double NEAR_MISS_SHARE = 1e-2;
     private static final double ROOT_SHARE = 1e-9;
+    private static final double SAME_ROOT_FLOOR = 1e-15;
     private static final double[] IRRATIONAL_POINTS = {-Math.PI * 7, -Math.sqrt(2), Math.E, Math.sqrt(97)};
 
     private final Node left;
@@ -464,7 +465,8 @@ public class EquationSolver {
     private void addSolution(List<Double> solutions, double x) {
         if (!solutions.isEmpty()) {
             double last = solutions.get(solutions.size() - 1);
-            if (Math.abs(x - last) < 1e-6) {
+            // relative, so +-1e-7 stay two roots
+            if (Math.abs(x - last) < 1e-6 * Math.max(Math.abs(x), Math.abs(last)) + SAME_ROOT_FLOOR) {
                 return;
             }
             // approx noise crosses 0 twice at a touch, keep one

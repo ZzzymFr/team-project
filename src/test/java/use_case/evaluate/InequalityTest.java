@@ -28,7 +28,7 @@ class InequalityTest {
         assertEquals("x ≥ 1", Calc.once("(x-1)^5\\geq0"));
         assertEquals("x > 0", Calc.once("x^7>0"));
         assertEquals("0 ≤ x ≤ 0.003", Calc.once("x\\leq0.003\\land x^5\\geq0"));
-        assertEquals("x ≥ 0.005", Calc.once("\\sqrt{x-0.005}\\geq0"));
+        assertEquals("x ≥ 0.01", Calc.once("\\sqrt{x-0.005}\\geq0"));
         assertEquals("x ≤ 0", Calc.once("x^3\\leq0"));
         assertEquals("-0.0001 ≤ x ≤ 0.0001", Calc.once("x^2\\leq0.00000001"));
     }

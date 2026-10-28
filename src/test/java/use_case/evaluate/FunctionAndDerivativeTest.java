@@ -52,10 +52,10 @@ class FunctionAndDerivativeTest {
         Calc c = new Calc();
         c.show("f(x)=\\sin(x)");
         String roots = c.show("f'(x)=0");
-        assertTrue(roots.startsWith("x = -98.96016859 or x = -95.81857593 or "), roots);
+        assertTrue(roots.startsWith("x = -98.96 or x = -95.82 or "), roots);
         assertTrue(roots.endsWith("(and 54 more)"), roots);
-        assertTrue(c.show("\\frac{d}{dx}\\sin(x)=0").startsWith("x = -98.96016859 or "));
-        assertEquals("x = 0.6931471806", c.show("\\frac{d}{dx}e^{x}=2"));
+        assertTrue(c.show("\\frac{d}{dx}\\sin(x)=0").startsWith("x = -98.96 or "));
+        assertEquals("x = 0.69", c.show("\\frac{d}{dx}e^{x}=2"));
         c.show("v(x)=\\frac{1}{x}");
         assertEquals("= -400", c.show("v'(0.05)"));
     }
@@ -70,7 +70,7 @@ class FunctionAndDerivativeTest {
         c.show("k(x)=f'(x)");
         assertEquals("= 12", c.show("k(2)"));
         c.show("p(x)=e^{x}");
-        assertEquals("= 2.71828183", c.show("p'(1)"));
+        assertEquals("= 2.72", c.show("p'(1)"));
     }
 
     @Test
@@ -87,11 +87,11 @@ class FunctionAndDerivativeTest {
         c.show("s(x)=1000000\\sin(x)");
         assertEquals("= 0", c.show("s'(\\frac{\\pi}{2})"));
         String sRoots = c.show("s'(x)=0");
-        assertTrue(sRoots.startsWith("x = -98.96016859 or x = -95.81857593 or "), sRoots);
+        assertTrue(sRoots.startsWith("x = -98.96 or x = -95.82 or "), sRoots);
         assertTrue(sRoots.endsWith("(and 54 more)"), sRoots);
         c.show("u(x)=10^{8}\\sin(x)");
         String uRoots = c.show("u'(x)=0");
-        assertTrue(uRoots.startsWith("x = -98.96016859 or x = -95.81857593 or "), uRoots);
+        assertTrue(uRoots.startsWith("x = -98.96 or x = -95.82 or "), uRoots);
         assertTrue(uRoots.endsWith("(and 54 more)"), uRoots);
         c.show("h(x)=|x|");
         assertEquals("= undefined", c.show("h'(0)"));

@@ -14,7 +14,9 @@ import entity.value.VectorValue;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class BinaryNode extends Node {
     public enum Op { ADD, SUBTRACT, MULTIPLY, DOT, CROSS, DIVIDE, POWER, AND, OR, XOR, IMPLIES, IFF, UNION, INTERSECT }
@@ -22,6 +24,7 @@ public class BinaryNode extends Node {
     private final Op op;
     private final Node left;
     private final Node right;
+    private Boolean constantExponent;
 
     public BinaryNode(Op op, Node left, Node right) {
         this.op = op;
@@ -224,6 +227,28 @@ public class BinaryNode extends Node {
                 x.get(0) * y.get(1) - x.get(1) * y.get(0)));
     }
 
+    // no vars in exponent, so (-8)^{1/3} can be a real root
+    private boolean isConstantExponent() {
+        if (constantExponent == null) {
+            Set<String> names = new HashSet<>();
+            right.collectFreeVariables(names);
+            constantExponent = names.isEmpty();
+        }
+        return constantExponent;
+    }
+
+    // neg base to p/q w/ odd q, like sqrt[q]
+    private static double oddRootPower(double a, double b) {
+        for (int q = 3; q <= 99; q += 2) {
+            double p = Math.rint(b * q);
+            if (Math.abs(b * q - p) <= 1e-9 * q) {
+                double magnitude = Math.pow(-a, b);
+                return Math.abs(p % 2) == 1 ? -magnitude : magnitude;
+            }
+        }
+        return Double.NaN;
+    }
+
     private boolean logic(boolean p, boolean q) {
         switch (op) {
             case AND:
@@ -257,6 +282,9 @@ public class BinaryNode extends Node {
             case POWER:
                 if (a == 0 && b < 0) {
                     return Double.NaN;
+                }
+                if (a < 0 && b != Math.floor(b) && isConstantExponent()) {
+                    return oddRootPower(a, b);
                 }
                 return Math.pow(a, b);
             default:

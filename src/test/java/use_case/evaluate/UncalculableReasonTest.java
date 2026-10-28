@@ -82,7 +82,7 @@ class UncalculableReasonTest {
 
     @Test
     void workAndPrecision() {
-        reason("Too much work", "\\sum_{i=1}^{1000000}\\sum_{j=1}^{1000000}1");
+        reason("Formula too complex", "\\sum_{i=1}^{1000000}\\sum_{j=1}^{1000000}1");
         reason("Sets too large", "\\{x,1,2,3,4\\}=\\{1,2,3,4,5\\}");
         reason("Can't decide", "\\forall x\\in\\mathbb{Q}, x^2\\neq2");
         Calc calc = new Calc();

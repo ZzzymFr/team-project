@@ -17,6 +17,11 @@ import java.util.List;
 public class UnaryNode extends Node {
     public enum Op { NEGATE, FACTORIAL, ABSOLUTE, PERCENT, NOT, NORM, UNIT }
 
+    private static final double LANCZOS_G = 7;
+    private static final double[] LANCZOS = {0.99999999999980993, 676.5203681218851, -1259.1392167224028,
+        771.32342877765313, -176.61502916214059, 12.507343278686905, -0.13857109526572012,
+        9.9843695780195716e-6, 1.5056327351493116e-7};
+
     private final Op op;
     private final Node operand;
 
@@ -63,7 +68,12 @@ public class UnaryNode extends Node {
             case NEGATE:
                 return new NumberValue(-value);
             case FACTORIAL:
-                return new NumberValue(factorial(value));
+                double result = factorial(value);
+                if (Double.isInfinite(result) && !Double.isInfinite(value)) {
+                    // overflow = lost value, like 10^{400}
+                    context.markAbsorbed();
+                }
+                return new NumberValue(result);
             case ABSOLUTE:
             case NORM:
                 return new NumberValue(Math.abs(value));
@@ -103,17 +113,43 @@ public class UnaryNode extends Node {
         }
     }
 
+    // whole n: exact product; n > -1: gamma(n+1), so 2.5! works; else undefined
     private static double factorial(double n) {
-        if (n < 0 || n != Math.floor(n)) {
+        if (Double.isNaN(n) || n == Double.NEGATIVE_INFINITY) {
             return Double.NaN;
         }
-        if (n > 170) {
-            return Double.POSITIVE_INFINITY;
+        if (n == Math.floor(n)) {
+            if (n < 0) {
+                return Double.NaN;
+            }
+            if (n > 170) {
+                return Double.POSITIVE_INFINITY;
+            }
+            double result = 1;
+            for (int i = 2; i <= n; i++) {
+                result = result * i;
+            }
+            return result;
         }
-        double result = 1;
-        for (int i = 2; i <= n; i++) {
-            result = result * i;
+        if (n <= -1) {
+            // poles at every neg int, keep x!=24 from getting 100 roots
+            return Double.NaN;
         }
-        return result;
+        return gamma(n + 1);
+    }
+
+    // lanczos g=7, x >= 0 here
+    private static double gamma(double x) {
+        if (x < 0.5) {
+            return Math.PI / (Math.sin(Math.PI * x) * gamma(1 - x));
+        }
+        double shifted = x - 1;
+        double sum = LANCZOS[0];
+        for (int i = 1; i < LANCZOS.length; i++) {
+            sum = sum + LANCZOS[i] / (shifted + i);
+        }
+        double t = shifted + LANCZOS_G + 0.5;
+        // exp of the log so big x only overflows when the answer does
+        return Math.sqrt(2 * Math.PI) * sum * Math.exp((shifted + 0.5) * Math.log(t) - t);
     }
 }

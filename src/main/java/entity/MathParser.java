@@ -43,6 +43,7 @@ public final class MathParser {
     private final Map<String, UserFunction> functions;
     private int position = 0;
     private int plusMinusCount = 0;
+    private int absoluteDepth = 0;
     private final List<String> boundNames = new ArrayList<>();
 
     public MathParser(List<String> tokens, Map<String, UserFunction> functions) {
@@ -141,13 +142,10 @@ public final class MathParser {
         Node domain = null;
         if (peekIs("\\in")) {
             next();
-            domain = parsePrimary();
-            while (peekIs("\\cup") || peekIs("\\cap")) {
-                if (next().equals("\\cup")) {
-                    domain = new BinaryNode(BinaryNode.Op.UNION, domain, parsePrimary());
-                } else {
-                    domain = new BinaryNode(BinaryNode.Op.INTERSECT, domain, parsePrimary());
-                }
+            domain = parseDomainIntersection();
+            while (peekIs("\\cup")) {
+                next();
+                domain = new BinaryNode(BinaryNode.Op.UNION, domain, parseDomainIntersection());
             }
         }
         if (peekIs(",") || peekIs(":")) {
@@ -165,6 +163,15 @@ public final class MathParser {
         return new QuantifierNode(isForAll, variable, domain, body);
     }
 
+    private Node parseDomainIntersection() {
+        Node domain = parsePrimary();
+        while (peekIs("\\cap")) {
+            next();
+            domain = new BinaryNode(BinaryNode.Op.INTERSECT, domain, parsePrimary());
+        }
+        return domain;
+    }
+
     private Node parseRelation() {
         Node first = parseSetExpression();
         if (!isRelationOperator(peek())) {
@@ -180,14 +187,21 @@ public final class MathParser {
         return new RelationNode(operands, operators);
     }
 
+    // \cap binds tighter than \cup, like * over +
     private Node parseSetExpression() {
+        Node result = parseIntersection();
+        while (peekIs("\\cup")) {
+            next();
+            result = new BinaryNode(BinaryNode.Op.UNION, result, parseIntersection());
+        }
+        return result;
+    }
+
+    private Node parseIntersection() {
         Node result = parseAdditive();
-        while (peekIs("\\cup") || peekIs("\\cap")) {
-            if (next().equals("\\cup")) {
-                result = new BinaryNode(BinaryNode.Op.UNION, result, parseAdditive());
-            } else {
-                result = new BinaryNode(BinaryNode.Op.INTERSECT, result, parseAdditive());
-            }
+        while (peekIs("\\cap")) {
+            next();
+            result = new BinaryNode(BinaryNode.Op.INTERSECT, result, parseAdditive());
         }
         return result;
     }
@@ -296,7 +310,12 @@ public final class MathParser {
             return parseRestOfGroup("]");
         }
         if (token.equals("|")) {
-            return new UnaryNode(UnaryNode.Op.ABSOLUTE, parseRestOfGroup("|"));
+            absoluteDepth++;
+            try {
+                return new UnaryNode(UnaryNode.Op.ABSOLUTE, parseRestOfGroup("|"));
+            } finally {
+                absoluteDepth--;
+            }
         }
         if (token.equals("\\{")) {
             return parseSetLiteral();
@@ -352,7 +371,7 @@ public final class MathParser {
             return parseDecorated(token);
         }
         if (MathLexer.isLetter(token)) {
-            if (functions.containsKey(token) && !peekIs("_")) {
+            if (functions.containsKey(token) && !peekIs("_") && !boundNames.contains(token)) {
                 return parseFunctionUse(token);
             }
             String name = parseName(token);
@@ -661,13 +680,21 @@ public final class MathParser {
             next();
             upper = parseBound(position - 1, position);
         }
-        return new SeriesNode(isProduct, variable, lower, upper, parseBody(variable));
+        return new SeriesNode(isProduct, variable, lower, upper, parseSeriesBody(variable));
     }
 
     // body where the var is bound (even e)
     private Node parseBody(String variable) {
         boundNames.add(variable);
         Node body = parseAdditive();
+        boundNames.remove(boundNames.size() - 1);
+        return body;
+    }
+
+    // sum body stops at + / -, so \sum n+1 = (\sum n)+1
+    private Node parseSeriesBody(String variable) {
+        boundNames.add(variable);
+        Node body = parseTerm();
         boundNames.remove(boundNames.size() - 1);
         return body;
     }
@@ -843,6 +870,8 @@ public final class MathParser {
                 || token.equals("\\infty") || token.equals("\\top") || token.equals("\\bot")
                 || token.equals("\\vec") || token.equals("\\hat") || token.equals("\\bar")
                 || token.equals("\\overline")
+                // inside |..| a | closes it, so 5|x| only outside
+                || token.equals("|") && absoluteDepth == 0
                 || token.equals("\\sin") || token.equals("\\cos") || token.equals("\\tan");
     }
 

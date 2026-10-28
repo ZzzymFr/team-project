@@ -29,7 +29,8 @@ public class Interval {
         return highIncluded;
     }
 
+    // relative, so |x|<1e-12 stays a tiny interval
     public boolean isPoint() {
-        return high - low < 1e-6;
+        return high - low < 1e-6 * Math.max(Math.abs(low), Math.abs(high)) + 1e-15;
     }
 }

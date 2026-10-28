@@ -30,11 +30,46 @@ class EvaluatePresenterTest {
         assertEquals("0.3", EvaluatePresenter.format(0.1 + 0.2));
         assertEquals("2", EvaluatePresenter.format(2.0));
         assertEquals("-100", EvaluatePresenter.format(-100));
-        assertEquals("0.3333333333", EvaluatePresenter.format(1.0 / 3));
+        assertEquals("1/3", EvaluatePresenter.format(1.0 / 3));
         assertEquals("0", EvaluatePresenter.format(Math.sin(Math.PI)));
         assertEquals("∞", EvaluatePresenter.format(1.0 / 0));
         assertEquals("undefined", EvaluatePresenter.format(Double.NaN));
         assertEquals("-∞", EvaluatePresenter.format(-1.0 / 0));
+    }
+
+    @Test
+    void roundsToTwoDecimalsOrFractions() {
+        assertEquals("3.14", EvaluatePresenter.format(Math.PI));
+        assertEquals("1.41", EvaluatePresenter.format(Math.sqrt(2)));
+        assertEquals("-9.5", EvaluatePresenter.format(-9.5));
+        assertEquals("0.25", EvaluatePresenter.format(0.25));
+        assertEquals("-5/3", EvaluatePresenter.format(-5.0 / 3));
+        assertEquals("22/7", EvaluatePresenter.format(22.0 / 7));
+        assertEquals("5/3", EvaluatePresenter.format(1.66666667));
+        // ends as a decimal -> just round
+        assertEquals("0.13", EvaluatePresenter.format(0.125));
+        assertEquals("2.68", EvaluatePresenter.format(2.675));
+        assertEquals("1.64", EvaluatePresenter.format(Math.PI * Math.PI / 6));
+        // rounding to a plain-looking number keeps digits
+        assertEquals("99.999", EvaluatePresenter.format(99.999));
+        assertEquals("1.001", EvaluatePresenter.format(1.001));
+        assertEquals("2.0031", EvaluatePresenter.format(2.0031415));
+        assertEquals("3.01", EvaluatePresenter.format(3.0123));
+        // tiny keeps 2 sig figs, not 0
+        assertEquals("0.00000001", EvaluatePresenter.format(1e-8));
+        assertEquals("-0.0046", EvaluatePresenter.format(-0.004567));
+        assertEquals("3333333.33", EvaluatePresenter.format(1e7 / 3));
+    }
+
+    @Test
+    void neighboursThatRoundTheSameKeepDigits() {
+        presenter.prepareSolutionsView("x", Arrays.asList(1.0, 1.001, 3.0));
+        assertEquals("x = 1 or x = 1.001 or x = 3", viewModel.getState().getResultText());
+        presenter.prepareIntervalsView("x", List.of(new Interval(1, false, 1.0001, false)));
+        assertEquals("1 < x < 1.0001", viewModel.getState().getResultText());
+        presenter.prepareIntervalsView("x", List.of(new Interval(Double.NEGATIVE_INFINITY, false, 2, false),
+                new Interval(2, false, Double.POSITIVE_INFINITY, false)));
+        assertEquals("x < 2 or x > 2", viewModel.getState().getResultText());
     }
 
     @Test

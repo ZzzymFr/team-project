@@ -1,5 +1,6 @@
 package use_case.evaluate;
 
+import entity.BudgetExceededException;
 import entity.ConditionSolver;
 import entity.Context;
 import entity.EquationSolver;
@@ -33,6 +34,7 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
     private static final int APPROXIMATE_DIGITS = 9;
     private static final double[] SIDE_PROBES = {0.5, -7.3, 2.9};
     private static final int MAX_ROOTS_BEYOND = 10;
+    private static final double SAME_FLOOR = 1e-15;
 
     private final FunctionDataAccessInterface functionDataAccess;
     private final EvaluateOutputBoundary presenter;
@@ -71,7 +73,10 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
             evaluate(tokens);
         } catch (MathSyntaxException e) {
             presenter.prepareFailView(e.getMessage());
-        } catch (RuntimeException | StackOverflowError e) {
+        } catch (StackOverflowError e) {
+            // nested too deep to even walk
+            presenter.prepareFailView(new UncalculableException(UncalculableException.TOO_MUCH_WORK).getMessage());
+        } catch (RuntimeException e) {
             presenter.prepareFailView("Uncalculable");
         }
     }
@@ -198,7 +203,7 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
         Collections.sort(all);
         List<Double> solutions = new ArrayList<>();
         for (double solution : all) {
-            if (solutions.isEmpty() || Math.abs(solution - solutions.get(solutions.size() - 1)) >= 1e-6) {
+            if (solutions.isEmpty() || !isSame(solution, solutions.get(solutions.size() - 1))) {
                 solutions.add(solution);
             }
         }
@@ -206,8 +211,9 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
             // equal on a whole stretch, intervals only
             solveInequality(node, variable, functions, masks);
         } else if (!excluding) {
-            presenter.prepareSolutionsView(variable, solutions.isEmpty() && !stretch
-                    ? rootsBeyond(node, variable, functions, masks) : solutions);
+            presenter.prepareSolutionsView(variable, solutions.isEmpty()
+                    ? rootsBeyond(node, variable, functions, masks) : withRootsBeyond(node, variable, functions,
+                    masks, solutions));
         } else if (masks > 1) {
             excludeWithSigns(node, variable, functions, masks);
         } else {
@@ -254,6 +260,49 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
             throw new UncalculableException(UncalculableException.TOO_MANY_SOLUTIONS);
         }
         return roots;
+    }
+
+    // in-range roots + the few past range; endless past range w/ few in range = too many
+    private List<Double> withRootsBeyond(Node node, String variable, Map<String, UserFunction> functions,
+                                         int masks, List<Double> solutions) {
+        if (solutions.size() > MAX_ROOTS_BEYOND) {
+            // lots in range = likely periodic, far scan too sparse
+            return solutions;
+        }
+        List<Double> all = new ArrayList<>(solutions);
+        for (int mask = 0; mask < masks; mask++) {
+            List<Double> beyond;
+            try {
+                beyond = new ConditionSolver(node, variable, new Context(functions).withSigns(mask))
+                        .rootsBeyond(MAX_ROOTS_BEYOND);
+            } catch (BudgetExceededException e) {
+                // far scan too costly (sums to huge n), keep what we have
+                return solutions;
+            }
+            if (beyond == null) {
+                // sin(x/100)=0: only 0 in range, endless past it
+                throw new UncalculableException(UncalculableException.TOO_MANY_SOLUTIONS);
+            }
+            for (double root : beyond) {
+                if (Math.abs(root) > EquationSolver.SEARCH_END && !containsSame(all, root)) {
+                    all.add(root);
+                }
+            }
+        }
+        if (all.size() > MAX_ROOTS_BEYOND) {
+            throw new UncalculableException(UncalculableException.TOO_MANY_SOLUTIONS);
+        }
+        Collections.sort(all);
+        return all;
+    }
+
+    private boolean containsSame(List<Double> values, double value) {
+        for (double other : values) {
+            if (isSame(other, value)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // exclude where a side is undefined too
@@ -329,8 +378,9 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
         return true;
     }
 
+    // relative, so +-1e-7 roots stay apart
     private boolean isSame(double a, double b) {
-        return a == b || Math.abs(a - b) <= 1e-6 * Math.max(1, Math.abs(b));
+        return a == b || Math.abs(a - b) <= 1e-6 * Math.max(Math.abs(a), Math.abs(b)) + SAME_FLOOR;
     }
 
     private void solveInequality(Node node, String variable, Map<String, UserFunction> functions, int masks) {

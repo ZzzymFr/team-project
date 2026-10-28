@@ -31,7 +31,7 @@ public class UncalculableException extends MathSyntaxException {
     public static final String LIMIT = "Limit unclear";
     public static final String SERIES = "Series too slow to tell";
     public static final String DERIVATIVE = "Derivative unstable";
-    public static final String TOO_MUCH_WORK = "Too much work";
+    public static final String TOO_MUCH_WORK = "Formula too complex";
     public static final String UNDECIDED = "Can't decide";
     public static final String SETS_TOO_LARGE = "Sets too large";
     public static final String UNDEFINED_PART = "Has an undefined part";
