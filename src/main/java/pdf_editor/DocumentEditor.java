@@ -45,7 +45,19 @@ public final class DocumentEditor {
     public void updateNote(int page, PdfDocument.Placement note, String text, int style, int size) {
         checkPage(page);
         if (!document.pages.get(page).contains(note) || !note.isNote()) return;
-        checkpoint(); note.noteText = text; note.noteStyle = style; note.noteSize = size;
+        checkpoint(); note.noteText = text; note.noteStyle = style; note.noteSize = size; note.noteSpans.clear();
+    }
+    public void updateRichNote(int page, PdfDocument.Placement note,
+                               java.util.List<PdfDocument.NoteSpan> spans) {
+        checkPage(page);
+        if (!document.pages.get(page).contains(note) || !note.isNote()) return;
+        checkpoint();
+        note.noteSpans = new java.util.ArrayList<>();
+        StringBuilder text = new StringBuilder();
+        for (PdfDocument.NoteSpan span : spans) {
+            note.noteSpans.add(span.copy()); text.append(span.text);
+        }
+        note.noteText = text.toString();
     }
     public void arrange(int page, PdfDocument.Placement item, int direction) {
         checkPage(page);
