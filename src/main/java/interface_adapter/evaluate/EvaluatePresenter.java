@@ -1,6 +1,11 @@
 package interface_adapter.evaluate;
 
-import entity.EquationSolver;
+import entity.Interval;
+import entity.value.BooleanValue;
+import entity.value.FiniteSetValue;
+import entity.value.NumberValue;
+import entity.value.Value;
+import entity.value.VectorValue;
 import interface_adapter.MathLabState;
 import interface_adapter.MathLabViewModel;
 import use_case.evaluate.EvaluateOutputBoundary;
@@ -19,43 +24,84 @@ public class EvaluatePresenter implements EvaluateOutputBoundary {
     }
 
     @Override
-    public void prepareNumberView(double value) {
-        showResult("= " + format(value));
-    }
-
-    @Override
-    public void prepareCheckView(boolean isCorrect, double leftValue, double rightValue) {
-        if (isCorrect) {
-            showResult("Correct: both sides are " + format(leftValue));
+    public void prepareValuesView(List<Value> values) {
+        String text = "";
+        boolean onlyBooleans = true;
+        for (int i = 0; i < values.size(); i++) {
+            if (i > 0) {
+                text = text + " or ";
+            }
+            text = text + format(values.get(i));
+            if (!(values.get(i) instanceof BooleanValue)) {
+                onlyBooleans = false;
+            }
+        }
+        if (onlyBooleans) {
+            showResult(text);
         } else {
-            showResult("Not equal: the left side is " + format(leftValue)
-                    + ", the right side is " + format(rightValue));
+            showResult("= " + text);
         }
     }
 
     @Override
     public void prepareSolutionsView(String variable, List<Double> solutions) {
         if (solutions.isEmpty()) {
-            showResult("No solution found for " + variable + " between "
-                    + format(EquationSolver.SEARCH_START) + " and " + format(EquationSolver.SEARCH_END));
+            showResult("no solution");
             return;
         }
-        String text = "";
+        StringBuilder text = new StringBuilder();
         for (int i = 0; i < solutions.size() && i < MAX_SOLUTIONS_SHOWN; i++) {
             if (i > 0) {
-                text = text + " or ";
+                text.append(" or ");
             }
-            text = text + variable + " = " + format(solutions.get(i));
+            text.append(variable).append(" = ").append(format(solutions.get(i)));
         }
-        if (solutions.size() > MAX_SOLUTIONS_SHOWN) {
-            text = text + " (and " + (solutions.size() - MAX_SOLUTIONS_SHOWN) + " more)";
+        showResult(text + more(solutions.size()));
+    }
+
+    @Override
+    public void prepareIntervalsView(String variable, List<Interval> intervals) {
+        if (intervals.isEmpty()) {
+            showResult("no solution");
+            return;
         }
-        showResult(text);
+        StringBuilder text = new StringBuilder();
+        for (int i = 0; i < intervals.size() && i < MAX_SOLUTIONS_SHOWN; i++) {
+            if (i > 0) {
+                text.append(" or ");
+            }
+            text.append(formatInterval(variable, intervals.get(i)));
+        }
+        showResult(text + more(intervals.size()));
+    }
+
+    @Override
+    public void prepareExcludedView(String variable, List<Double> excluded) {
+        if (excluded.isEmpty()) {
+            prepareAlwaysTrueView(variable);
+            return;
+        }
+        StringBuilder text = new StringBuilder();
+        for (int i = 0; i < excluded.size() && i < MAX_SOLUTIONS_SHOWN; i++) {
+            if (i > 0) {
+                text.append(" and ");
+            }
+            text.append(variable).append(" ≠ ").append(format(excluded.get(i)));
+        }
+        showResult(text + more(excluded.size()));
+    }
+
+    // "n more" note for long lists
+    private static String more(int count) {
+        if (count <= MAX_SOLUTIONS_SHOWN) {
+            return "";
+        }
+        return " (and " + (count - MAX_SOLUTIONS_SHOWN) + " more)";
     }
 
     @Override
     public void prepareAlwaysTrueView(String variable) {
-        showResult("This is true for every value of " + variable);
+        showResult("true for all " + variable);
     }
 
     @Override
@@ -78,14 +124,70 @@ public class EvaluatePresenter implements EvaluateOutputBoundary {
         viewModel.firePropertyChanged(MathLabViewModel.RESULT);
     }
 
-    static String format(double value) {
-        if (Double.isNaN(value) || Double.isInfinite(value)) {
+    public static String format(double value) {
+        if (Double.isNaN(value)) {
             return "undefined";
+        }
+        if (value == Double.POSITIVE_INFINITY) {
+            return "∞";
+        }
+        if (value == Double.NEGATIVE_INFINITY) {
+            return "-∞";
         }
         if (Math.abs(value) < 1e-12) {
             return "0";
         }
         BigDecimal rounded = new BigDecimal(value).round(new MathContext(10));
         return rounded.stripTrailingZeros().toPlainString();
+    }
+
+    public static String format(Value value) {
+        if (value instanceof NumberValue) {
+            return format(((NumberValue) value).getValue());
+        }
+        if (value instanceof BooleanValue) {
+            return ((BooleanValue) value).getValue() ? "true" : "false";
+        }
+        if (value instanceof FiniteSetValue) {
+            return "{" + formatList(((FiniteSetValue) value).getElements()) + "}";
+        }
+        if (value instanceof VectorValue) {
+            return "(" + formatList(((VectorValue) value).getComponents()) + ")";
+        }
+        return "Uncalculable";
+    }
+
+    private static String formatList(List<Double> numbers) {
+        String text = "";
+        for (int i = 0; i < numbers.size(); i++) {
+            if (i > 0) {
+                text = text + ", ";
+            }
+            text = text + format(numbers.get(i));
+        }
+        return text;
+    }
+
+    private static String formatInterval(String variable, Interval interval) {
+        double low = interval.getLow();
+        double high = interval.getHigh();
+        String lowSign = interval.isLowIncluded() ? " ≤ " : " < ";
+        String highSign = interval.isHighIncluded() ? " ≤ " : " < ";
+        boolean lowBounded = low != Double.NEGATIVE_INFINITY;
+        boolean highBounded = high != Double.POSITIVE_INFINITY;
+        if (!lowBounded && !highBounded) {
+            return "true for all " + variable;
+        }
+        if (!lowBounded) {
+            return variable + highSign + format(high);
+        }
+        if (!highBounded) {
+            String sign = interval.isLowIncluded() ? " ≥ " : " > ";
+            return variable + sign + format(low);
+        }
+        if (interval.isPoint()) {
+            return variable + " = " + format((low + high) / 2);
+        }
+        return format(low) + lowSign + variable + highSign + format(high);
     }
 }

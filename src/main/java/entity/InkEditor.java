@@ -88,7 +88,7 @@ public final class InkEditor {
         for (Stroke stroke : strokes) {
             int inside = 0;
             for (InkPoint p : stroke.getPoints()) {
-                if (contains(loop, p.getX(), p.getY())) {
+                if (isInside(loop, p.getX(), p.getY())) {
                     inside++;
                 }
             }
@@ -122,7 +122,7 @@ public final class InkEditor {
     }
 
     /** Ray casting: is (x, y) inside the closed polygon? */
-    static boolean contains(List<InkPoint> polygon, double x, double y) {
+    public static boolean isInside(List<InkPoint> polygon, double x, double y) {
         boolean inside = false;
         for (int i = 0, j = polygon.size() - 1; i < polygon.size(); j = i++) {
             double xi = polygon.get(i).getX();

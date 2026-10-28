@@ -1,5 +1,10 @@
 package view;
 
+import entity.AnswerKind;
+import entity.AnswerLayout;
+import entity.CanvasAnswer;
+import entity.Formula;
+import entity.FormulaBook;
 import entity.InkEditor;
 import entity.InkPoint;
 import entity.Stroke;
@@ -31,9 +36,12 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.LongConsumer;
 import java.util.function.UnaryOperator;
 
 /**
@@ -95,11 +103,15 @@ public class DrawingCanvas extends JPanel {
     private static final int GRAPH_CLOSE_RADIUS = 11;     // close button, on screen
     private static final int VIEW_MARGIN_X = 16;          // keep a new card this far inside the view...
     private static final int VIEW_MARGIN_Y = 60;          // ...and clear of the floating controls
+    private static final Color ANSWER_ERROR = new Color(220, 38, 38);
     private static final int[] HANDLE_CURSORS = {Cursor.NW_RESIZE_CURSOR, Cursor.NE_RESIZE_CURSOR,
         Cursor.SE_RESIZE_CURSOR, Cursor.SW_RESIZE_CURSOR};
 
     private final List<Stroke> strokes = new ArrayList<>();
-    private final Deque<List<Stroke>> history = new ArrayDeque<>();
+    private final Deque<Snapshot> history = new ArrayDeque<>();
+    private FormulaBook book = new FormulaBook();  // calculated formulas + their answers
+    private long revisions;                       // only goes up, undo too
+    private final List<LongConsumer> formulaListeners = new ArrayList<>();
     private Tool tool = Tool.PEN;
     private EraserMode eraserMode = EraserMode.PRECISE;
     private Stroke currentStroke;
@@ -119,6 +131,7 @@ public class DrawingCanvas extends JPanel {
     // lasso (world coordinates)
     private List<InkPoint> lassoPath; // the loop being drawn
     private final Set<Stroke> selection = new HashSet<>();
+    private final Set<Long> selectedAnswers = new HashSet<>();  // formula ids
     private Point2D moveStart;        // where a drag of the selection started
     private int moveDx;
     private int moveDy;
@@ -196,7 +209,11 @@ public class DrawingCanvas extends JPanel {
                     setCursor(Cursor.getPredefinedCursor(spaceDown ? Cursor.MOVE_CURSOR : Cursor.CROSSHAIR_CURSOR));
                     return;
                 }
-                currentStroke = null;
+                if (currentStroke != null) {
+                    Stroke done = currentStroke;
+                    currentStroke = null;
+                    inkChanged(List.of(), List.of(done));  // one check per stroke
+                }
                 lastErasePoint = null;
                 if (tool == Tool.LASSO) {
                     finishLasso();
@@ -356,7 +373,7 @@ public class DrawingCanvas extends JPanel {
             y = (getHeight() / 2.0 - originY) / scale - h / 2;
         }
         graphCard = new Rectangle2D.Double(x, y, w, h);
-        bringIntoView(formula == null ? graphCard : graphCard.createUnion(formula));
+        bringIntoView(formula == null ? graphCard : graphCard.createUnion(formula), graphCard);
         repaint();
     }
 
@@ -394,8 +411,8 @@ public class DrawingCanvas extends JPanel {
         return close != null && close.distance(p) <= GRAPH_CLOSE_RADIUS + 2;
     }
 
-    /** Pans (without zooming) so the world rectangle, or at least the graph card, is in view. */
-    private void bringIntoView(Rectangle2D world) {
+    /** Pans (without zooming) so the world rectangle, or at least {@code fallback}, is in view. */
+    private void bringIntoView(Rectangle2D world, Rectangle2D fallback) {
         if (getWidth() <= 0 || getHeight() <= 0) {
             return;
         }
@@ -405,7 +422,7 @@ public class DrawingCanvas extends JPanel {
         double bottom = getHeight() - VIEW_MARGIN_Y;
         Rectangle2D target = toScreen(world);
         if (target.getWidth() > right - left || target.getHeight() > bottom - top) {
-            target = toScreen(graphCard);  // the formula and the card do not both fit: show the card
+            target = toScreen(fallback);  // too big: just show the fallback
         }
         panBy(shiftInto(target.getMinX(), target.getMaxX(), left, right),
                 shiftInto(target.getMinY(), target.getMaxY(), top, bottom));
@@ -508,12 +525,28 @@ public class DrawingCanvas extends JPanel {
         List<Stroke> after = eraserMode == EraserMode.PRECISE
                 ? InkEditor.eraseAlong(strokes, from.getX(), from.getY(), to.getX(), to.getY(), radius)
                 : InkEditor.removeTouchedAlong(strokes, from.getX(), from.getY(), to.getX(), to.getY(), radius);
-        if (after != strokes) {
-            if (!savedBeforeErase) {
-                saveForUndo();
-                savedBeforeErase = true;
+        List<Long> rubbed = new ArrayList<>();
+        for (Formula f : book.all()) {
+            CanvasAnswer a = f.getAnswer();
+            if (a != null) {
+                Rectangle2D hit = a.getBox();
+                hit.setRect(hit.getX() - radius, hit.getY() - radius, hit.getWidth() + 2 * radius, hit.getHeight() + 2 * radius);
+                if (hit.intersectsLine(from.getX(), from.getY(), to.getX(), to.getY())) {
+                    rubbed.add(f.getId());
+                }
             }
+        }
+        if ((after != strokes || !rubbed.isEmpty()) && !savedBeforeErase) {
+            saveForUndo();
+            savedBeforeErase = true;
+        }
+        for (long id : rubbed) {
+            book.remove(id);  // whole answer goes, formula unbound
+        }
+        if (after != strokes) {
+            List<Stroke> before = new ArrayList<>(strokes);
             replaceStrokes(after);
+            inkChanged(minus(before, after), minus(after, before));
         }
         lastErasePoint = to;
         repaint();
@@ -565,7 +598,8 @@ public class DrawingCanvas extends JPanel {
             if (resizeFactor != 1) {
                 Point2D anchor = resizeAnchor;
                 double factor = resizeFactor;
-                transformSelection(s -> InkEditor.scale(s, anchor.getX(), anchor.getY(), factor));
+                transformSelection(s -> InkEditor.scale(s, anchor.getX(), anchor.getY(), factor),
+                        a -> a.scaled(anchor.getX(), anchor.getY(), factor));
             }
             resizeHandle = -1;
             resizeFactor = 1;
@@ -573,35 +607,64 @@ public class DrawingCanvas extends JPanel {
             if (moveDx != 0 || moveDy != 0) {
                 int dx = moveDx;
                 int dy = moveDy;
-                transformSelection(s -> InkEditor.translate(s, dx, dy));
+                transformSelection(s -> InkEditor.translate(s, dx, dy), a -> a.translated(dx, dy));
             }
             moveStart = null;
             moveDx = 0;
             moveDy = 0;
         } else if (lassoPath != null) {
             selection.addAll(InkEditor.selectInside(strokes, lassoPath));
+            if (lassoPath.size() >= 3) {
+                for (Formula f : book.all()) {
+                    CanvasAnswer a = f.getAnswer();
+                    if (a != null && InkEditor.isInside(lassoPath, a.getBox().getCenterX(), a.getBox().getCenterY())) {
+                        selectedAnswers.add(f.getId());
+                    }
+                }
+            }
             lassoPath = null;
         }
         repaint();
     }
 
     /** Replaces each selected stroke with its changed copy, as one undo step; the copies stay selected. */
-    private void transformSelection(UnaryOperator<Stroke> change) {
+    private void transformSelection(UnaryOperator<Stroke> change, UnaryOperator<CanvasAnswer> answerChange) {
         saveForUndo();
         List<Stroke> after = new ArrayList<>();
-        Set<Stroke> changed = new HashSet<>();
+        Map<Stroke, Stroke> copies = new HashMap<>();
         for (Stroke stroke : strokes) {
             if (selection.contains(stroke)) {
                 Stroke copy = change.apply(stroke);
                 after.add(copy);
-                changed.add(copy);
+                copies.put(stroke, copy);
             } else {
                 after.add(stroke);
             }
         }
         replaceStrokes(after);
+        // whole formula moved: same content, answer tags along
+        List<Stroke> removed = new ArrayList<>(selection);
+        Set<Long> moved = new HashSet<>();
+        for (Formula f : book.all()) {
+            if (selection.containsAll(f.getStrokes())) {
+                book.moveWhole(f.getId(), copies, answerChange);
+                removed.removeAll(f.getStrokes());
+                moved.add(f.getId());
+            }
+        }
+        for (long id : selectedAnswers) {
+            Formula f = book.get(id);
+            if (f != null && f.getAnswer() != null && !moved.contains(id)) {
+                book.put(f.withAnswer(answerChange.apply(f.getAnswer())));
+            }
+        }
+        List<Stroke> added = new ArrayList<>();
+        for (Stroke s : removed) {
+            added.add(copies.get(s));
+        }
+        inkChanged(removed, added);  // partly moved formulas count as edited
         selection.clear();
-        selection.addAll(changed);
+        selection.addAll(copies.values());
     }
 
     /** The selected strokes as they look right now, including a move or resize being dragged. */
@@ -617,6 +680,29 @@ public class DrawingCanvas extends JPanel {
             }
         }
         return preview;
+    }
+
+    // selected answers as they look right now, drag included
+    private List<CanvasAnswer> answerPreview() {
+        List<CanvasAnswer> preview = new ArrayList<>();
+        for (long id : selectedAnswers) {
+            Formula f = book.get(id);
+            CanvasAnswer a = f == null ? null : f.getAnswer();
+            if (a == null) {
+                continue;
+            }
+            if (resizeHandle >= 0 && resizeFactor != 1) {
+                a = a.scaled(resizeAnchor.getX(), resizeAnchor.getY(), resizeFactor);
+            } else if (moveDx != 0 || moveDy != 0) {
+                a = a.translated(moveDx, moveDy);
+            }
+            preview.add(a);
+        }
+        return preview;
+    }
+
+    private boolean nothingSelected() {
+        return selection.isEmpty() && answerPreview().isEmpty();
     }
 
     /** Corner i of a box: 0 top-left, 1 top-right, 2 bottom-right, 3 bottom-left. */
@@ -644,35 +730,48 @@ public class DrawingCanvas extends JPanel {
     }
 
     public boolean hasSelection() {
-        return !selection.isEmpty();
+        return !nothingSelected();
     }
 
-    /** Removes the strokes selected with the lasso. */
+    /** Removes the strokes and answers selected with the lasso. */
     public void deleteSelection() {
-        if (selection.isEmpty()) {
+        if (nothingSelected()) {
             return;
         }
         saveForUndo();
+        for (long id : selectedAnswers) {
+            book.remove(id);  // unbinds the formula, ink stays
+        }
+        selectedAnswers.clear();
         List<Stroke> after = new ArrayList<>(strokes);
         after.removeAll(selection);
         replaceStrokes(after);
+        inkChanged(new ArrayList<>(selection), List.of());
         selection.clear();
         repaint();
     }
 
     public void clearSelection() {
-        if (!selection.isEmpty()) {
+        if (!selection.isEmpty() || !selectedAnswers.isEmpty()) {
             selection.clear();
+            selectedAnswers.clear();
             repaint();
         }
     }
 
     /** The selection's outline in world coordinates (including a drag in progress), or null. */
     private Rectangle selectionBounds() {
-        if (selection.isEmpty()) {
+        if (nothingSelected()) {
             return null;
         }
         Rectangle bounds = boundsOf(selectionPreview());
+        for (CanvasAnswer a : answerPreview()) {
+            if (bounds == null) {
+                bounds = a.getBox().getBounds();
+            } else {
+                bounds.add(a.getBox().getBounds());
+            }
+        }
         int pad = (int) INK_WIDTH + 4;
         bounds.grow(pad, pad);
         return bounds;
@@ -684,17 +783,7 @@ public class DrawingCanvas extends JPanel {
     }
 
     private static Rectangle boundsOf(Iterable<Stroke> strokeSet) {
-        Rectangle bounds = null;
-        for (Stroke stroke : strokeSet) {
-            for (InkPoint p : stroke.getPoints()) {
-                if (bounds == null) {
-                    bounds = new Rectangle(p.getX(), p.getY(), 0, 0);
-                } else {
-                    bounds.add(p.getX(), p.getY());
-                }
-            }
-        }
-        return bounds;
+        return AnswerLayout.bounds(strokeSet);
     }
 
     // ---------------------------------------------------------------- strokes and undo
@@ -711,10 +800,18 @@ public class DrawingCanvas extends JPanel {
     /** Steps back one change: a stroke, an erase, a lasso move or delete, or Clear. */
     public void undo() {
         if (!history.isEmpty()) {
-            replaceStrokes(history.pop());
+            Snapshot back = history.pop();
+            replaceStrokes(back.strokes);
+            book = back.book;  // answers come back as they were, no recalc
             currentStroke = null;
             selection.clear();
+            selectedAnswers.clear();
             repaint();
+            for (Formula f : book.all()) {
+                if (f.getAnswer() == null) {
+                    notifyChanged(f.getId());  // came back without its answer, get one
+                }
+            }
         }
     }
 
@@ -724,13 +821,17 @@ public class DrawingCanvas extends JPanel {
         }
         saveForUndo();
         strokes.clear();
+        for (Formula f : book.all()) {
+            book.remove(f.getId());
+        }
         currentStroke = null;
         selection.clear();
+        selectedAnswers.clear();
         repaint();
     }
 
     private void saveForUndo() {
-        history.push(new ArrayList<>(strokes));
+        history.push(new Snapshot(new ArrayList<>(strokes), book.copy()));
         if (history.size() > HISTORY_LIMIT) {
             history.removeLast();
         }
@@ -740,6 +841,156 @@ public class DrawingCanvas extends JPanel {
         List<Stroke> copy = new ArrayList<>(newStrokes);
         strokes.clear();
         strokes.addAll(copy);
+    }
+
+    // a - b, by identity
+    private static List<Stroke> minus(List<Stroke> a, List<Stroke> b) {
+        Set<Stroke> drop = new HashSet<>(b);
+        List<Stroke> left = new ArrayList<>();
+        for (Stroke s : a) {
+            if (!drop.contains(s)) {
+                left.add(s);
+            }
+        }
+        return left;
+    }
+
+    // tell the book, then whoever listens, which formulas got edited
+    private void inkChanged(List<Stroke> removed, List<Stroke> added) {
+        if (removed.isEmpty() && added.isEmpty()) {
+            return;
+        }
+        for (long id : book.strokesReplaced(removed, added, this::nextRevision)) {
+            notifyChanged(id);
+        }
+    }
+
+    private void notifyChanged(long id) {
+        for (LongConsumer listener : formulaListeners) {
+            listener.accept(id);
+        }
+    }
+
+    // mid-gesture a pan would shift the ink under the pen
+    private boolean busy() {
+        return currentStroke != null || moveStart != null || resizeHandle >= 0 || lassoPath != null
+                || lastErasePoint != null || panFrom != null;
+    }
+
+    private long nextRevision() {
+        return ++revisions;
+    }
+
+    private static final class Snapshot {
+        final List<Stroke> strokes;
+        final FormulaBook book;
+
+        Snapshot(List<Stroke> strokes, FormulaBook book) {
+            this.strokes = strokes;
+            this.book = book;
+        }
+    }
+
+    // ---------------------------------------------------------------- formulas and answers
+
+    // fires per edited formula id, not on undo
+    public void addFormulaChangeListener(LongConsumer listener) {
+        formulaListeners.add(listener);
+    }
+
+    public List<Formula> getFormulas() {
+        return book.all();
+    }
+
+    public List<CanvasAnswer> getAnswers() {
+        List<CanvasAnswer> answers = new ArrayList<>();
+        for (Formula f : book.all()) {
+            if (f.getAnswer() != null) {
+                answers.add(f.getAnswer());
+            }
+        }
+        return answers;
+    }
+
+    // lasso pick, else unbound ink, else redo every formula; throws if blank
+    public List<FormulaCapture> takeFormulasToCalculate() {
+        if (isBlank()) {
+            throw new IllegalStateException("The canvas is empty.");
+        }
+        List<Stroke> picked = formulaStrokes();
+        if (selection.isEmpty()) {
+            picked = new ArrayList<>();
+            for (Stroke s : strokes) {
+                if (!book.isBound(s)) {
+                    picked.add(s);
+                }
+            }
+        }
+        List<FormulaCapture> captures = new ArrayList<>();
+        if (!picked.isEmpty()) {
+            captures.add(capture(book.add(picked, nextRevision())));
+        } else {
+            for (Formula f : book.all()) {
+                captures.add(capture(book.add(f.getStrokes(), nextRevision())));  // fresh, no answer
+            }
+        }
+        repaint();
+        return captures;
+    }
+
+    // null if gone or already answered
+    public FormulaCapture captureForRecalculation(long id) {
+        Formula f = book.get(id);
+        return f == null || f.getAnswer() != null ? null : capture(f);
+    }
+
+    // false if the formula is gone or changed since capture
+    public boolean showAnswer(long id, long revision, AnswerKind kind, String text, boolean error) {
+        Formula f = book.get(id);
+        if (f == null || f.getRevision() != revision) {
+            return false;
+        }
+        List<Stroke> ink = inDrawingOrder(f);
+        double h = AnswerLayout.charHeight(ink);
+        float size = AnswerFont.sizeFor(h);
+        Rectangle2D text2d = AnswerFont.visualBounds(text, size);
+        double w = text2d.getWidth();
+        double ht = text2d.getHeight();
+        Point2D at = kind.isBelow() ? AnswerLayout.below(ink, h) : AnswerLayout.rightOf(ink, h, ht);
+        if (kind.isBelow() && hitsOtherInk(new Rectangle2D.Double(at.getX(), at.getY(), w, ht), f)) {
+            at = AnswerLayout.rightOf(ink, h, ht);
+        }
+        CanvasAnswer answer = new CanvasAnswer(text, error, at.getX(), at.getY(), w, ht, size);
+        book.put(f.withAnswer(answer));
+        if (!busy()) {
+            bringIntoView(answer.getBox(), answer.getBox());
+        }
+        repaint();
+        return true;
+    }
+
+    private boolean hitsOtherInk(Rectangle2D box, Formula f) {
+        for (Stroke s : strokes) {
+            Rectangle b = f.getStrokes().contains(s) ? null : boundsOf(List.of(s));
+            if (b != null && box.intersects(b.x, b.y, Math.max(1, b.width), Math.max(1, b.height))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private List<Stroke> inDrawingOrder(Formula f) {
+        List<Stroke> ink = new ArrayList<>();
+        for (Stroke s : strokes) {
+            if (f.getStrokes().contains(s)) {
+                ink.add(s);
+            }
+        }
+        return ink;
+    }
+
+    private FormulaCapture capture(Formula f) {
+        return new FormulaCapture(f.getId(), f.getRevision(), imageOf(inDrawingOrder(f)));
     }
 
     // ---------------------------------------------------------------- images
@@ -795,7 +1046,11 @@ public class DrawingCanvas extends JPanel {
         if (isBlank()) {
             throw new IllegalStateException("The canvas is empty.");
         }
-        List<Stroke> formula = formulaStrokes();
+        return imageOf(formulaStrokes());
+    }
+
+    // cropped picture of some strokes, answers never included
+    private BufferedImage imageOf(List<Stroke> formula) {
         Rectangle ink = boundsOf(formula);
         int margin = FORMULA_MARGIN + (int) Math.ceil(INK_WIDTH / 2);
         int inkWidth = ink.width + 1 + 2 * margin;
@@ -830,6 +1085,7 @@ public class DrawingCanvas extends JPanel {
         world.scale(scale, scale);
         paintGraphCard(world);
         drawStrokes(world);
+        paintAnswers(world);
         world.dispose();
     }
 
@@ -857,7 +1113,12 @@ public class DrawingCanvas extends JPanel {
                 drawStroke(world, stroke);
             }
         }
-        if (!selection.isEmpty()) {
+        for (Formula f : book.all()) {
+            if (f.getAnswer() != null && !selectedAnswers.contains(f.getId())) {
+                drawAnswer(world, f.getAnswer());
+            }
+        }
+        if (!nothingSelected()) {
             paintSelection(world);
         }
         if (lassoPath != null && lassoPath.size() > 1) {
@@ -973,6 +1234,15 @@ public class DrawingCanvas extends JPanel {
             drawStroke(ink, stroke);
         }
         ink.dispose();
+        for (CanvasAnswer a : answerPreview()) {
+            Rectangle2D box = a.getBox();
+            Graphics2D halo = (Graphics2D) world.create();
+            halo.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            halo.setColor(SELECTION_HALO);
+            halo.fill(new RoundRectangle2D.Double(box.getX() - 4, box.getY() - 4, box.getWidth() + 8, box.getHeight() + 8, 8, 8));
+            halo.dispose();
+            drawAnswer(world, a);
+        }
 
         world.setStroke(dashed());
         world.setColor(SELECTION);
@@ -1004,6 +1274,21 @@ public class DrawingCanvas extends JPanel {
         world.setStroke(dashed());
         world.setColor(SELECTION);
         world.draw(loop);
+    }
+
+    private void paintAnswers(Graphics2D world) {
+        for (CanvasAnswer a : getAnswers()) {
+            drawAnswer(world, a);
+        }
+    }
+
+    private static void drawAnswer(Graphics2D world, CanvasAnswer a) {
+        Graphics2D g = (Graphics2D) world.create();
+        g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.setColor(a.isError() ? ANSWER_ERROR : INK_COLOR);
+        AnswerFont.draw(g, a.getText(), a.getFontSize(), a.getX(), a.getY());
+        g.dispose();
     }
 
     private void drawStrokes(Graphics2D g2) {

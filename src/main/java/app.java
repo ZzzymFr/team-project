@@ -1,4 +1,5 @@
 import app.StackedAppBuilder;
+import data_access.VitalMiniFormulaRecognizer;
 import model.vital_mini;
 
 import javax.swing.JFrame;
@@ -19,13 +20,11 @@ public class app {
             } catch (Exception ignored) {
                 // Fall back to the default look.
             }
-            AppBuilder evaluator = new AppBuilder()
-                    .addExpressionView()
-                    .addEvaluateUseCase();
             frame = new StackedAppBuilder()
                     .addGraphPage()
                     .addPdfPage()
                     .addAnswerPage()
+                    .setFormulaRecognizer(new VitalMiniFormulaRecognizer(model))
                     .build();
             frame.addWindowListener(new WindowAdapter() {
                 @Override
