@@ -21,7 +21,9 @@ public final class PdfEditorFrame extends JFrame {
     private final JList<MathLibrary.Material> shelf = new JList<>(listModel);
     private final PageCanvas canvas = new PageCanvas();
     private final JPanel editor = new JPanel(new BorderLayout(12, 12));
-    private static final Color BACKDROP = new Color(239, 244, 252);
+    private static final Color BACKDROP = new Color(243, 247, 253);
+    private static final Color INK = new Color(35, 52, 77);
+    private static final Color MUTED = new Color(113, 131, 157);
     private final JPanel preview = new JPanel(new BorderLayout());
     private final CardLayout cards = new CardLayout();
     private final JPanel center = new JPanel(cards);
@@ -40,22 +42,34 @@ public final class PdfEditorFrame extends JFrame {
         editor.setBackground(BACKDROP);
         editor.setBorder(BorderFactory.createEmptyBorder(14, 14, 14, 14));
         setupShelf();
-        JPanel left = new JPanel(new BorderLayout(4, 4));
-        JLabel shelfTitle = new JLabel("  MATERIAL LIBRARY  ·  Drag onto A4 paper");
-        shelfTitle.setFont(Fonts.ui(Font.BOLD, 15f));
-        shelfTitle.setForeground(new Color(39, 55, 80));
-        left.add(shelfTitle, BorderLayout.NORTH);
-        left.setBackground(new Color(250, 252, 255));
-        left.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(new Color(211, 224, 241)),
-                BorderFactory.createEmptyBorder(12, 10, 12, 10)));
-        left.add(new JScrollPane(shelf), BorderLayout.CENTER);
-        left.setPreferredSize(new Dimension(295, 600));
+        RoundedPanel left = new RoundedPanel(new BorderLayout(0, 12), new Color(255, 255, 255, 238), 24);
+        left.setBorder(BorderFactory.createEmptyBorder(18, 16, 16, 16));
+        JLabel shelfTitle = new JLabel("MATERIAL LIBRARY");
+        shelfTitle.setFont(Fonts.ui(Font.BOLD, 16f));
+        shelfTitle.setForeground(INK);
+        JLabel hint = new JLabel("Drag a card onto the A4 page");
+        hint.setFont(Fonts.ui(Font.PLAIN, 12f));
+        hint.setForeground(MUTED);
+        JPanel heading = new JPanel(new BorderLayout(0, 5));
+        heading.setOpaque(false);
+        heading.add(shelfTitle, BorderLayout.NORTH);
+        heading.add(hint, BorderLayout.SOUTH);
+        left.add(heading, BorderLayout.NORTH);
+        JScrollPane shelfScroll = glassScroll(shelf);
+        shelfScroll.getViewport().setOpaque(false);
+        left.add(shelfScroll, BorderLayout.CENTER);
+        left.setPreferredSize(new Dimension(320, 600));
         editor.add(left, BorderLayout.WEST);
-        JScrollPane pageScroll = new JScrollPane(canvas);
-        pageScroll.getViewport().setBackground(BACKDROP);
-        editor.add(pageScroll, BorderLayout.CENTER);
+        RoundedPanel stage = new RoundedPanel(new BorderLayout(), new Color(233, 240, 250), 24);
+        stage.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
+        JScrollPane pageScroll = glassScroll(canvas);
+        pageScroll.getViewport().setBackground(new Color(233, 240, 250));
+        stage.add(pageScroll, BorderLayout.CENTER);
+        editor.add(stage, BorderLayout.CENTER);
         editor.add(editorToolbar(), BorderLayout.NORTH);
+        status.setFont(Fonts.ui(Font.PLAIN, 12f));
+        status.setForeground(MUTED);
+        status.setBorder(BorderFactory.createEmptyBorder(2, 5, 0, 0));
         editor.add(status, BorderLayout.SOUTH);
         center.add(editor, "edit"); center.add(preview, "preview");
         setContentPane(center);
@@ -64,18 +78,35 @@ public final class PdfEditorFrame extends JFrame {
     }
     private void setupShelf() {
         shelf.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        shelf.setFixedCellHeight(85);
+        shelf.setFixedCellHeight(112);
+        shelf.setOpaque(false);
+        shelf.setBackground(Color.WHITE);
+        shelf.setBorder(BorderFactory.createEmptyBorder(2, 2, 2, 2));
         shelf.setCellRenderer((list, item, index, selected, focused) -> {
-            JPanel panel = new JPanel(new BorderLayout(3, 3));
-            panel.setBorder(BorderFactory.createEmptyBorder(5, 8, 5, 8));
-            panel.setBackground(selected ? new Color(214, 229, 249) : Color.WHITE);
+            JPanel wrapper = new JPanel(new BorderLayout());
+            wrapper.setOpaque(false);
+            wrapper.setBorder(BorderFactory.createEmptyBorder(0, 0, 9, 4));
+            RoundedPanel card = new RoundedPanel(new BorderLayout(0, 7),
+                    selected ? new Color(222, 235, 253) : new Color(247, 250, 254), 17);
+            card.setBorder(BorderFactory.createEmptyBorder(10, 12, 9, 12));
             if (item != null) {
-                JLabel title = new JLabel(item.title + (item.isGraph() ? "  [image]" : "  [formula + result]"));
-                panel.add(title, BorderLayout.NORTH);
-                JLabel content = new JLabel(new ImageIcon(MaterialRenderer.render(item, 230, 48)));
-                panel.add(content, BorderLayout.CENTER);
+                JLabel title = new JLabel(item.title);
+                title.setFont(Fonts.ui(Font.BOLD, 13f));
+                title.setForeground(INK);
+                JLabel type = new JLabel(item.isGraph() ? "GRAPH" : "FORMULA + RESULT");
+                type.setFont(Fonts.ui(Font.BOLD, 10f));
+                type.setForeground(new Color(60, 105, 181));
+                JPanel heading = new JPanel(new BorderLayout(5, 0));
+                heading.setOpaque(false);
+                heading.add(title, BorderLayout.CENTER);
+                heading.add(type, BorderLayout.EAST);
+                card.add(heading, BorderLayout.NORTH);
+                JLabel content = new JLabel(new ImageIcon(MaterialRenderer.render(item, 240, 62)));
+                content.setHorizontalAlignment(SwingConstants.LEFT);
+                card.add(content, BorderLayout.CENTER);
             }
-            return panel;
+            wrapper.add(card, BorderLayout.CENTER);
+            return wrapper;
         });
         shelf.setDragEnabled(true);
         shelf.setTransferHandler(new TransferHandler() {
@@ -85,6 +116,49 @@ public final class PdfEditorFrame extends JFrame {
             }
             @Override public int getSourceActions(JComponent c) { return COPY; }
         });
+    }
+    private static JScrollPane glassScroll(Component view) {
+        JScrollPane scroll = new JScrollPane(view);
+        scroll.setBorder(BorderFactory.createEmptyBorder());
+        scroll.setOpaque(false);
+        scroll.getViewport().setBorder(null);
+        scroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        scroll.getVerticalScrollBar().setUI(new GlassScrollBarUI());
+        scroll.getVerticalScrollBar().setPreferredSize(new Dimension(9, 0));
+        scroll.getVerticalScrollBar().setUnitIncrement(18);
+        return scroll;
+    }
+    private static final class RoundedPanel extends JPanel {
+        private final Color fill;
+        private final int arc;
+        RoundedPanel(LayoutManager layout, Color fill, int arc) {
+            super(layout); this.fill = fill; this.arc = arc; setOpaque(false);
+        }
+        @Override protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setColor(fill);
+            g2.fillRoundRect(0, 0, getWidth() - 1, getHeight() - 1, arc, arc);
+            g2.setColor(new Color(208, 221, 238, 140));
+            g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, arc, arc);
+            g2.dispose();
+            super.paintComponent(g);
+        }
+    }
+    private static final class GlassScrollBarUI extends javax.swing.plaf.basic.BasicScrollBarUI {
+        @Override protected void configureScrollBarColors() { thumbColor = new Color(163, 185, 214, 175); trackColor = new Color(0, 0, 0, 0); }
+        @Override protected JButton createDecreaseButton(int orientation) { return invisibleButton(); }
+        @Override protected JButton createIncreaseButton(int orientation) { return invisibleButton(); }
+        private JButton invisibleButton() { JButton b = new JButton(); b.setPreferredSize(new Dimension(0, 0)); b.setMinimumSize(new Dimension(0, 0)); b.setMaximumSize(new Dimension(0, 0)); return b; }
+        @Override protected void paintTrack(Graphics g, JComponent c, Rectangle bounds) { }
+        @Override protected void paintThumb(Graphics g, JComponent c, Rectangle bounds) {
+            if (bounds.isEmpty()) return;
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setColor(isDragging ? new Color(115, 153, 204, 215) : new Color(160, 183, 212, 170));
+            g2.fillRoundRect(bounds.x + 2, bounds.y + 3, Math.max(3, bounds.width - 4), Math.max(4, bounds.height - 6), 9, 9);
+            g2.dispose();
+        }
     }
     private void refreshShelf() {
         listModel.clear();
@@ -142,7 +216,7 @@ public final class PdfEditorFrame extends JFrame {
         preview.add(bar, BorderLayout.NORTH);
         JLabel image = new JLabel(new ImageIcon(previewImages.get(previewPage)));
         image.setHorizontalAlignment(SwingConstants.CENTER);
-        preview.add(new JScrollPane(image), BorderLayout.CENTER);
+        preview.add(glassScroll(image), BorderLayout.CENTER);
         preview.revalidate(); preview.repaint();
     }
     private void export() {
@@ -225,8 +299,11 @@ public final class PdfEditorFrame extends JFrame {
         @Override protected void paintComponent(Graphics g) {
             super.paintComponent(g);
             Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setColor(new Color(117, 142, 173, 28));
+            g2.fillRoundRect(MARGIN + 5, MARGIN + 7, (int) PdfDocument.PAGE_WIDTH, (int) PdfDocument.PAGE_HEIGHT, 5, 5);
             g2.setColor(Color.WHITE); g2.fillRect(MARGIN, MARGIN, (int) PdfDocument.PAGE_WIDTH, (int) PdfDocument.PAGE_HEIGHT);
-            g2.setColor(new Color(180, 180, 180)); g2.drawRect(MARGIN, MARGIN, (int) PdfDocument.PAGE_WIDTH, (int) PdfDocument.PAGE_HEIGHT);
+            g2.setColor(new Color(215, 225, 238)); g2.drawRect(MARGIN, MARGIN, (int) PdfDocument.PAGE_WIDTH, (int) PdfDocument.PAGE_HEIGHT);
             for (PdfDocument.Placement p : useCase.placements(currentPage)) {
                 int x = Math.round(p.x) + MARGIN, y = Math.round(p.y) + MARGIN;
                 int w = Math.round(p.width), h = Math.round(p.height);
