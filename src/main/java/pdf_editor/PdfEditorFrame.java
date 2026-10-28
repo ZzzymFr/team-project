@@ -66,7 +66,15 @@ public final class PdfEditorFrame extends JFrame {
         pageScroll.getViewport().setBackground(new Color(233, 240, 250));
         stage.add(pageScroll, BorderLayout.CENTER);
         editor.add(stage, BorderLayout.CENTER);
-        editor.add(editorToolbar(), BorderLayout.NORTH);
+        JPanel toolbar = editorToolbar();
+        editor.add(toolbar, BorderLayout.NORTH);
+
+        addComponentListener(new java.awt.event.ComponentAdapter() {
+            @Override public void componentResized(java.awt.event.ComponentEvent e) {
+                toolbar.revalidate();
+                editor.revalidate();
+            }
+        });
         status.setFont(Fonts.ui(Font.PLAIN, 12f));
         status.setForeground(MUTED);
         status.setBorder(BorderFactory.createEmptyBorder(2, 5, 0, 0));
@@ -165,7 +173,7 @@ public final class PdfEditorFrame extends JFrame {
         for (MathLibrary.Material material : library.items()) listModel.addElement(material);
     }
     private JPanel editorToolbar() {
-        JPanel tools = new JPanel(new FlowLayout(FlowLayout.LEFT, 7, 5));
+        JPanel tools = new JPanel(new CenteredWrapLayout(9, 8));
         JButton previous = button("< Page", () -> switchPage(currentPage - 1));
         JButton next = button("Page >", () -> switchPage(currentPage + 1));
         tools.add(previous); tools.add(pageLabel); tools.add(next);
@@ -182,7 +190,6 @@ public final class PdfEditorFrame extends JFrame {
         tools.add(button("Undo", this::undo)); tools.add(button("Redo", this::redo));
         tools.add(menuButton("Arrange", arrangeMenu()));
         tools.add(button("+ Note", this::addNote));
-        tools.add(menuButton("Text", textMenu()));
         tools.add(button("Done / Preview", this::showPreview));
         return tools;
     }
@@ -205,11 +212,6 @@ public final class PdfEditorFrame extends JFrame {
         menuItem(menu, "Send to Back", () -> arrange(-2));
         return menu;
     }
-    private JPopupMenu textMenu() {
-        JPopupMenu menu = new JPopupMenu();
-        menuItem(menu, "Rich Text Editor...", this::editNote);
-        return menu;
-    }
     private void arrange(int direction) {
         if (canvas.selected == null) { status.setText("Select an item before arranging."); return; }
         useCase.arrange(currentPage, canvas.selected, direction);
@@ -228,8 +230,6 @@ public final class PdfEditorFrame extends JFrame {
             canvas.repaint();
         }
     }
-    private void toggleNoteStyle(int flag) { editNote(); }
-    private void changeNoteSize() { editNote(); }
     private void splitSelected() {
         PdfDocument.Placement[] result = useCase.splitCalculation(currentPage, canvas.selected);
         if (result == null) { status.setText("Select a combined formula + result item first."); return; }
@@ -241,7 +241,6 @@ public final class PdfEditorFrame extends JFrame {
         PdfDocument.Placement selected = canvas.selected;
         if (selected.isNote()) {
             menuItem(menu, "Edit Note...", this::editNote);
-            menuItem(menu, "Rich Text Editor...", this::editNote);
         } else if (!selected.material.isGraph() && selected.material.result != null
                 && !selected.material.result.isBlank()) {
             menuItem(menu, "Separate Formula and Result", this::splitSelected);
@@ -281,7 +280,8 @@ public final class PdfEditorFrame extends JFrame {
     }
     private void buildPreview() {
         preview.removeAll();
-        JPanel bar = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        JPanel bar = new JPanel(new CenteredWrapLayout(9, 8));
+        bar.setBackground(BACKDROP);
         bar.add(button("Back to Edit", () -> cards.show(center, "edit")));
         bar.add(button("<", () -> { previewPage = Math.max(0, previewPage - 1); buildPreview(); }));
         bar.add(new JLabel("Preview " + (previewPage + 1) + " / " + previewImages.size()));
@@ -294,18 +294,139 @@ public final class PdfEditorFrame extends JFrame {
         preview.revalidate(); preview.repaint();
     }
     private void export() {
-        JFileChooser chooser = new JFileChooser(); chooser.setSelectedFile(new java.io.File("mathlab-notes.pdf"));
-        if (chooser.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) return;
-        java.io.File output = chooser.getSelectedFile();
-        if (!output.getName().toLowerCase().endsWith(".pdf")) output = new java.io.File(output.getPath() + ".pdf");
-        if (output.exists() && JOptionPane.showConfirmDialog(this, "Overwrite existing file?", "Confirm", JOptionPane.YES_NO_OPTION) != JOptionPane.YES_OPTION) return;
+
+        FileDialog dialog = new FileDialog(this, "Save PDF", FileDialog.SAVE);
+        dialog.setFile("mathlab-notes.pdf");
+        dialog.setFilenameFilter((directory, name) -> name.toLowerCase(java.util.Locale.ROOT).endsWith(".pdf"));
+        dialog.setVisible(true);
+        String name = dialog.getFile();
+        if (name == null) return;
+        java.io.File output = new java.io.File(dialog.getDirectory(), name);
+        if (!output.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".pdf"))
+            output = new java.io.File(output.getPath() + ".pdf");
+        if (output.exists() && !confirmGlass("Replace existing PDF?",
+                "A file with this name already exists. Replace it?")) return;
         try {
             new PdfExporter().export(useCase.snapshot(), output.toPath());
-            JOptionPane.showMessageDialog(this, "Saved: " + output.getAbsolutePath());
+            messageGlass("PDF saved", "Saved to: " + output.getAbsolutePath());
         } catch (IOException | RuntimeException e) { error("Export failed", e); }
     }
     private void error(String title, Exception e) {
-        JOptionPane.showMessageDialog(this, e.getMessage(), title, JOptionPane.ERROR_MESSAGE);
+        messageGlass(title, e.getMessage() == null ? "An unexpected error occurred." : e.getMessage());
+    }
+    private void messageGlass(String title, String message) {
+        glassDialog(title, message, false);
+    }
+    private boolean confirmGlass(String title, String message) {
+        return glassDialog(title, message, true);
+    }
+    private boolean glassDialog(String title, String message, boolean confirmation) {
+        JDialog dialog = new JDialog(this, title, true);
+        dialog.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+        RoundedPanel panel = new RoundedPanel(new BorderLayout(0, 16), Color.WHITE, 24);
+        panel.setBorder(BorderFactory.createEmptyBorder(24, 26, 20, 26));
+        JLabel heading = new JLabel(title);
+        heading.setFont(Fonts.ui(Font.BOLD, 19f));
+        heading.setForeground(INK);
+        JLabel body = new JLabel("<html><div style='width:360px'>" + escapeHtml(message) + "</div></html>");
+        body.setFont(Fonts.ui(Font.PLAIN, 13f));
+        body.setForeground(MUTED);
+        JPanel content = new JPanel(new BorderLayout(0, 10));
+        content.setOpaque(false);
+        content.add(heading, BorderLayout.NORTH);
+        content.add(body, BorderLayout.CENTER);
+        panel.add(content, BorderLayout.CENTER);
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 9, 0));
+        actions.setOpaque(false);
+        final boolean[] accepted = {false};
+        if (confirmation) {
+            JButton cancel = button("Cancel", dialog::dispose);
+            actions.add(cancel);
+        }
+        JButton ok = button(confirmation ? "Replace" : "OK", () -> {
+            accepted[0] = true;
+            dialog.dispose();
+        });
+        actions.add(ok);
+        panel.add(actions, BorderLayout.SOUTH);
+        dialog.setContentPane(panel);
+        dialog.pack();
+        dialog.setMinimumSize(new Dimension(430, 175));
+        dialog.setLocationRelativeTo(this);
+        dialog.getRootPane().setDefaultButton(ok);
+        dialog.setVisible(true);
+        return accepted[0];
+    }
+    private static String escapeHtml(String value) {
+        return value.replace("&", "&amp;").replace("<", "&lt;")
+                .replace(">", "&gt;").replace("\"", "&quot;");
+    }
+
+
+    private static final class CenteredWrapLayout implements LayoutManager {
+        private final int gap;
+        private final int verticalGap;
+        CenteredWrapLayout(int gap, int verticalGap) {
+            this.gap = gap;
+            this.verticalGap = verticalGap;
+        }
+        @Override public void addLayoutComponent(String name, Component component) { }
+        @Override public void removeLayoutComponent(Component component) { }
+        @Override public Dimension preferredLayoutSize(Container parent) {
+            synchronized (parent.getTreeLock()) {
+                Insets insets = parent.getInsets();
+                int available = parent.getWidth() > 0 ? parent.getWidth() - insets.left - insets.right
+                        : 1024;
+                available = Math.max(1, available);
+                int rowWidth = 0, rowHeight = 0, totalHeight = 0, maxWidth = 0;
+                for (Component c : parent.getComponents()) {
+                    if (!c.isVisible()) continue;
+                    Dimension d = c.getPreferredSize();
+                    if (rowWidth > 0 && rowWidth + gap + d.width > available) {
+                        totalHeight += rowHeight + verticalGap;
+                        maxWidth = Math.max(maxWidth, rowWidth);
+                        rowWidth = 0; rowHeight = 0;
+                    }
+                    if (rowWidth > 0) rowWidth += gap;
+                    rowWidth += d.width;
+                    rowHeight = Math.max(rowHeight, d.height);
+                }
+                totalHeight += rowHeight;
+                maxWidth = Math.max(maxWidth, rowWidth);
+                return new Dimension(maxWidth + insets.left + insets.right,
+                        totalHeight + insets.top + insets.bottom + verticalGap * 2);
+            }
+        }
+        @Override public Dimension minimumLayoutSize(Container parent) { return preferredLayoutSize(parent); }
+        @Override public void layoutContainer(Container parent) {
+            synchronized (parent.getTreeLock()) {
+                Insets insets = parent.getInsets();
+                int available = Math.max(1, parent.getWidth() - insets.left - insets.right);
+                java.util.List<Component> row = new java.util.ArrayList<>();
+                int width = 0, height = 0, y = insets.top + verticalGap;
+                for (Component c : parent.getComponents()) {
+                    if (!c.isVisible()) continue;
+                    Dimension d = c.getPreferredSize();
+                    if (!row.isEmpty() && width + gap + d.width > available) {
+                        placeRow(row, parent, insets.left, available, y, width, height);
+                        y += height + verticalGap;
+                        row.clear(); width = 0; height = 0;
+                    }
+                    if (!row.isEmpty()) width += gap;
+                    row.add(c); width += d.width; height = Math.max(height, d.height);
+                }
+                if (!row.isEmpty()) placeRow(row, parent, insets.left, available, y, width, height);
+            }
+        }
+        private void placeRow(java.util.List<Component> row, Container parent, int left,
+                              int available, int y, int width, int height) {
+            int x = left + Math.max(0, (available - width) / 2);
+            for (Component c : row) {
+                Dimension d = c.getPreferredSize();
+                c.setBounds(x, y + (height - d.height) / 2, d.width, d.height);
+                x += d.width + gap;
+            }
+        }
     }
     private final class PageCanvas extends JPanel {
         private static final int SCALE = 1; // 1 Swing pixel = 1 PDF point
