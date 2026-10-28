@@ -20,6 +20,7 @@ import view.canvas.PdfCanvasPage;
 import view.canvas.SharedCanvas;
 import view.stack.StackedPages;
 import view.stack.WindowChrome;
+import pdf_editor.PdfStudioLauncher;
 
 import javax.swing.JComponent;
 import javax.swing.JFrame;
@@ -36,10 +37,19 @@ public class StackedAppBuilder {
 
     private final SharedCanvas sharedCanvas = new SharedCanvas(new DrawingCanvas());
     private final StackedPages pages = new StackedPages();
+    private final PdfStudioLauncher pdfStudio = new PdfStudioLauncher();
 
     /** The Graph page, wired to the graph use case: LaTeX -> parse and sample -> QuickChart -> graph card. */
     public StackedAppBuilder addGraphPage() {
         GraphViewModel viewModel = new GraphViewModel();
+        viewModel.addPropertyChangeListener(event -> {
+            if (GraphViewModel.STATE_PROPERTY.equals(event.getPropertyName())) {
+                interface_adapter.graph.GraphState state = viewModel.getState();
+                if (state.getError() == null && state.getGraphImage() != null) {
+                    pdfStudio.addGraph(state.getLatex(), state.getGraphImage());
+                }
+            }
+        });
         GraphFunctionInteractor interactor = new GraphFunctionInteractor(
                 new LatexFunctionParser(), new QuickChartGraphRenderer(), new GraphPresenter(viewModel));
         GraphController controller = new GraphController(interactor);
@@ -48,7 +58,7 @@ public class StackedAppBuilder {
     }
 
     public StackedAppBuilder addPdfPage() {
-        pages.addPage("PDF", PDF_ORANGE, new PdfCanvasPage(sharedCanvas));
+        pages.addPage("PDF", PDF_ORANGE, new PdfCanvasPage(sharedCanvas, pdfStudio));
         return this;
     }
 
@@ -58,7 +68,7 @@ public class StackedAppBuilder {
         EvaluateInteractor interactor = new EvaluateInteractor(
                 new InMemoryFunctionDataAccessObject(), new EvaluatePresenter(viewModel));
         EvaluateController controller = new EvaluateController(interactor);
-        pages.addPage("Answer", ANSWER_GREEN, new AnswerCanvasPage(sharedCanvas, controller, viewModel));
+        pages.addPage("Answer", ANSWER_GREEN, new AnswerCanvasPage(sharedCanvas, controller, viewModel, pdfStudio::addCalculation));
         return this;
     }
 
