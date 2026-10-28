@@ -197,7 +197,7 @@ class vital_pixel(nn.Module):
         self.conv3 = nn.Conv2d(32, 64, kernel_size=5, stride=1, padding=2, padding_mode="replicate")
         self.norm3 = nn.BatchNorm2d(64)
         self.con4 = nn.Conv2d(64, 128, kernel_size=5, stride=2, padding=2)
-        self.con5 = nn.Conv2d(128, d_model, kernel_size=3, stride=1, padding=1)
+        self.con5 = nn.Conv2d(128, d_model, kernel_size=5, stride=1, padding=2)
         self.norm4 = nn.BatchNorm2d(128)
         self.norm5 = nn.BatchNorm2d(d_model)
 
