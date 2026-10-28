@@ -147,7 +147,8 @@ public class AnswerCanvasPage extends CanvasPage {
 
     private void deliver(FormulaCapture capture, AnswerKind kind, String result, String error, boolean manual) {
         if (!error.isEmpty()) {
-            if (getSharedCanvas().showAnswer(capture.getId(), capture.getRevision(), kind, "?", true)) {
+            // popup only, nothing drawn
+            if (getSharedCanvas().isCurrent(capture.getId(), capture.getRevision())) {
                 ownMessage(manual);
                 showMessage(error, true, ERROR_MESSAGE_MILLIS);
             }

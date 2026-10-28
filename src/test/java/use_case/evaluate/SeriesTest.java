@@ -24,9 +24,9 @@ class SeriesTest {
     @Test
     void undefinedAndUncalculable() {
         assertEquals("= undefined", Calc.once("\\sum_{n=0}^{3}\\frac{1}{n}"));
-        assertEquals("Uncalculable", Calc.once("\\sum_{i=1}^{2000000}i"));
-        assertEquals("Uncalculable", Calc.once("\\sum_{i=1.5}^{3}i"));
-        assertEquals("Uncalculable", Calc.once("\\sum x_i"));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\sum_{i=1}^{2000000}i")));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\sum_{i=1.5}^{3}i")));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\sum x_i")));
     }
 
     @Test
@@ -37,7 +37,7 @@ class SeriesTest {
     @Test
     void nestedSumsStayWithinTheBudget() {
         assertTimeout(Duration.ofSeconds(2), () ->
-                assertEquals("Uncalculable", Calc.once("\\sum_{i=1}^{1000000}\\sum_{j=1}^{1000000}1")));
+                assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\sum_{i=1}^{1000000}\\sum_{j=1}^{1000000}1"))));
     }
 
     @Test
@@ -48,7 +48,7 @@ class SeriesTest {
         assertEquals("= 3.67607791", Calc.once("\\prod_{n=1}^{\\infty}(1+\\frac{1}{n^2})"));
         assertEquals("= ∞", Calc.once("\\sum_{n=1}^{\\infty}\\frac{1}{\\sqrt{n}}"));
         assertEquals("= -∞", Calc.once("\\sum_{n=1}^{\\infty}-\\frac{1}{n}"));
-        assertEquals("Uncalculable", Calc.once("\\sum_{n=2}^{\\infty}\\frac{1}{n\\ln n}"));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\sum_{n=2}^{\\infty}\\frac{1}{n\\ln n}")));
         assertEquals("true", Calc.once("\\sum_{n=1}^{\\infty}\\frac{1}{n^2}=\\frac{\\pi^2}{6}"));
     }
 
@@ -58,7 +58,7 @@ class SeriesTest {
         assertEquals("= 10", Calc.once("\\sum_{i=1}^{3}\\sum_{j=1}^{i}j"));
         assertEquals("= 6", Calc.once("\\sum_{i=1}^3 i"));
         assertEquals("= 6", Calc.once("\\sum_{x_1=1}^{3}x_1"));
-        assertEquals("Uncalculable", Calc.once("\\sum_{i=1}i"));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\sum_{i=1}i")));
         assertEquals("Expected \"}\".", Calc.once("\\sum_{i=1}^{3"));
         assertEquals("Unexpected \"}\".", Calc.once("\\sum_{i=}^{3}i"));
     }
@@ -73,9 +73,9 @@ class SeriesTest {
 
     @Test
     void slowlyShrinkingTermsAreNotDivergence() {
-        assertEquals("Uncalculable", Calc.once("\\sum_{n=0}^{\\infty}0.999999^n"));
-        assertEquals("Uncalculable", Calc.once("\\sum_{n=0}^{\\infty}(-0.999999)^n"));
-        assertEquals("Uncalculable", Calc.once("\\sum_{n=1}^{\\infty}\\frac{1}{(n+3\\cdot10^5)^2}"));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\sum_{n=0}^{\\infty}0.999999^n")));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\sum_{n=0}^{\\infty}(-0.999999)^n")));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\sum_{n=1}^{\\infty}\\frac{1}{(n+3\\cdot10^5)^2}")));
     }
 
     @Test

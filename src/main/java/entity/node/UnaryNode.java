@@ -56,7 +56,7 @@ public class UnaryNode extends Node {
             return vectorOperate((VectorValue) operandValue);
         }
         if (op == Op.UNIT) {
-            throw new UncalculableException();
+            throw new UncalculableException(UncalculableException.WRONG_KIND);
         }
         double value = Values.toNumber(operandValue);
         switch (op) {
@@ -89,10 +89,10 @@ public class UnaryNode extends Node {
                 return BinaryNode.finiteVector(scaled);
             case UNIT:
                 if (norm == 0) {
-                    throw new UndefinedException();
+                    throw new UndefinedException(UncalculableException.ZERO_VECTOR);
                 }
                 if (Double.isInfinite(norm)) {
-                    throw new UncalculableException();
+                    throw new UncalculableException(UncalculableException.TOO_BIG);
                 }
                 for (double component : vector.getComponents()) {
                     scaled.add(component / norm);

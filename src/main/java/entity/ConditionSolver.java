@@ -106,7 +106,9 @@ public class ConditionSolver {
                 || intervals.get(intervals.size() - 1).getHigh() == Double.POSITIVE_INFINITY;
         if (below && changesBeyond(-1, new ArrayList<Double>(), 0)
                 || above && changesBeyond(1, new ArrayList<Double>(), 0)) {
-            throw new UncalculableException();
+            // keeps flipping out there = endless solutions
+            throw new UncalculableException(rootsBeyond(MAX_ISOLATED_POINTS) == null
+                    ? UncalculableException.TOO_MANY_SOLUTIONS : UncalculableException.BEYOND_RANGE);
         }
         return intervals;
     }
@@ -115,7 +117,7 @@ public class ConditionSolver {
     public List<Interval> solveInRange() {
         double[] points = sortedCandidates();
         if (undersampled) {
-            throw new UncalculableException();
+            throw new UncalculableException(UncalculableException.TOO_FAST);
         }
         Set<Double> genuineRoots = new HashSet<>();
         List<Double> sortedRoots = sortedRootValues();
@@ -150,7 +152,7 @@ public class ConditionSolver {
             if (start == end && !rootValues.contains(points[start]) && !midpoints.contains(points[start])) {
                 isolatedPoints++;
                 if (isolatedPoints > MAX_ISOLATED_POINTS || !isIsolated(points[start], true)) {
-                    throw new UncalculableException();
+                    throw new UncalculableException(UncalculableException.TOO_MANY_SOLUTIONS);
                 }
                 addInterval(intervals, new Interval(points[start], true, points[start], true));
                 i++;
@@ -215,11 +217,11 @@ public class ConditionSolver {
             // only fill from a stretch at the end, not one point
             boolean atEnd = start == 0 || i == samples.length;
             if (lost && atEnd && !(isBacked(samples, start - 1, -1) && isBacked(samples, i, 1))) {
-                throw new UncalculableException();
+                throw new UncalculableException(UncalculableException.TOO_BIG);
             }
             if (before == UNKNOWN && after == UNKNOWN || before != UNKNOWN && after != UNKNOWN && before != after) {
                 if (lost) {
-                    throw new UncalculableException();
+                    throw new UncalculableException(UncalculableException.TOO_BIG);
                 }
                 continue;
             }
@@ -1215,7 +1217,7 @@ public class ConditionSolver {
             }
         } else if (leftShape[0] == SET_SHAPE && rightShape[0] == SET_SHAPE) {
             if (leftShape[1] * rightShape[1] > MAX_ELEMENT_PAIRS) {
-                throw new UncalculableException();
+                throw new UncalculableException(UncalculableException.SETS_TOO_LARGE);
             }
             for (int j = 0; j < leftShape[1]; j++) {
                 for (int k = 0; k < rightShape[1]; k++) {

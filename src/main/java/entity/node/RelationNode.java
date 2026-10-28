@@ -147,7 +147,7 @@ public class RelationNode extends Node {
 
     private boolean isPerpendicular(Value left, Value right) {
         if (!(left instanceof VectorValue) || !(right instanceof VectorValue)) {
-            throw new UncalculableException();
+            throw new UncalculableException(UncalculableException.WRONG_KIND);
         }
         double product = BinaryNode.dot(((VectorValue) left).getComponents(),
                 ((VectorValue) right).getComponents());
@@ -173,11 +173,11 @@ public class RelationNode extends Node {
                 if (isLiteral(elementNode)) {
                     return true;
                 }
-                throw new UncalculableException();
+                throw new UncalculableException(UncalculableException.RATIONAL);
             }
             return numbers.containsNumber(number);
         }
-        throw new UncalculableException();
+        throw new UncalculableException(UncalculableException.WRONG_KIND);
     }
 
     private boolean isLiteral(Node node) {
@@ -205,7 +205,7 @@ public class RelationNode extends Node {
         if (left instanceof NumberSetValue && right instanceof FiniteSetValue) {
             return false;
         }
-        throw new UncalculableException();
+        throw new UncalculableException(UncalculableException.WRONG_KIND);
     }
 
     private boolean almostEqual(Value left, Value right) {

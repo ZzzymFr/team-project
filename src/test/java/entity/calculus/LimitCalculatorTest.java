@@ -89,4 +89,12 @@ class LimitCalculatorTest {
         assertTrue(Double.isNaN(LimitCalculator.limit(Math::cos, inf, 0)));
         assertTrue(Double.isNaN(LimitCalculator.limit(x -> Math.sin(1 / x), 0, 0)));
     }
+
+    @Test
+    void exponentialBeatsBigPowerAtInfinity() {
+        double inf = Double.POSITIVE_INFINITY;
+        assertEquals(inf, LimitCalculator.limit(x -> Math.exp(x) / Math.pow(x, 30), inf, 0));
+        assertEquals(inf, LimitCalculator.limit(x -> Math.pow(2, x) / Math.pow(x, 20), inf, 0));
+        assertEquals(0, LimitCalculator.limit(x -> Math.pow(x, 50) / Math.exp(x), inf, 0), 1e-9);
+    }
 }

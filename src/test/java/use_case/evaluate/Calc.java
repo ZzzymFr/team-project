@@ -19,6 +19,11 @@ final class Calc {
         return state.getResultText();
     }
 
+    // "Uncalculable — why" -> "Uncalculable"
+    static String withoutReason(String answer) {
+        return answer.startsWith("Uncalculable — ") ? "Uncalculable" : answer;
+    }
+
     static String once(String input) {
         return new Calc().show(input);
     }

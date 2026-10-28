@@ -128,15 +128,14 @@ class AnswerCanvasPageTest {
     }
 
     @Test
-    void uncalculableShowsARedQuestionMark() throws Exception {
+    void uncalculableOnlyShowsTheReason() throws Exception {
         shared.setFormulaRecognizer(image -> "\\int");
         openPage();
         write();
         clickCalculate();
 
-        waitFor(() -> answerIs("?"), "the red ?");
-        assertTrue(answers().get(0).isError());
-        waitFor(() -> errorShown("Uncalculable"), "the reason");
+        waitFor(() -> errorShown("Uncalculable — Integrals not supported"), "the reason");
+        assertTrue(answers().isEmpty(), "no red ?");
     }
 
     @Test
@@ -146,8 +145,7 @@ class AnswerCanvasPageTest {
         clickCalculate();
 
         waitFor(() -> errorShown("not connected"), "the not-connected message");
-        assertTrue(answerIs("?"));
-        assertTrue(answers().get(0).isError());
+        assertTrue(answers().isEmpty(), "no red ?");
     }
 
     @Test
@@ -266,7 +264,7 @@ class AnswerCanvasPageTest {
         write();
         clickCalculate();
 
-        waitFor(() -> answerIs("?"), "the red ?");
         waitFor(() -> errorShown("no native lib"), "the reason");
+        assertTrue(answers().isEmpty(), "no red ?");
     }
 }

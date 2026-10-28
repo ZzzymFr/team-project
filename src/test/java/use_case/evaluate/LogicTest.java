@@ -29,9 +29,9 @@ class LogicTest {
 
     @Test
     void logicNeedsTruthValues() {
-        assertEquals("Uncalculable", Calc.once("3\\land2"));
-        assertEquals("Uncalculable", Calc.once("\\top+1"));
-        assertEquals("Uncalculable", Calc.once("1\\oplus2"));
-        assertEquals("Uncalculable", Calc.once("2\\rightarrow3"));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("3\\land2")));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\top+1")));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("1\\oplus2")));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("2\\rightarrow3")));
     }
 }

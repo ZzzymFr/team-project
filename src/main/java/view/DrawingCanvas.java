@@ -945,6 +945,12 @@ public class DrawingCanvas extends JPanel {
     }
 
     // false if the formula is gone or changed since capture
+    public boolean isCurrent(long id, long revision) {
+        Formula f = book.get(id);
+        return f != null && f.getRevision() == revision;
+    }
+
+    // false if the formula is gone or changed since capture
     public boolean showAnswer(long id, long revision, AnswerKind kind, String text, boolean error) {
         Formula f = book.get(id);
         if (f == null || f.getRevision() != revision) {

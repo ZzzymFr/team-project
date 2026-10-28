@@ -167,6 +167,10 @@ public class SharedCanvas {
         return canvas.captureForRecalculation(id);
     }
 
+    public boolean isCurrent(long id, long revision) {
+        return canvas.isCurrent(id, revision);
+    }
+
     public boolean showAnswer(long id, long revision, AnswerKind kind, String text, boolean error) {
         return canvas.showAnswer(id, revision, kind, text, error);
     }

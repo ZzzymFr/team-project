@@ -44,17 +44,17 @@ class HardeningTest {
 
     @Test
     void domainsOfIsolatedPointsGiveNoWrongInterval() {
-        assertEquals("Uncalculable", Calc.once("\\sum_{i=1}^{n}i>10"));
-        assertEquals("Uncalculable", Calc.once("x\\in\\mathbb{Z}"));
-        assertEquals("Uncalculable", Calc.once("x!>100"));
-        assertEquals("Uncalculable", Calc.once("\\sin(1000x)>0.9999"));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\sum_{i=1}^{n}i>10")));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("x\\in\\mathbb{Z}")));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("x!>100")));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\sin(1000x)>0.9999")));
         assertEquals("x = 0", Calc.once("\\sqrt{-x^2}\\geq0"));
         assertEquals("x = 0", Calc.once("\\sqrt{-x^2}+1>0"));
         assertEquals("x = 0", Calc.once("\\sqrt{-x^2}<1"));
         assertEquals("x = 0", Calc.once("\\sqrt{x}+\\sqrt{-x}>-1"));
         assertEquals("x = 1", Calc.once("\\sqrt{x-1}+\\sqrt{1-x}<5"));
         assertEquals("x = 1 or x = 2 or x = 3", Calc.once("x\\in\\mathbb{Z}\\land x>0\\land x<4"));
-        assertEquals("Uncalculable", Calc.once("x\\in\\mathbb{Z}\\land x>0\\land x<20"));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("x\\in\\mathbb{Z}\\land x>0\\land x<20")));
     }
 
     @Test
@@ -77,7 +77,7 @@ class HardeningTest {
         assertEquals("= 1", Calc.once("\\ln^2 e"));
         assertEquals("= 8", Calc.once("\\ln^{3}(e^2)"));
         assertEquals("true", Calc.once("\\forall x\\in\\mathbb{R}, \\sin^2x+\\cos^2x=1"));
-        assertEquals("Uncalculable", Calc.once("\\sin^{-1}(1)"));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\sin^{-1}(1)")));
     }
 
     @Test
@@ -85,11 +85,11 @@ class HardeningTest {
         assertEquals("true for all x", Calc.once("e^{-x^2}>0"));
         assertEquals("no solution", Calc.once("e^{-x^2}<0"));
         assertEquals("x > 0", Calc.once("x\\cdot e^{-x^2}>0"));
-        assertEquals("Uncalculable", Calc.once("e^{-x^2}>0\\land x<50"));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("e^{-x^2}>0\\land x<50")));
         assertEquals("true for all x", Calc.once("e^{x}+1>e^{x}"));
         assertEquals("true for all x", Calc.once("x^{100}\\geq0"));
         assertEquals("no solution", Calc.once("x^{-10}\\leq0"));
-        assertEquals("Uncalculable", Calc.once("x+10^{20}>10^{20}"));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("x+10^{20}>10^{20}")));
     }
 
     @Test

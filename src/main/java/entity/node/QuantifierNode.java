@@ -2,6 +2,7 @@ package entity.node;
 
 import entity.ConditionSolver;
 import entity.Context;
+import entity.UncalculableException;
 import entity.UndecidableException;
 import entity.value.BooleanValue;
 import entity.value.FiniteSetValue;
@@ -92,8 +93,11 @@ public class QuantifierNode extends Node {
             List<Double> elements = ((FiniteSetValue) set).getElements();
             return BooleanValue.of(isForAll ? solver.isTrueForEvery(elements) : solver.isTrueForSome(elements));
         }
-        if (!(set instanceof NumberSetValue) || ((NumberSetValue) set).getDimension() != 1) {
-            throw new UndecidableException();
+        if (!(set instanceof NumberSetValue)) {
+            throw new UndecidableException(UncalculableException.WRONG_KIND);
+        }
+        if (((NumberSetValue) set).getDimension() != 1) {
+            throw new UndecidableException(UncalculableException.OVER_RN);
         }
         int range = context.getVariableValues().isEmpty() ? RANGE : NESTED_RANGE;
         switch (((NumberSetValue) set).getKind()) {

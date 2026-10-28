@@ -18,7 +18,7 @@ class InequalityTest {
         assertEquals("1 < x ≤ 3", Calc.once("1<x\\leq3"));
         assertEquals("x ≥ 0", Calc.once("2x\\geq x"));
         assertEquals("x < 1 or x > 2", Calc.once("\\neg(1\\leq x\\leq2)"));
-        assertEquals("Uncalculable", Calc.once("x>1\\pm1"));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("x>1\\pm1")));
     }
 
     @Test

@@ -131,7 +131,12 @@ public class EquationSolver {
                 boolean noiseBefore = i > 0 && (noise[i - 1] || exactZero[i - 1]);
                 boolean noiseAfter = i < count - 1 && (noise[i + 1] || exactZero[i + 1]);
                 hasStretch = hasStretch || noiseBefore || noiseAfter;
-                if (!noiseBefore || !noiseAfter) {
+                // lone noise pt = grid landed near a touch, find it
+                double touch = noiseBefore || noiseAfter || i == 0 || i == count - 1 ? Double.NaN
+                        : touchingRoot(xs[i - 1], xs[i + 1], Math.abs(ds[i]));
+                if (isNumber(touch)) {
+                    addSolution(solutions, touch);
+                } else if (!noiseBefore || !noiseAfter) {
                     addSolution(solutions, xs[i]);
                     stretchEnds.add(xs[i]);
                 }
@@ -335,7 +340,7 @@ public class EquationSolver {
         double best = fc <= fd ? c : d;
         double lowest = Math.min(fc, fd);
         // real touch dips way below grid val, noise doesnt
-        if (!isNumber(lowest) || lowest >= ZERO || lowest > DEEP * atGrid) {
+        if (!isNumber(lowest) || lowest >= ZERO || lowest > DEEP * atGrid && !isApproximateTouch(best)) {
             return Double.NaN;
         }
         double left = edgeOfBottom(best, low);
@@ -346,6 +351,11 @@ public class EquationSolver {
             return Double.NaN;
         }
         return root;
+    }
+
+    // approx side cant dip below its own error
+    private boolean isApproximateTouch(double x) {
+        return approximate && isNumber(searchDifference(x)) && isWithinApproximation();
     }
 
     // where |diff| goes past FLAT_BOTTOM
@@ -455,6 +465,11 @@ public class EquationSolver {
         if (!solutions.isEmpty()) {
             double last = solutions.get(solutions.size() - 1);
             if (Math.abs(x - last) < 1e-6) {
+                return;
+            }
+            // approx noise crosses 0 twice at a touch, keep one
+            if (approximate && Math.abs(x - last) < step && isEqualAt((x + last) / 2)) {
+                solutions.set(solutions.size() - 1, (x + last) / 2);
                 return;
             }
         }

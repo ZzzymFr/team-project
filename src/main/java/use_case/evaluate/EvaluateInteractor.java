@@ -104,17 +104,17 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
         Value value = node.evaluate(context);
         if (value instanceof NumberValue && Double.isInfinite(((NumberValue) value).getValue())
                 && !node.canBeInfinite()) {
-            throw new UncalculableException();
+            throw new UncalculableException(UncalculableException.TOO_BIG);
         }
         if (value instanceof NumberSetValue) {
-            throw new UncalculableException();
+            throw new UncalculableException(UncalculableException.SET_ALONE);
         }
         return value;
     }
 
     private int signMaskCount(MathParser parser) {
         if (parser.getPlusMinusCount() > MAX_PLUS_MINUS) {
-            throw new UncalculableException();
+            throw new UncalculableException(UncalculableException.MAX_PLUS_MINUS);
         }
         return 1 << parser.getPlusMinusCount();
     }
@@ -191,7 +191,7 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
             }
             all.addAll(solver.solve());
             if (solver.isUndersampled()) {
-                throw new UncalculableException();
+                throw new UncalculableException(UncalculableException.TOO_FAST);
             }
             stretch = stretch || solver.hasStretch();
         }
@@ -239,7 +239,7 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
             List<Double> roots = new ConditionSolver(node, variable, new Context(functions).withSigns(mask))
                     .rootsBeyond(MAX_ROOTS_BEYOND);
             if (roots == null) {
-                throw new UncalculableException();
+                throw new UncalculableException(UncalculableException.BEYOND_RANGE);
             }
             all.addAll(roots);
         }
@@ -251,7 +251,7 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
             }
         }
         if (roots.size() > MAX_ROOTS_BEYOND) {
-            throw new UncalculableException();
+            throw new UncalculableException(UncalculableException.TOO_MANY_SOLUTIONS);
         }
         return roots;
     }
@@ -260,7 +260,7 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
     private void excludeUndefinedPoints(Node node, String variable, Map<String, UserFunction> functions,
                                         int masks, List<Double> solutions) {
         if (masks > 1) {
-            throw new UncalculableException();
+            throw new UncalculableException(UncalculableException.PLUS_MINUS_HERE);
         }
         ConditionSolver solver = new ConditionSolver(node, variable, new Context(functions));
         if (solutions.isEmpty()) {
@@ -270,7 +270,7 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
                 List<Interval> inRange = solver.solveInRange();
                 if (inRange.size() != 1 || inRange.get(0).getLow() != Double.NEGATIVE_INFINITY
                         || inRange.get(0).getHigh() != Double.POSITIVE_INFINITY) {
-                    throw new UncalculableException();
+                    throw new UncalculableException(UncalculableException.BEYOND_RANGE);
                 }
                 presenter.prepareExcludedView(variable, beyond);
                 return;
@@ -292,14 +292,14 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
             List<Interval> intervals = new ConditionSolver(node, variable, context).solve();
             if (intervals.isEmpty() || intervals.get(0).getLow() != Double.NEGATIVE_INFINITY
                     || intervals.get(intervals.size() - 1).getHigh() != Double.POSITIVE_INFINITY) {
-                throw new UncalculableException();
+                throw new UncalculableException(UncalculableException.PLUS_MINUS_HERE);
             }
             List<Double> points = new ArrayList<>();
             for (int i = 1; i < intervals.size(); i++) {
                 points.add(intervals.get(i).getLow());
             }
             if (!isEverythingBut(intervals, points)) {
-                throw new UncalculableException();
+                throw new UncalculableException(UncalculableException.PLUS_MINUS_HERE);
             }
             all.addAll(points);
         }
@@ -335,7 +335,7 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
 
     private void solveInequality(Node node, String variable, Map<String, UserFunction> functions, int masks) {
         if (masks > 1) {
-            throw new UncalculableException();
+            throw new UncalculableException(UncalculableException.PLUS_MINUS_HERE);
         }
         showIntervals(variable, new ConditionSolver(node, variable, new Context(functions)).solve());
     }
@@ -373,7 +373,7 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
         MathParser parser = new MathParser(right, functions);
         Node body = parser.parse();
         if (parser.getPlusMinusCount() > 0) {
-            throw new UncalculableException();
+            throw new UncalculableException(UncalculableException.PLUS_MINUS_HERE);
         }
         Set<String> variables = new LinkedHashSet<>();
         body.collectFreeVariables(variables);

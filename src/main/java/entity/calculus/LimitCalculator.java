@@ -24,6 +24,7 @@ public final class LimitCalculator {
     private static final double ROUND_OFF = 1e-12;
     private static final double SAFE = 2;
     private static final int NOISY_ROWS = 2;
+    private static final double NOISE_LIMIT = 1e3;
     private static final int GROWTH_WINDOW = 6;
     private static final double STEADY_GROWTH = 0.999;
     private static final double ACCELERATION = 1.5;
@@ -85,6 +86,8 @@ public final class LimitCalculator {
         boolean anyFinite = false;
         int badRun = 0;
         double badValue = Double.NaN;
+        // first bad sample of the run, later inf/inf NaNs dont matter
+        double overflow = Double.NaN;
         for (int k = 0; k < POSITIONS && samples.size() < SAMPLES; k++) {
             double y = g.applyAsDouble(h);
             h = h / SHRINK;
@@ -93,6 +96,9 @@ public final class LimitCalculator {
                     before = samples;
                     samples = new ArrayList<>();
                     richardson = new Richardson();
+                }
+                if (badRun == 0) {
+                    overflow = y;
                 }
                 badValue = badRun == 0 || y == badValue ? y : Double.NaN;
                 badRun++;
@@ -113,10 +119,10 @@ public final class LimitCalculator {
         if (samples.size() >= MIN_SAMPLES) {
             return fromSamples(samples, richardson);
         }
-        if (badRun >= TAIL && Double.isInfinite(badValue) && movesTowards(before, badValue)) {
-            return badValue;
+        if (badRun >= TAIL && Double.isInfinite(overflow) && movesTowards(before, overflow)) {
+            return overflow;
         }
-        throw new UncalculableException();
+        throw new UncalculableException(UncalculableException.LIMIT);
     }
 
     // small rel error not enough, oscillating goes to fromSamples
@@ -126,8 +132,14 @@ public final class LimitCalculator {
             return false;
         }
         boolean exact = richardson.accuracy() <= SETTLED && stepsDoNotGrow(samples);
-        boolean noisy = richardson.accuracy() <= ACCEPTED && richardson.worseRows >= NOISY_ROWS;
+        boolean noisy = richardson.accuracy() <= ACCEPTED && richardson.worseRows >= NOISY_ROWS
+                && nearValue(samples.get(samples.size() - 1), richardson.value);
         return exact || noisy;
+    }
+
+    // roundoff wobbles, it doesnt shoot off to 1e72
+    private static boolean nearValue(double sample, double value) {
+        return Math.abs(sample - value) <= NOISE_LIMIT * Math.max(1, Math.abs(value));
     }
 
     private static boolean stepsDoNotGrow(List<Double> samples) {
@@ -146,7 +158,7 @@ public final class LimitCalculator {
         if (growth != 0) {
             // slow growth might level off, fast wont
             if (Math.signum(samples.get(samples.size() - 1)) != growth && !accelerates(samples)) {
-                throw new UncalculableException();
+                throw new UncalculableException(UncalculableException.LIMIT);
             }
             return growth * Double.POSITIVE_INFINITY;
         }
@@ -161,7 +173,7 @@ public final class LimitCalculator {
         if (relativeError(wynn[0], wynn[1]) <= ACCEPTED) {
             return snapped(wynn[0], wynn[1], nearest);
         }
-        throw new UncalculableException();
+        throw new UncalculableException(UncalculableException.LIMIT);
     }
 
     // swing not shrinking = no limit
@@ -190,7 +202,7 @@ public final class LimitCalculator {
         if (relativeError(middle, halfWidth) <= ACCEPTED) {
             return snapped(middle, halfWidth, nearest);
         }
-        throw new UncalculableException();
+        throw new UncalculableException(UncalculableException.LIMIT);
     }
 
     private static double max(List<Double> values) {
