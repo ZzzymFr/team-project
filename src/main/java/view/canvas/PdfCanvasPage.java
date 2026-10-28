@@ -7,7 +7,6 @@ import view.stack.Fonts;
 import javax.swing.*;
 import java.awt.*;
 
-/** US4 entry point in the existing stacked-page Swing application. */
 public class PdfCanvasPage extends CanvasPage {
     public PdfCanvasPage(SharedCanvas sharedCanvas) {
         super(sharedCanvas);
