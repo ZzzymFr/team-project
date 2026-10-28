@@ -4,6 +4,8 @@ import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.rendering.PDFRenderer;
 
 import javax.swing.*;
+import view.glass.GlassButton;
+import view.stack.Fonts;
 import java.awt.*;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.StringSelection;
@@ -19,6 +21,7 @@ public final class PdfEditorFrame extends JFrame {
     private final JList<MathLibrary.Material> shelf = new JList<>(listModel);
     private final PageCanvas canvas = new PageCanvas();
     private final JPanel editor = new JPanel(new BorderLayout(12, 12));
+    private static final Color BACKDROP = new Color(239, 244, 252);
     private final JPanel preview = new JPanel(new BorderLayout());
     private final CardLayout cards = new CardLayout();
     private final JPanel center = new JPanel(cards);
@@ -34,14 +37,23 @@ public final class PdfEditorFrame extends JFrame {
         setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
         setSize(1120, 850); setMinimumSize(new Dimension(830, 650));
         setLocationRelativeTo(null);
+        editor.setBackground(BACKDROP);
+        editor.setBorder(BorderFactory.createEmptyBorder(14, 14, 14, 14));
         setupShelf();
         JPanel left = new JPanel(new BorderLayout(4, 4));
-        left.add(new JLabel("  Available Materials (drag onto paper)"), BorderLayout.NORTH);
+        JLabel shelfTitle = new JLabel("  MATERIAL LIBRARY  ·  Drag onto A4 paper");
+        shelfTitle.setFont(Fonts.ui(Font.BOLD, 15f));
+        shelfTitle.setForeground(new Color(39, 55, 80));
+        left.add(shelfTitle, BorderLayout.NORTH);
+        left.setBackground(new Color(250, 252, 255));
+        left.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(211, 224, 241)),
+                BorderFactory.createEmptyBorder(12, 10, 12, 10)));
         left.add(new JScrollPane(shelf), BorderLayout.CENTER);
         left.setPreferredSize(new Dimension(295, 600));
         editor.add(left, BorderLayout.WEST);
         JScrollPane pageScroll = new JScrollPane(canvas);
-        pageScroll.getViewport().setBackground(new Color(222, 226, 232));
+        pageScroll.getViewport().setBackground(BACKDROP);
         editor.add(pageScroll, BorderLayout.CENTER);
         editor.add(editorToolbar(), BorderLayout.NORTH);
         editor.add(status, BorderLayout.SOUTH);
@@ -83,6 +95,8 @@ public final class PdfEditorFrame extends JFrame {
         JButton previous = button("< Page", () -> switchPage(currentPage - 1));
         JButton next = button("Page >", () -> switchPage(currentPage + 1));
         tools.add(previous); tools.add(pageLabel); tools.add(next);
+        tools.setOpaque(false);
+        pageLabel.setFont(Fonts.ui(Font.BOLD, 14f));
         tools.add(button("+ Page", () -> { switchPage(useCase.addPage()); }));
         tools.add(button("Delete Page", () -> {
             if (useCase.pageCount() <= 1) { JOptionPane.showMessageDialog(this, "At least one page is required."); return; }
@@ -96,7 +110,7 @@ public final class PdfEditorFrame extends JFrame {
         return tools;
     }
     private JButton button(String title, Runnable action) {
-        JButton b = new JButton(title); b.addActionListener(e -> action.run()); return b;
+        JButton b = new GlassButton(title, 34); b.addActionListener(e -> action.run()); return b;
     }
     private void switchPage(int page) {
         if (page < 0 || page >= useCase.pageCount()) return;
@@ -155,7 +169,7 @@ public final class PdfEditorFrame extends JFrame {
         PageCanvas() {
             setPreferredSize(new Dimension((int) PdfDocument.PAGE_WIDTH + MARGIN * 2,
                     (int) PdfDocument.PAGE_HEIGHT + MARGIN * 2));
-            setBackground(new Color(222, 226, 232));
+            setBackground(BACKDROP);
             setTransferHandler(new TransferHandler() {
                 @Override public boolean canImport(TransferSupport support) {
                     return support.isDataFlavorSupported(DataFlavor.stringFlavor);
