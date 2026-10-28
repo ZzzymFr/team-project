@@ -88,23 +88,11 @@ public final class RichNoteEditor {
     }
 
     private static void toggle(JTextPane pane, Object attribute) {
-        AttributeSet current = pane.getCharacterAttributes();
-        boolean old = attribute == StyleConstants.Bold ? StyleConstants.isBold(current)
-                : attribute == StyleConstants.Italic ? StyleConstants.isItalic(current)
-                : StyleConstants.isUnderline(current);
-        SimpleAttributeSet attrs = new SimpleAttributeSet();
-        if (attribute == StyleConstants.Bold) StyleConstants.setBold(attrs, !old);
-        else if (attribute == StyleConstants.Italic) StyleConstants.setItalic(attrs, !old);
-        else StyleConstants.setUnderline(attrs, !old);
-        apply(pane, attrs);
+        NoteTextFormatting.toggle(pane, attribute);
     }
 
     private static void apply(JTextPane pane, AttributeSet attrs) {
-        int start = pane.getSelectionStart(), end = pane.getSelectionEnd();
-        if (start != end) pane.getStyledDocument().setCharacterAttributes(start, end - start, attrs, false);
-        else pane.setCharacterAttributes(attrs, false);
-        pane.requestFocusInWindow();
-        pane.select(start, end);
+        NoteTextFormatting.apply(pane, attrs);
     }
 
     static List<PdfDocument.NoteSpan> readSpans(StyledDocument doc) {
