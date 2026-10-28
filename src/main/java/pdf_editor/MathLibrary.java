@@ -22,6 +22,12 @@ public final class MathLibrary {
         }
         public boolean isGraph() { return graph != null; }
     }
+    public static Material detachedFormula(Material source) {
+        return new Material(source.title + " - Formula", source.formula, "", null);
+    }
+    public static Material detachedResult(Material source) {
+        return new Material(source.title + " - Result", source.result, "", null);
+    }
     private final List<Material> items = new ArrayList<>();
     private final List<Runnable> listeners = new ArrayList<>();
     public void onChange(Runnable listener) { listeners.add(listener); }
@@ -30,7 +36,7 @@ public final class MathLibrary {
         Material item = new Material("Calculation " + (items.size() + 1), formula, result, null);
         items.add(item); changed(); return item;
     }
-    /** Alias kept for demos/integration that use the formula-result naming. */
+
     public Material addFormulaResult(String formula, String result) {
         return addCalculation(formula, result);
     }

@@ -180,8 +180,108 @@ public final class PdfEditorFrame extends JFrame {
             if (canvas.selected != null) { useCase.delete(currentPage, canvas.selected); canvas.selected = null; canvas.repaint(); }
         }));
         tools.add(button("Undo", this::undo)); tools.add(button("Redo", this::redo));
+        tools.add(menuButton("Arrange ▾", arrangeMenu()));
+        tools.add(button("+ Note", this::addNote));
+        tools.add(menuButton("Text ▾", textMenu()));
         tools.add(button("Done / Preview", this::showPreview));
         return tools;
+    }
+    private JButton menuButton(String title, JPopupMenu menu) {
+        JButton button = new GlassButton(title, 34);
+        button.addActionListener(e -> menu.show(button, 0, button.getHeight()));
+        return button;
+    }
+    private static void menuItem(JPopupMenu menu, String title, Runnable action) {
+        JMenuItem item = new JMenuItem(title);
+        item.setFont(Fonts.ui(Font.PLAIN, 13f));
+        item.addActionListener(e -> action.run()); menu.add(item);
+    }
+    private JPopupMenu arrangeMenu() {
+        JPopupMenu menu = new JPopupMenu();
+        menuItem(menu, "Bring to Front", () -> arrange(2));
+        menuItem(menu, "Bring Forward", () -> arrange(1));
+        menu.addSeparator();
+        menuItem(menu, "Send Backward", () -> arrange(-1));
+        menuItem(menu, "Send to Back", () -> arrange(-2));
+        return menu;
+    }
+    private JPopupMenu textMenu() {
+        JPopupMenu menu = new JPopupMenu();
+        menuItem(menu, "Edit Text...", this::editNote);
+        menu.addSeparator();
+        menuItem(menu, "Bold", () -> toggleNoteStyle(Font.BOLD));
+        menuItem(menu, "Italic", () -> toggleNoteStyle(Font.ITALIC));
+        menu.addSeparator();
+        menuItem(menu, "Font Size...", this::changeNoteSize);
+        return menu;
+    }
+    private void arrange(int direction) {
+        if (canvas.selected == null) { status.setText("Select an item before arranging."); return; }
+        useCase.arrange(currentPage, canvas.selected, direction);
+        canvas.repaint();
+    }
+    private void addNote() {
+        PdfDocument.Placement note = useCase.addNote(currentPage, "Double-click to edit note", 75, 95);
+        canvas.selected = note; canvas.repaint(); editNote();
+    }
+    private void editNote() {
+        PdfDocument.Placement note = canvas.selected;
+        if (note == null || !note.isNote()) { status.setText("Select a note first."); return; }
+        JTextArea field = new JTextArea(note.noteText, 7, 32);
+        field.setLineWrap(true); field.setWrapStyleWord(true);
+        int answer = JOptionPane.showConfirmDialog(this, new JScrollPane(field), "Edit Note",
+                JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        if (answer == JOptionPane.OK_OPTION) {
+            useCase.updateNote(currentPage, note, field.getText(), note.noteStyle, note.noteSize);
+            canvas.repaint();
+        }
+    }
+    private void toggleNoteStyle(int flag) {
+        PdfDocument.Placement note = canvas.selected;
+        if (note == null || !note.isNote()) { status.setText("Select a note first."); return; }
+        useCase.updateNote(currentPage, note, note.noteText, note.noteStyle ^ flag, note.noteSize);
+        canvas.repaint();
+    }
+    private void changeNoteSize() {
+        PdfDocument.Placement note = canvas.selected;
+        if (note == null || !note.isNote()) { status.setText("Select a note first."); return; }
+        String input = JOptionPane.showInputDialog(this, "Font size (8–72)", note.noteSize);
+        if (input == null) return;
+        try {
+            int size = Integer.parseInt(input.trim());
+            if (size < 8 || size > 72) throw new NumberFormatException();
+            useCase.updateNote(currentPage, note, note.noteText, note.noteStyle, size);
+            canvas.repaint();
+        } catch (NumberFormatException ex) { JOptionPane.showMessageDialog(this, "Choose a size between 8 and 72."); }
+    }
+    private void splitSelected() {
+        PdfDocument.Placement[] result = useCase.splitCalculation(currentPage, canvas.selected);
+        if (result == null) { status.setText("Select a combined formula + result item first."); return; }
+        canvas.selected = result[0]; canvas.repaint();
+    }
+    private void showItemMenu(MouseEvent e) {
+        if (canvas.selected == null) return;
+        JPopupMenu menu = new JPopupMenu();
+        PdfDocument.Placement selected = canvas.selected;
+        if (selected.isNote()) {
+            menuItem(menu, "Edit Note...", this::editNote);
+            menuItem(menu, "Bold", () -> toggleNoteStyle(Font.BOLD));
+            menuItem(menu, "Italic", () -> toggleNoteStyle(Font.ITALIC));
+            menuItem(menu, "Font Size...", this::changeNoteSize);
+        } else if (!selected.material.isGraph() && selected.material.result != null
+                && !selected.material.result.isBlank()) {
+            menuItem(menu, "Separate Formula and Result", this::splitSelected);
+        }
+        if (menu.getComponentCount() > 0) menu.addSeparator();
+        menuItem(menu, "Bring to Front", () -> arrange(2));
+        menuItem(menu, "Bring Forward", () -> arrange(1));
+        menuItem(menu, "Send Backward", () -> arrange(-1));
+        menuItem(menu, "Send to Back", () -> arrange(-2));
+        menu.addSeparator();
+        menuItem(menu, "Delete Item", () -> {
+            useCase.delete(currentPage, canvas.selected); canvas.selected = null; canvas.repaint();
+        });
+        menu.show(canvas, e.getX(), e.getY());
     }
     private JButton button(String title, Runnable action) {
         JButton b = new GlassButton(title, 34); b.addActionListener(e -> action.run()); return b;
@@ -275,12 +375,19 @@ public final class PdfEditorFrame extends JFrame {
                         }
                     }
                     if (selected != null) {
-                        useCase.beginTransform(currentPage, selected); anchor = e.getPoint();
+                        if (!SwingUtilities.isRightMouseButton(e) && !e.isPopupTrigger()) {
+                            useCase.beginTransform(currentPage, selected); anchor = e.getPoint();
+                        }
                         oldX = selected.x; oldY = selected.y; oldW = selected.width; oldH = selected.height;
                         resizing = e.getX() > selected.x + selected.width + MARGIN - 18
                                 && e.getY() > selected.y + selected.height + MARGIN - 18;
                     }
+                    if (e.isPopupTrigger()) showItemMenu(e);
                     repaint();
+                }
+                @Override public void mouseClicked(MouseEvent e) {
+                    if (e.getClickCount() == 2 && SwingUtilities.isLeftMouseButton(e)
+                            && selected != null && selected.isNote()) editNote();
                 }
                 @Override public void mouseDragged(MouseEvent e) {
                     if (selected == null || anchor == null) return;
@@ -292,7 +399,10 @@ public final class PdfEditorFrame extends JFrame {
                     }
                     repaint();
                 }
-                @Override public void mouseReleased(MouseEvent e) { anchor = null; }
+                @Override public void mouseReleased(MouseEvent e) {
+                    anchor = null;
+                    if (e.isPopupTrigger()) showItemMenu(e);
+                }
             };
             addMouseListener(mouse); addMouseMotionListener(mouse);
         }
@@ -307,7 +417,8 @@ public final class PdfEditorFrame extends JFrame {
             for (PdfDocument.Placement p : useCase.placements(currentPage)) {
                 int x = Math.round(p.x) + MARGIN, y = Math.round(p.y) + MARGIN;
                 int w = Math.round(p.width), h = Math.round(p.height);
-                g2.drawImage(MaterialRenderer.render(p.material, w * SCALE, h * SCALE), x, y, w, h, null);
+                g2.drawImage(p.isNote() ? NoteRenderer.render(p, w * SCALE, h * SCALE)
+                        : MaterialRenderer.render(p.material, w * SCALE, h * SCALE), x, y, w, h, null);
                 if (p == selected) {
                     g2.setColor(new Color(33, 110, 220)); g2.setStroke(new BasicStroke(2));
                     g2.drawRect(x, y, w, h); g2.fillRect(x + w - 9, y + h - 9, 9, 9);

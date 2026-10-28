@@ -9,11 +9,19 @@ public final class PdfDocument {
     public static final class Placement {
         public MathLibrary.Material material;
         public float x, y, width, height;
+        public String noteText;
+        public int noteStyle = 0;
+        public int noteSize = 16;
+        public boolean isNote() { return noteText != null; }
         public Placement(MathLibrary.Material material, float x, float y, float width, float height) {
             this.material = material;
             this.x = x; this.y = y; this.width = width; this.height = height;
         }
-        public Placement copy() { return new Placement(material, x, y, width, height); }
+        public Placement copy() {
+            Placement copy = new Placement(material, x, y, width, height);
+            copy.noteText = noteText; copy.noteStyle = noteStyle; copy.noteSize = noteSize;
+            return copy;
+        }
     }
     public final List<List<Placement>> pages = new ArrayList<>();
     public PdfDocument() { pages.add(new ArrayList<>()); }
