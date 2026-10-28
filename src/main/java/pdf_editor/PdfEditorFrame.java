@@ -180,9 +180,9 @@ public final class PdfEditorFrame extends JFrame {
             if (canvas.selected != null) { useCase.delete(currentPage, canvas.selected); canvas.selected = null; canvas.repaint(); }
         }));
         tools.add(button("Undo", this::undo)); tools.add(button("Redo", this::redo));
-        tools.add(menuButton("Arrange ▾", arrangeMenu()));
+        tools.add(menuButton("Arrange", arrangeMenu()));
         tools.add(button("+ Note", this::addNote));
-        tools.add(menuButton("Text ▾", textMenu()));
+        tools.add(menuButton("Text", textMenu()));
         tools.add(button("Done / Preview", this::showPreview));
         return tools;
     }
@@ -207,12 +207,7 @@ public final class PdfEditorFrame extends JFrame {
     }
     private JPopupMenu textMenu() {
         JPopupMenu menu = new JPopupMenu();
-        menuItem(menu, "Edit Text...", this::editNote);
-        menu.addSeparator();
-        menuItem(menu, "Bold", () -> toggleNoteStyle(Font.BOLD));
-        menuItem(menu, "Italic", () -> toggleNoteStyle(Font.ITALIC));
-        menu.addSeparator();
-        menuItem(menu, "Font Size...", this::changeNoteSize);
+        menuItem(menu, "Rich Text Editor...", this::editNote);
         return menu;
     }
     private void arrange(int direction) {
@@ -227,33 +222,14 @@ public final class PdfEditorFrame extends JFrame {
     private void editNote() {
         PdfDocument.Placement note = canvas.selected;
         if (note == null || !note.isNote()) { status.setText("Select a note first."); return; }
-        JTextArea field = new JTextArea(note.noteText, 7, 32);
-        field.setLineWrap(true); field.setWrapStyleWord(true);
-        int answer = JOptionPane.showConfirmDialog(this, new JScrollPane(field), "Edit Note",
-                JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
-        if (answer == JOptionPane.OK_OPTION) {
-            useCase.updateNote(currentPage, note, field.getText(), note.noteStyle, note.noteSize);
+        java.util.List<PdfDocument.NoteSpan> result = RichNoteEditor.edit(this, note);
+        if (result != null) {
+            useCase.updateRichNote(currentPage, note, result);
             canvas.repaint();
         }
     }
-    private void toggleNoteStyle(int flag) {
-        PdfDocument.Placement note = canvas.selected;
-        if (note == null || !note.isNote()) { status.setText("Select a note first."); return; }
-        useCase.updateNote(currentPage, note, note.noteText, note.noteStyle ^ flag, note.noteSize);
-        canvas.repaint();
-    }
-    private void changeNoteSize() {
-        PdfDocument.Placement note = canvas.selected;
-        if (note == null || !note.isNote()) { status.setText("Select a note first."); return; }
-        String input = JOptionPane.showInputDialog(this, "Font size (8–72)", note.noteSize);
-        if (input == null) return;
-        try {
-            int size = Integer.parseInt(input.trim());
-            if (size < 8 || size > 72) throw new NumberFormatException();
-            useCase.updateNote(currentPage, note, note.noteText, note.noteStyle, size);
-            canvas.repaint();
-        } catch (NumberFormatException ex) { JOptionPane.showMessageDialog(this, "Choose a size between 8 and 72."); }
-    }
+    private void toggleNoteStyle(int flag) { editNote(); }
+    private void changeNoteSize() { editNote(); }
     private void splitSelected() {
         PdfDocument.Placement[] result = useCase.splitCalculation(currentPage, canvas.selected);
         if (result == null) { status.setText("Select a combined formula + result item first."); return; }
@@ -265,9 +241,7 @@ public final class PdfEditorFrame extends JFrame {
         PdfDocument.Placement selected = canvas.selected;
         if (selected.isNote()) {
             menuItem(menu, "Edit Note...", this::editNote);
-            menuItem(menu, "Bold", () -> toggleNoteStyle(Font.BOLD));
-            menuItem(menu, "Italic", () -> toggleNoteStyle(Font.ITALIC));
-            menuItem(menu, "Font Size...", this::changeNoteSize);
+            menuItem(menu, "Rich Text Editor...", this::editNote);
         } else if (!selected.material.isGraph() && selected.material.result != null
                 && !selected.material.result.isBlank()) {
             menuItem(menu, "Separate Formula and Result", this::splitSelected);
