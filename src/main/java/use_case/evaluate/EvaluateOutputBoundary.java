@@ -1,13 +1,18 @@
 package use_case.evaluate;
 
+import entity.Interval;
+import entity.value.Value;
+
 import java.util.List;
 
 public interface EvaluateOutputBoundary {
-    void prepareNumberView(double value);
-
-    void prepareCheckView(boolean isCorrect, double leftValue, double rightValue);
+    void prepareValuesView(List<Value> values);
 
     void prepareSolutionsView(String variable, List<Double> solutions);
+
+    void prepareIntervalsView(String variable, List<Interval> intervals);
+
+    void prepareExcludedView(String variable, List<Double> excluded);
 
     void prepareAlwaysTrueView(String variable);
 
