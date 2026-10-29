@@ -142,6 +142,57 @@ class DrawingCanvasHooksTest {
         assertEquals(new Rectangle(100, 100, 70, 40), box);
     }
 
+    private int strokesIn(FormulaCapture capture) {
+        return canvas.getFormulas().stream()
+                .filter(f -> f.getId() == capture.getId()).findFirst().orElseThrow().getStrokes().size();
+    }
+
+    @Test
+    void registerNewInkKeepsTrailingEqualsWithItsFormula() {
+        List<Stroke> session = new ArrayList<>();
+        int[][][] ink = {
+            {{110, 200}, {110, 260}},              // 1
+            {{200, 230}, {240, 230}},              // +
+            {{220, 210}, {220, 250}},
+            {{270, 200}, {270, 260}},              // 1
+            {{300, 222}, {340, 222}},              // =
+            {{300, 240}, {340, 240}},              // last stroke is flat
+        };
+        for (int[][] s : ink) {
+            write(s[0][0], s[0][1], s[1][0], s[1][1]);
+            session.add(last());
+        }
+        assertEquals(6, strokesIn(canvas.registerNewInk(last(), session)));
+    }
+
+    @Test
+    void registerNewInkKeepsSpacedSymbolsTogether() {
+        List<Stroke> session = new ArrayList<>();
+        int[][][] ink = {
+            {{100, 200}, {140, 260}},              // 2-ish, 60 tall
+            {{210, 230}, {250, 230}},              // + about 1.2 chars away
+            {{230, 210}, {230, 250}},
+            {{320, 200}, {350, 260}},              // 3-ish
+        };
+        for (int[][] s : ink) {
+            write(s[0][0], s[0][1], s[1][0], s[1][1]);
+            session.add(last());
+        }
+        assertEquals(4, strokesIn(canvas.registerNewInk(last(), session)));
+        assertEquals(1, canvas.getFormulas().size());
+    }
+
+    @Test
+    void registerNewInkLeavesTheNextLineAlone() {
+        write(100, 100, 160, 160);                 // line 1, 60 tall
+        Stroke top = last();
+        write(100, 220, 160, 280);                 // line 2, a line gap below
+        Stroke bottom = last();
+        FormulaCapture capture = canvas.registerNewInk(bottom, List.of(top, bottom));
+        assertEquals(1, strokesIn(capture));
+        assertEquals(2, canvas.getFormulas().size());
+    }
+
     @Test
     void registerNewInkReturnsNullForGoneStroke() {
         write(100, 100, 130, 140);

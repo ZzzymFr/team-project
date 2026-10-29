@@ -956,31 +956,38 @@ public class DrawingCanvas extends JPanel {
         return f == null ? null : boundsOf(f.getStrokes());
     }
 
-    // bind loose ink touching last as one formula (other session groups too); null if last gone/bound
+    // bind loose ink near last as one formula (other session groups too); null if last gone/bound
     public FormulaCapture registerNewInk(Stroke last, Collection<Stroke> session) {
         if (!strokes.contains(last) || book.isBound(last)) {
             return null;
         }
-        Formula mine = book.add(looseGroup(last), nextRevision());
+        // char size from everything written this round, a lone "-" would make it tiny
+        List<Stroke> pool = new ArrayList<>();
+        for (Stroke s : strokes) {
+            if (!book.isBound(s) && (s == last || session.contains(s))) {
+                pool.add(s);
+            }
+        }
+        double h = AnswerLayout.strokeHeight(pool);
+        Formula mine = book.add(looseGroup(last, h), nextRevision());
         for (Stroke s : session) {
             if (strokes.contains(s) && !book.isBound(s)) {
-                book.add(looseGroup(s), nextRevision());
+                book.add(looseGroup(s, h), nextRevision());
             }
         }
         return capture(mine);
     }
 
-    // unbound strokes connected to seed, grown until nothing else joins
-    private Set<Stroke> looseGroup(Stroke seed) {
+    // unbound strokes near seed, grown until nothing else joins
+    private Set<Stroke> looseGroup(Stroke seed, double h) {
         Set<Stroke> group = new LinkedHashSet<>(List.of(seed));
         boolean grew = true;
         while (grew) {
             grew = false;
             Rectangle box = boundsOf(group);
-            double h = AnswerLayout.charHeight(group);
             for (Stroke s : strokes) {
                 Rectangle b = group.contains(s) || book.isBound(s) ? null : boundsOf(List.of(s));
-                if (b != null && box != null && AnswerLayout.joins(box, h, b)) {
+                if (b != null && box != null && AnswerLayout.sameNewFormula(box, h, b)) {
                     group.add(s);
                     grew = true;
                 }
