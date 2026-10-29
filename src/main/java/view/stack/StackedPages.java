@@ -103,9 +103,9 @@ public class StackedPages extends JPanel {
             public void mouseMoved(MouseEvent e) {
                 int hit = cardAt(e.getPoint());
                 int newHover = hit >= 0 && hit != front ? hit : -1;
-                setCursor(Cursor.getPredefinedCursor(newHover >= 0 ? Cursor.HAND_CURSOR : Cursor.DEFAULT_CURSOR));
-                if (newHover != hover) {
+                if (newHover != hover) {  // only touch the cursor and repaint when the hover really changes
                     hover = newHover;
+                    setCursor(Cursor.getPredefinedCursor(newHover >= 0 ? Cursor.HAND_CURSOR : Cursor.DEFAULT_CURSOR));
                     repaint();
                 }
             }

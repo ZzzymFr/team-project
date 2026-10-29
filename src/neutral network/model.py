@@ -8,8 +8,8 @@ import torch.nn.functional as F
 
 d_model = 256
 attention_heads = 4
-vocab_size = 186                      # 末尾追加希腊字母及集合括号；原有 0..153 的 token ID 不变
-legacy_vocab_sizes = (147, 148, 149, 154)
+vocab_size = 188                     
+legacy_vocab_sizes = (147, 148, 149, 154, 186, 187)
 pad_id, bos_id, eos_id = 67, 68, 69   # 与 tokeniser.json 中的特殊 token 对应
 max_len = 300                        # LaTeX token 序列的最大长度(含 <bos>/<eos>)
 
@@ -197,7 +197,7 @@ class vital_pixel(nn.Module):
         self.conv3 = nn.Conv2d(32, 64, kernel_size=5, stride=1, padding=2, padding_mode="replicate")
         self.norm3 = nn.BatchNorm2d(64)
         self.con4 = nn.Conv2d(64, 128, kernel_size=5, stride=2, padding=2)
-        self.con5 = nn.Conv2d(128, d_model, kernel_size=3, stride=1, padding=1)
+        self.con5 = nn.Conv2d(128, d_model, kernel_size=5, stride=1, padding=2)
         self.norm4 = nn.BatchNorm2d(128)
         self.norm5 = nn.BatchNorm2d(d_model)
 
@@ -346,6 +346,8 @@ class vital_mini(nn.Module):
         self.decoder1 = decoder()
         self.decoder2 = decoder()
         self.decoder3 = decoder()
+        self.decoder4 = decoder()
+        self.decoder5 = decoder()
 
         # token id -> 向量; <pad> 对应的行保持为 0
         self.token_embedding = nn.Embedding(num_tokens, d_model, padding_idx=pad_id)
@@ -374,7 +376,7 @@ class vital_mini(nn.Module):
         return torch.stack([torch.sin(ang), torch.cos(ang)], dim=2).flatten(1).unsqueeze(0)
 
     def decoder_layers(self) -> tuple[decoder,...]:
-        return (self.decoder1, self.decoder2, self.decoder3)
+        return (self.decoder1, self.decoder2, self.decoder3, self.decoder4, self.decoder5)
 
     def encode(self, x: torch.Tensor) -> torch.Tensor:#[B,C,H,W] -> [B,H*W,C]
         # [B,C,h,w] -> [B,h*w,C]: flatten h,w row-major, then move channels last

@@ -23,7 +23,7 @@ from model import attention_heads, d_model, vital_mini
 
 ROOT = Path(__file__).resolve().parents[2]
 LAYER_TYPES = (nn.Conv2d, nn.BatchNorm2d, nn.Linear, nn.LayerNorm)
-DECODER_PREFIXES = ('decoder1', 'decoder2', 'decoder3', 'judge_decoder')
+DECODER_PREFIXES = ('decoder1', 'decoder2', 'decoder3', 'decoder4', 'decoder5', 'judge_decoder')
 
 
 def layer_methods(model):
@@ -178,7 +178,7 @@ def export(checkpoint_path, output_path):
         'decoder_blocks': {name: {'python_path': name, 'includes': 'causal self-attention, cross-attention, FFN (including SwiGLU), all normalization and residual connections'}
                            for name in DECODER_PREFIXES},
         'mask_convention': 'True = blocked; omitted/None or an empty BOOL tensor = no padding mask. Each decoder creates its own causal mask.',
-        'scope': 'All Conv2d, BatchNorm2d, LayerNorm and Linear layers (including decoder internals), one shared silu, and four complete decoders. No separate SwiGLU, attention or FFN block methods.',
+        'scope': 'All Conv2d, BatchNorm2d, LayerNorm and Linear layers (including decoder internals), one shared silu, and six complete decoders. No separate SwiGLU, attention or FFN block methods.',
         'methods': methods,
     }
     output_path.with_suffix('.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')

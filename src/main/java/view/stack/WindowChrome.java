@@ -16,10 +16,12 @@ import java.awt.Toolkit;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.WindowEvent;
+import java.util.Locale;
 
 /**
  * Replaces the system title bar: makes the window frameless (and transparent where the OS
- * allows it, so only the cards are visible), puts minimize / maximize / close on the front
+ * allows it, so only the cards are visible; opaque on macOS, see {@link #useTranslucentWindow}),
+ * puts minimize / maximize / close on the front
  * card, and adds dragging, double-click-to-maximize and a resize grip.
  */
 public final class WindowChrome {
@@ -43,8 +45,9 @@ public final class WindowChrome {
         this.frame = frame;
         this.stack = stack;
         frame.setUndecorated(true);
-        boolean translucent = frame.getGraphicsConfiguration().getDevice()
-                .isWindowTranslucencySupported(GraphicsDevice.WindowTranslucency.PERPIXEL_TRANSLUCENT);
+        boolean translucent = useTranslucentWindow(System.getProperty("os.name", ""),
+                frame.getGraphicsConfiguration().getDevice()
+                        .isWindowTranslucencySupported(GraphicsDevice.WindowTranslucency.PERPIXEL_TRANSLUCENT));
         if (translucent) {
             frame.setBackground(new Color(0, 0, 0, 0));
             stack.setOpaque(false);
@@ -96,6 +99,19 @@ public final class WindowChrome {
         };
         stack.addMouseListener(drag);
         stack.addMouseMotionListener(drag);
+    }
+
+    /**
+     * Whether to make the window see-through around the cards. Not on macOS: there Java's
+     * per-pixel translucent windows are cleared to fully transparent on every repaint, so the
+     * window flickers and briefly vanishes when switching pages (issue #17), and hovering a card
+     * title flickers without end (each repaint makes the pixel under the mouse transparent, macOS
+     * reports the mouse as gone, the hover is undone and repainted, and so on). macOS therefore
+     * gets an ordinary opaque window.
+     */
+    static boolean useTranslucentWindow(String osName, boolean translucencySupported) {
+        boolean mac = osName.toLowerCase(Locale.ROOT).startsWith("mac");
+        return translucencySupported && !mac;
     }
 
     private void toggleMaximize() {
