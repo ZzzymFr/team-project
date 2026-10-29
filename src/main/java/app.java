@@ -7,9 +7,11 @@ import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.nio.file.Path;
 
 public class app {
-    public final vital_mini model = new vital_mini();
+    // relative to the project root, which is where the app runs from (like the tokeniser path in vital_mini)
+    public final vital_mini model = new vital_mini(Path.of("src", "main", "java", "model", "checkpoints", "model_ops.pt"));
     JFrame frame;
 
     void init() throws Exception {
