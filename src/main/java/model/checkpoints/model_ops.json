@@ -1,9 +1,9 @@
 {
   "checkpoint": "model.pt",
-  "checkpoint_sha256": "a7e39805293ce55af78c1a5af75cea90c03671e53b7de325ab30161aedbad88d",
-  "torch_version": "2.14.1",
+  "checkpoint_sha256": "2545d77fa462f3dcdbc5c25ab07475c7849832ea70e318fc4975aafbef2774e7",
+  "torch_version": "2.11.0+cu128",
   "mode": "eval (inference only; dropout is identity, BN uses saved statistics)",
-  "vocab_size": 186,
+  "vocab_size": 188,
   "layers": {
     "cnn_conv": {
       "python_path": "cnn.conv",
@@ -213,6 +213,118 @@
       "python_path": "decoder3.cross_attention.norm",
       "type": "LayerNorm"
     },
+    "decoder4_self_attention_q_proj": {
+      "python_path": "decoder4.self_attention.q_proj",
+      "type": "Linear"
+    },
+    "decoder4_self_attention_k_proj": {
+      "python_path": "decoder4.self_attention.k_proj",
+      "type": "Linear"
+    },
+    "decoder4_self_attention_v_proj": {
+      "python_path": "decoder4.self_attention.v_proj",
+      "type": "Linear"
+    },
+    "decoder4_self_attention_out_proj": {
+      "python_path": "decoder4.self_attention.out_proj",
+      "type": "Linear"
+    },
+    "decoder4_self_attention_norm": {
+      "python_path": "decoder4.self_attention.norm",
+      "type": "LayerNorm"
+    },
+    "decoder4_ffn_norm": {
+      "python_path": "decoder4.ffn.norm",
+      "type": "LayerNorm"
+    },
+    "decoder4_ffn_gate": {
+      "python_path": "decoder4.ffn.gate",
+      "type": "Linear"
+    },
+    "decoder4_ffn_up": {
+      "python_path": "decoder4.ffn.up",
+      "type": "Linear"
+    },
+    "decoder4_ffn_down": {
+      "python_path": "decoder4.ffn.down",
+      "type": "Linear"
+    },
+    "decoder4_cross_attention_q_proj": {
+      "python_path": "decoder4.cross_attention.q_proj",
+      "type": "Linear"
+    },
+    "decoder4_cross_attention_k_proj": {
+      "python_path": "decoder4.cross_attention.k_proj",
+      "type": "Linear"
+    },
+    "decoder4_cross_attention_v_proj": {
+      "python_path": "decoder4.cross_attention.v_proj",
+      "type": "Linear"
+    },
+    "decoder4_cross_attention_out_proj": {
+      "python_path": "decoder4.cross_attention.out_proj",
+      "type": "Linear"
+    },
+    "decoder4_cross_attention_norm": {
+      "python_path": "decoder4.cross_attention.norm",
+      "type": "LayerNorm"
+    },
+    "decoder5_self_attention_q_proj": {
+      "python_path": "decoder5.self_attention.q_proj",
+      "type": "Linear"
+    },
+    "decoder5_self_attention_k_proj": {
+      "python_path": "decoder5.self_attention.k_proj",
+      "type": "Linear"
+    },
+    "decoder5_self_attention_v_proj": {
+      "python_path": "decoder5.self_attention.v_proj",
+      "type": "Linear"
+    },
+    "decoder5_self_attention_out_proj": {
+      "python_path": "decoder5.self_attention.out_proj",
+      "type": "Linear"
+    },
+    "decoder5_self_attention_norm": {
+      "python_path": "decoder5.self_attention.norm",
+      "type": "LayerNorm"
+    },
+    "decoder5_ffn_norm": {
+      "python_path": "decoder5.ffn.norm",
+      "type": "LayerNorm"
+    },
+    "decoder5_ffn_gate": {
+      "python_path": "decoder5.ffn.gate",
+      "type": "Linear"
+    },
+    "decoder5_ffn_up": {
+      "python_path": "decoder5.ffn.up",
+      "type": "Linear"
+    },
+    "decoder5_ffn_down": {
+      "python_path": "decoder5.ffn.down",
+      "type": "Linear"
+    },
+    "decoder5_cross_attention_q_proj": {
+      "python_path": "decoder5.cross_attention.q_proj",
+      "type": "Linear"
+    },
+    "decoder5_cross_attention_k_proj": {
+      "python_path": "decoder5.cross_attention.k_proj",
+      "type": "Linear"
+    },
+    "decoder5_cross_attention_v_proj": {
+      "python_path": "decoder5.cross_attention.v_proj",
+      "type": "Linear"
+    },
+    "decoder5_cross_attention_out_proj": {
+      "python_path": "decoder5.cross_attention.out_proj",
+      "type": "Linear"
+    },
+    "decoder5_cross_attention_norm": {
+      "python_path": "decoder5.cross_attention.norm",
+      "type": "LayerNorm"
+    },
     "final_norm": {
       "python_path": "final_norm",
       "type": "LayerNorm"
@@ -303,13 +415,21 @@
       "python_path": "decoder3",
       "includes": "causal self-attention, cross-attention, FFN (including SwiGLU), all normalization and residual connections"
     },
+    "decoder4": {
+      "python_path": "decoder4",
+      "includes": "causal self-attention, cross-attention, FFN (including SwiGLU), all normalization and residual connections"
+    },
+    "decoder5": {
+      "python_path": "decoder5",
+      "includes": "causal self-attention, cross-attention, FFN (including SwiGLU), all normalization and residual connections"
+    },
     "judge_decoder": {
       "python_path": "judge_decoder",
       "includes": "causal self-attention, cross-attention, FFN (including SwiGLU), all normalization and residual connections"
     }
   },
   "mask_convention": "True = blocked; omitted/None or an empty BOOL tensor = no padding mask. Each decoder creates its own causal mask.",
-  "scope": "All Conv2d, BatchNorm2d, LayerNorm and Linear layers (including decoder internals), one shared silu, and four complete decoders. No separate SwiGLU, attention or FFN block methods.",
+  "scope": "All Conv2d, BatchNorm2d, LayerNorm and Linear layers (including decoder internals), one shared silu, and six complete decoders. No separate SwiGLU, attention or FFN block methods.",
   "methods": {
     "cnn_con4": "cnn_con4(__torch__._generated_model_ops.ModelOps self, Tensor x) -> Tensor",
     "cnn_con5": "cnn_con5(__torch__._generated_model_ops.ModelOps self, Tensor x) -> Tensor",
@@ -366,6 +486,36 @@
     "decoder3_self_attention_out_proj": "decoder3_self_attention_out_proj(__torch__._generated_model_ops.ModelOps self, Tensor x) -> Tensor",
     "decoder3_self_attention_q_proj": "decoder3_self_attention_q_proj(__torch__._generated_model_ops.ModelOps self, Tensor x) -> Tensor",
     "decoder3_self_attention_v_proj": "decoder3_self_attention_v_proj(__torch__._generated_model_ops.ModelOps self, Tensor x) -> Tensor",
+    "decoder4": "decoder4(__torch__._generated_model_ops.ModelOps self, Tensor x, Tensor memory, Tensor? tgt_key_padding_mask=None, Tensor? memory_key_padding_mask=None) -> Tensor",
+    "decoder4_cross_attention_k_proj": "decoder4_cross_attention_k_proj(__torch__._generated_model_ops.ModelOps self, Tensor x) -> Tensor",
+    "decoder4_cross_attention_norm": "decoder4_cross_attention_norm(__torch__._generated_model_ops.ModelOps self, Tensor x) -> Tensor",
+    "decoder4_cross_attention_out_proj": "decoder4_cross_attention_out_proj(__torch__._generated_model_ops.ModelOps self, Tensor x) -> Tensor",
+    "decoder4_cross_attention_q_proj": "decoder4_cross_attention_q_proj(__torch__._generated_model_ops.ModelOps self, Tensor x) -> Tensor",
+    "decoder4_cross_attention_v_proj": "decoder4_cross_attention_v_proj(__torch__._generated_model_ops.ModelOps self, Tensor x) -> Tensor",
+    "decoder4_ffn_down": "decoder4_ffn_down(__torch__._generated_model_ops.ModelOps self, Tensor x) -> Tensor",
+    "decoder4_ffn_gate": "decoder4_ffn_gate(__torch__._generated_model_ops.ModelOps self, Tensor x) -> Tensor",
+    "decoder4_ffn_norm": "decoder4_ffn_norm(__torch__._generated_model_ops.ModelOps self, Tensor x) -> Tensor",
+    "decoder4_ffn_up": "decoder4_ffn_up(__torch__._generated_model_ops.ModelOps self, Tensor x) -> Tensor",
+    "decoder4_self_attention_k_proj": "decoder4_self_attention_k_proj(__torch__._generated_model_ops.ModelOps self, Tensor x) -> Tensor",
+    "decoder4_self_attention_norm": "decoder4_self_attention_norm(__torch__._generated_model_ops.ModelOps self, Tensor x) -> Tensor",
+    "decoder4_self_attention_out_proj": "decoder4_self_attention_out_proj(__torch__._generated_model_ops.ModelOps self, Tensor x) -> Tensor",
+    "decoder4_self_attention_q_proj": "decoder4_self_attention_q_proj(__torch__._generated_model_ops.ModelOps self, Tensor x) -> Tensor",
+    "decoder4_self_attention_v_proj": "decoder4_self_attention_v_proj(__torch__._generated_model_ops.ModelOps self, Tensor x) -> Tensor",
+    "decoder5": "decoder5(__torch__._generated_model_ops.ModelOps self, Tensor x, Tensor memory, Tensor? tgt_key_padding_mask=None, Tensor? memory_key_padding_mask=None) -> Tensor",
+    "decoder5_cross_attention_k_proj": "decoder5_cross_attention_k_proj(__torch__._generated_model_ops.ModelOps self, Tensor x) -> Tensor",
+    "decoder5_cross_attention_norm": "decoder5_cross_attention_norm(__torch__._generated_model_ops.ModelOps self, Tensor x) -> Tensor",
+    "decoder5_cross_attention_out_proj": "decoder5_cross_attention_out_proj(__torch__._generated_model_ops.ModelOps self, Tensor x) -> Tensor",
+    "decoder5_cross_attention_q_proj": "decoder5_cross_attention_q_proj(__torch__._generated_model_ops.ModelOps self, Tensor x) -> Tensor",
+    "decoder5_cross_attention_v_proj": "decoder5_cross_attention_v_proj(__torch__._generated_model_ops.ModelOps self, Tensor x) -> Tensor",
+    "decoder5_ffn_down": "decoder5_ffn_down(__torch__._generated_model_ops.ModelOps self, Tensor x) -> Tensor",
+    "decoder5_ffn_gate": "decoder5_ffn_gate(__torch__._generated_model_ops.ModelOps self, Tensor x) -> Tensor",
+    "decoder5_ffn_norm": "decoder5_ffn_norm(__torch__._generated_model_ops.ModelOps self, Tensor x) -> Tensor",
+    "decoder5_ffn_up": "decoder5_ffn_up(__torch__._generated_model_ops.ModelOps self, Tensor x) -> Tensor",
+    "decoder5_self_attention_k_proj": "decoder5_self_attention_k_proj(__torch__._generated_model_ops.ModelOps self, Tensor x) -> Tensor",
+    "decoder5_self_attention_norm": "decoder5_self_attention_norm(__torch__._generated_model_ops.ModelOps self, Tensor x) -> Tensor",
+    "decoder5_self_attention_out_proj": "decoder5_self_attention_out_proj(__torch__._generated_model_ops.ModelOps self, Tensor x) -> Tensor",
+    "decoder5_self_attention_q_proj": "decoder5_self_attention_q_proj(__torch__._generated_model_ops.ModelOps self, Tensor x) -> Tensor",
+    "decoder5_self_attention_v_proj": "decoder5_self_attention_v_proj(__torch__._generated_model_ops.ModelOps self, Tensor x) -> Tensor",
     "final_norm": "final_norm(__torch__._generated_model_ops.ModelOps self, Tensor x) -> Tensor",
     "head": "head(__torch__._generated_model_ops.ModelOps self, Tensor x) -> Tensor",
     "judge_decoder": "judge_decoder(__torch__._generated_model_ops.ModelOps self, Tensor x, Tensor memory, Tensor? tgt_key_padding_mask=None, Tensor? memory_key_padding_mask=None) -> Tensor",

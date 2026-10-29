@@ -17,12 +17,12 @@ import ai.djl.ndarray.types.DataType;
 import ai.djl.modality.cv.ImageFactory;
 
 /**
- * 已有 CNN 特征 -> 三个 decoder -> final_norm -> head。
+ * 已有 CNN 特征 -> 五个 decoder -> final_norm -> head。
  * forward 返回词表 logits；judge 返回前缀判断概率。输入均为已准备好的张量。
  * 单线程使用。先 init()；返回的 NDArray 由调用方 close，最晚在模型 close 时释放。
  */
 public final class vital_mini implements AutoCloseable {
-    public static final int VOCAB_LENGTH = 186;
+    public static final int VOCAB_LENGTH = 188;
     public static final int PAD_ID = 67, BOS_ID = 68, EOS_ID = 69, MAX_LEN = 200;
     private final Path modelPath;
     private ModelRuntime runtime;
@@ -48,7 +48,7 @@ public final class vital_mini implements AutoCloseable {
             // head(I_256) = W^T，转置后便是原 Embedding，不需要新增导出函数。
             NDArray weights = loaded.callMini(scope, "head", scope.eye(256)).transpose();
             if (!weights.getShape().equals(new Shape(VOCAB_LENGTH, 256))) {
-                throw new IOException("模型的 head/词表尺寸与当前 186 个 token 不匹配");
+                throw new IOException("模型的 head/词表尺寸与当前 " + VOCAB_LENGTH + " 个 token 不匹配");
             }
             embedding = weights.toFloatArray();
             cnn = new vital_pixel(loaded);
@@ -114,7 +114,7 @@ public final class vital_mini implements AutoCloseable {
 
     /**
      * encoded 为 CNN 输出 FLOAT32 [B,256,h,w]；tokens INT64 [B,T]
-     * -> FLOAT32 [B,T,186]，返回未做 softmax 的词表 logits。
+     * -> FLOAT32 [B,T,188]，返回未做 softmax 的词表 logits。
      */
     public NDArray forward(NDArray encoded, NDArray tokens) throws TranslateException {
         return forward(encoded, tokens, null, null);
@@ -133,6 +133,8 @@ public final class vital_mini implements AutoCloseable {
             x = runtime.callMini(scope, "decoder1", x, memory, tm, mm);
             x = runtime.callMini(scope, "decoder2", x, memory, tm, mm);
             x = runtime.callMini(scope, "decoder3", x, memory, tm, mm);
+            x = runtime.callMini(scope, "decoder4", x, memory, tm, mm);
+            x = runtime.callMini(scope, "decoder5", x, memory, tm, mm);
             x = runtime.callMini(scope, "final_norm", x);
             NDArray result = runtime.callMini(scope, "head", x);
             result.attach(manager());

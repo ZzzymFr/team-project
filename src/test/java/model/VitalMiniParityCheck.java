@@ -50,8 +50,8 @@ public final class VitalMiniParityCheck {
         }
     }
 
-    private static void checkRuntimeOwnership() throws Exception {
-        try (ModelRuntime runtime = new ModelRuntime(Path.of("checkpoints/model_ops.pt"));
+    private static void checkRuntimeOwnership(Path modelFile) throws Exception {
+        try (ModelRuntime runtime = new ModelRuntime(modelFile);
              NDManager scope = runtime.manager().newSubManager()) {
             NDArray input = scope.zeros(new Shape(1, 256));
             try {
@@ -67,7 +67,7 @@ public final class VitalMiniParityCheck {
             shared.close();
             // 关闭借用者不能关闭 vital_mini 持有的共享 .pt。
             try (NDArray output = runtime.callMini(scope, "head", input)) {
-                if (!output.getShape().equals(new Shape(1, 186))) throw new AssertionError("Shared runtime closed");
+                if (!output.getShape().equals(new Shape(1, vital_mini.VOCAB_LENGTH))) throw new AssertionError("Shared runtime closed");
                 output.toFloatArray();
             }
             try {
@@ -79,14 +79,15 @@ public final class VitalMiniParityCheck {
     }
 
     public static void main(String[] args) throws Exception {
-        checkRuntimeOwnership();
+        Path modelFile = args.length > 1 ? Path.of(args[1]) : Path.of("checkpoints/model_ops.pt");
+        checkRuntimeOwnership(modelFile);
         Path fixture = args.length > 0 ? Path.of(args[0]) : Path.of("target/vital-reference.bin");
-        try (vital_mini model = new vital_mini();
+        try (vital_mini model = new vital_mini(modelFile);
              DataInputStream input = new DataInputStream(Files.newInputStream(fixture))) {
             model.init();
             model.init(); // 重复初始化不应重新加载或泄露模型。
             System.out.println("Automatic device: " + model.device());
-            try (vital_pixel pixel = new vital_pixel(Path.of("checkpoints/model_ops.pt"));
+            try (vital_pixel pixel = new vital_pixel(modelFile);
                  NDManager cpu = NDManager.newBaseManager(Device.cpu(), "PyTorch")) {
                 int count = input.readInt();
                 for (int sample = 0; sample < count; sample++) {

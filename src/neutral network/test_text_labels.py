@@ -18,6 +18,12 @@ class TextLabelTests(unittest.TestCase):
         label = r"\text{let }v\in V\text{ be arbitrary, }v=(x_1,...x_n)"
         self.assertEqual(self.round_trip(label), label)
 
+    def test_multiline_formula_round_trip(self):
+        label = r"x+y=2\\x-y=0"
+        self.assertEqual(load_vocab()[186:], ["<boms>", r"\\"])
+        self.assertEqual(tokenize_label(label).count(r"\\"), 1)
+        self.assertEqual(self.round_trip(label), label)
+
     def test_text_is_not_math_and_preserves_word_spaces(self):
         label = r"\text{sin and cost {stay} literal}"
         self.assertEqual(self.round_trip(label), label)
@@ -34,7 +40,7 @@ class TextLabelTests(unittest.TestCase):
             tokenize_label(r"\text{unfinished")
 
     def test_legacy_weights_keep_existing_rows_and_ties(self):
-        for old_size in (147, 148, 149, 154):
+        for old_size in (147, 148, 149, 154, 186, 187):
             with self.subTest(old_size=old_size):
                 old = vital_mini(num_tokens=old_size)
                 new = vital_mini()

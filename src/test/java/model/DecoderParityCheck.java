@@ -45,7 +45,7 @@ public final class DecoderParityCheck {
     }
 
     public static void main(String[] args) throws Exception {
-        Path modelFile = Path.of("checkpoints", "model_ops.pt");
+        Path modelFile = args.length > 1 ? Path.of(args[1]) : Path.of("checkpoints", "model_ops.pt");
         Path fixture = args.length > 0 ? Path.of(args[0]) : Path.of("target", "decoder-reference.bin");
         double maximum = 0;
         int checked = 0;
@@ -58,7 +58,7 @@ public final class DecoderParityCheck {
                     NDArray memory = readTensor(input, manager, false);
                     NDArray tokenMask = readTensor(input, manager, true);
                     NDArray memoryMask = readTensor(input, manager, true);
-                    for (String name : new String[] {"decoder1", "decoder2", "decoder3", "judge_decoder"}) {
+                    for (String name : new String[] {"decoder1", "decoder2", "decoder3", "decoder4", "decoder5", "judge_decoder"}) {
                         try (decoder block = new decoder(modelFile, name)) {
                             Device selected = block.device();
                             if (checked == 0) System.out.println("Testing decoder device: " + selected);
