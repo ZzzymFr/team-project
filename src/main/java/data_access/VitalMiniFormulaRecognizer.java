@@ -14,8 +14,9 @@ public class VitalMiniFormulaRecognizer implements FormulaRecognizer {
         this.model = model;
     }
 
+    // the model only takes 128 px high input, width a multiple of 16, so resize like training did
     @Override
     public String recognize(BufferedImage formulaImage) throws Exception {
-        return model.generate(formulaImage);
+        return model.generate(FormulaImagePreprocessor.prepare(formulaImage));
     }
 }
