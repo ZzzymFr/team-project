@@ -31,6 +31,7 @@ public class MathLexer {
         ALIASES.put("\\dfrac", "\\frac");
         ALIASES.put("\\tfrac", "\\frac");
         ALIASES.put("\\cdots", "\\ldots");
+        ALIASES.put("\\prime", "'");
     }
 
     static {
@@ -148,7 +149,33 @@ public class MathLexer {
                 throw new MathSyntaxException("Unexpected character \"" + c + "\".");
             }
         }
-        return tokens;
+        return foldPrimes(tokens);
+    }
+
+    // f^{'} / f^{''} / f^' (model writes these) -> f' f''
+    private static List<String> foldPrimes(List<String> tokens) {
+        List<String> out = new ArrayList<>();
+        int i = 0;
+        while (i < tokens.size()) {
+            if ("^".equals(tokens.get(i)) && i + 1 < tokens.size()) {
+                if ("'".equals(tokens.get(i + 1))) {
+                    i++;  // ^' -> '
+                    continue;
+                }
+                int j = i + 2;
+                while (j < tokens.size() && "'".equals(tokens.get(j))) {
+                    j++;
+                }
+                if ("{".equals(tokens.get(i + 1)) && j > i + 2 && j < tokens.size() && "}".equals(tokens.get(j))) {
+                    out.addAll(tokens.subList(i + 2, j));
+                    i = j + 1;
+                    continue;
+                }
+            }
+            out.add(tokens.get(i));
+            i++;
+        }
+        return out;
     }
 
     public static boolean isLetter(String token) {
