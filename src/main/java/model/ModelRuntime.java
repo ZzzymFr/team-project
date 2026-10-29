@@ -20,7 +20,7 @@ final class ModelRuntime implements AutoCloseable {
             "cnn_conv", "cnn_norm", "cnn_conv2", "cnn_norm2", "cnn_conv3", "cnn_norm3",
             "cnn_con4", "cnn_norm4", "cnn_con5", "cnn_norm5", "silu");
     private static final Set<String> MINI_METHODS = Set.of(
-            "decoder1", "decoder2", "decoder3", "final_norm", "head",
+            "decoder1", "decoder2", "decoder3", "decoder4", "decoder5", "final_norm", "head",
             "judge_decoder", "judge_norm", "process", "silu", "test");
 
     private final Model model;

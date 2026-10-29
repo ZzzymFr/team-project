@@ -25,7 +25,7 @@ import java.util.Set;
  */
 public final class decoder implements AutoCloseable {
     private static final Set<String> METHODS =
-            Set.of("decoder1", "decoder2", "decoder3", "judge_decoder");
+            Set.of("decoder1", "decoder2", "decoder3", "decoder4", "decoder5", "judge_decoder");
 
     private final String methodName;
     private final Device device;
