@@ -8,8 +8,8 @@ import torch.nn.functional as F
 
 d_model = 256
 attention_heads = 4
-vocab_size = 188                     
-legacy_vocab_sizes = (147, 148, 149, 154, 186, 187)
+vocab_size = 200
+legacy_vocab_sizes = (147, 148, 149, 154, 186, 187, 188)
 pad_id, bos_id, eos_id = 67, 68, 69   # 与 tokeniser.json 中的特殊 token 对应
 max_len = 300                        # LaTeX token 序列的最大长度(含 <bos>/<eos>)
 

@@ -1,9 +1,9 @@
 {
   "checkpoint": "model.pt",
-  "checkpoint_sha256": "2545d77fa462f3dcdbc5c25ab07475c7849832ea70e318fc4975aafbef2774e7",
+  "checkpoint_sha256": "53aee37cf3922d72635711b051660b412cd6dff634ce9f05dad04334854148d2",
   "torch_version": "2.11.0+cu128",
   "mode": "eval (inference only; dropout is identity, BN uses saved statistics)",
-  "vocab_size": 188,
+  "vocab_size": 200,
   "layers": {
     "cnn_conv": {
       "python_path": "cnn.conv",
