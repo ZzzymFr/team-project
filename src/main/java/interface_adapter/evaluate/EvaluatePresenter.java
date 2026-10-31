@@ -1,6 +1,7 @@
 package interface_adapter.evaluate;
 
 import entity.Interval;
+import entity.symbolic.TextRun;
 import entity.value.BooleanValue;
 import entity.value.FiniteSetValue;
 import entity.value.NumberValue;
@@ -145,6 +146,15 @@ public class EvaluatePresenter implements EvaluateOutputBoundary {
     @Override
     public void prepareFunctionDefinedView(String definition) {
         showResult("Defined " + definition);
+    }
+
+    @Override
+    public void prepareExpressionView(String latex, List<TextRun> runs) {
+        MathLabState state = viewModel.getState();
+        state.setResultText("= " + latex);
+        state.setResultRuns(runs);
+        state.setErrorText("");
+        viewModel.firePropertyChanged(MathLabViewModel.RESULT);
     }
 
     @Override

@@ -30,7 +30,7 @@ class FunctionAndDerivativeTest {
     @Test
     void derivativeSyntaxOutsideFunctions() {
         assertEquals("Uncalculable", Calc.withoutReason(Calc.once("f'(x)=\\cos(e^{x})")));
-        assertTrue(Calc.once("\\frac{d}{dx}x^2").startsWith("Unknown variable"));
+        assertEquals("= 2x", Calc.once("\\frac{d}{dx}x^2"));
         assertEquals("d = 2", Calc.once("d+1=3"));
     }
 
@@ -100,7 +100,7 @@ class FunctionAndDerivativeTest {
     @Test
     void derivativeVariableStaysFree() {
         assertEquals("true for all x", Calc.once("\\frac{d}{dx}5=0"));
-        assertTrue(Calc.once("\\frac{d}{dx}x^2").startsWith("Unknown variable"));
+        assertEquals("= 2x", Calc.once("\\frac{d}{dx}x^2"));
         assertEquals("x = 2", Calc.once("\\frac{d^{2}}{dx^{2}}x^3=12"));
     }
 }

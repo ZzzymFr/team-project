@@ -13,6 +13,10 @@ import entity.UserFunction;
 import entity.calculus.Rounding;
 import entity.node.Node;
 import entity.node.RelationNode;
+import entity.symbolic.Expr;
+import entity.symbolic.ExprWriter;
+import entity.symbolic.SymbolicDerivative;
+import entity.symbolic.TextRun;
 import entity.value.FiniteSetValue;
 import entity.value.NumberSetValue;
 import entity.value.NumberValue;
@@ -35,6 +39,7 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
     private static final double[] SIDE_PROBES = {0.5, -7.3, 2.9};
     private static final int MAX_ROOTS_BEYOND = 10;
     private static final double SAME_FLOOR = 1e-15;
+    private static final int MAX_ANSWER_LENGTH = 60;
 
     private final FunctionDataAccessInterface functionDataAccess;
     private final EvaluateOutputBoundary presenter;
@@ -94,6 +99,8 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
             presenter.prepareValuesView(calculateAll(node, functions, masks));
         } else if (countEquals(node) > 1) {
             presenter.prepareFailView("Please use only one \"=\".");
+        } else if (!node.isCondition() && SymbolicDerivative.containsDerivative(node)) {
+            showDerivative(node, functions);
         } else if (!node.isCondition()) {
             String name = unknowns.get(0);
             presenter.prepareFailView(unknownVariableMessage(name));
@@ -103,6 +110,16 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
         } else {
             solveCondition(node, unknowns.get(0), functions, masks);
         }
+    }
+
+    // d/dx w/ no value for x: write the derivative out
+    private void showDerivative(Node node, Map<String, UserFunction> functions) {
+        Expr derivative = SymbolicDerivative.differentiate(node, functions);
+        List<TextRun> runs = ExprWriter.runs(derivative);
+        if (ExprWriter.plain(runs).length() > MAX_ANSWER_LENGTH) {
+            throw new UncalculableException(UncalculableException.ANSWER_TOO_LONG);
+        }
+        presenter.prepareExpressionView(ExprWriter.latex(derivative), runs);
     }
 
     private Value calculate(Node node, Context context) {
