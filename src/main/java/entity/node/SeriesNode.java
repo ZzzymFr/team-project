@@ -94,10 +94,10 @@ public class SeriesNode extends Node {
     private static long bound(double value) {
         double rounded = Math.rint(value);
         if (!(Math.abs(value - rounded) <= INTEGER_TOLERANCE)) {
-            throw new UndefinedException();
+            throw new UndefinedException(UncalculableException.SUM_BOUNDS);
         }
         if (Math.abs(rounded) >= 0x1p62) {
-            throw new UncalculableException();
+            throw new UncalculableException(UncalculableException.TOO_BIG);
         }
         return (long) rounded;
     }

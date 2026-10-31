@@ -104,7 +104,9 @@ class MathParserTest {
     @Test
     void undefinedResultsAreNotNumbers() {
         assertTrue(Double.isNaN(num("\\sqrt{-1}")));
-        assertTrue(Double.isNaN(num("2.5!")));
+        // non-whole n! = gamma(n+1)
+        assertEquals(3.3233509704478426, num("2.5!"), 1e-12);
+        assertTrue(Double.isNaN(num("(-1.5)!")));
     }
 
     @Test

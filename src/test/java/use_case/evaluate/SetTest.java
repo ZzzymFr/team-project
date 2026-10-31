@@ -24,8 +24,8 @@ class SetTest {
         assertEquals("true", Calc.once("\\pi\\in\\mathbb{R}"));
         assertEquals("false", Calc.once("\\infty\\in\\mathbb{R}"));
         assertEquals("true", Calc.once("0.5\\in\\mathbb{Q}"));
-        assertEquals("Uncalculable", Calc.once("\\pi\\in\\mathbb{Q}"));
-        assertEquals("Uncalculable", Calc.once("\\sqrt{2}\\in\\mathbb{Q}"));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\pi\\in\\mathbb{Q}")));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\sqrt{2}\\in\\mathbb{Q}")));
     }
 
     @Test
@@ -40,11 +40,11 @@ class SetTest {
 
     @Test
     void uncalculableCases() {
-        assertEquals("Uncalculable", Calc.once("\\{1\\}+1"));
-        assertEquals("Uncalculable", Calc.once("\\mathbb{R}"));
-        assertEquals("Uncalculable", Calc.once("\\mathbb{N}\\cup\\{1\\}"));
-        assertEquals("Uncalculable", Calc.once("\\{1/0\\}"));
-        assertEquals("Uncalculable", Calc.once("\\{\\infty\\}"));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\{1\\}+1")));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\mathbb{R}")));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\mathbb{N}\\cup\\{1\\}")));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\{1/0\\}")));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\{\\infty\\}")));
     }
 
     @Test

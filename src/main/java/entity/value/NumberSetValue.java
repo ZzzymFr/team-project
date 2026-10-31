@@ -33,7 +33,7 @@ public final class NumberSetValue extends Value {
                 return integer;
             case RATIONAL:
                 if (!integer) {
-                    throw new UncalculableException();
+                    throw new UncalculableException(UncalculableException.RATIONAL);
                 }
                 return true;
             default:

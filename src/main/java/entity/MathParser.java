@@ -23,6 +23,7 @@ import entity.value.NumberValue;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -35,12 +36,17 @@ public final class MathParser {
             "\\times", "\\cdot", "\\land", "\\lor", "\\oplus", "\\Rightarrow", "\\Leftrightarrow",
             "\\leftrightarrow", "\\in", "\\notin", "\\subset", "\\cup", "\\cap", "\\perp", "\\rangle",
             "\\}");
+    // a bare arg like \sin 2x ends before these
+    private static final List<String> NAMED_FUNCTIONS = Arrays.asList("\\sin", "\\cos", "\\tan", "\\ln",
+            "\\log", "\\lim", "\\sum", "\\prod");
 
     private final List<String> tokens;
     private final Map<String, UserFunction> functions;
     private int position = 0;
     private int plusMinusCount = 0;
+    private int absoluteDepth = 0;
     private final List<String> boundNames = new ArrayList<>();
+    private final Map<Integer, Node> groupsBeforeSign = new HashMap<>();
 
     public MathParser(List<String> tokens, Map<String, UserFunction> functions) {
         this.tokens = tokens;
@@ -62,7 +68,7 @@ public final class MathParser {
         } catch (MathSyntaxException e) {
             // leftover : or ; is just prose
             if (tokens.contains(":") || tokens.contains(";")) {
-                throw new UncalculableException();
+                throw new UncalculableException(UncalculableException.NOT_CALCULATION);
             }
             throw e;
         }
@@ -138,28 +144,34 @@ public final class MathParser {
         Node domain = null;
         if (peekIs("\\in")) {
             next();
-            domain = parsePrimary();
-            while (peekIs("\\cup") || peekIs("\\cap")) {
-                if (next().equals("\\cup")) {
-                    domain = new BinaryNode(BinaryNode.Op.UNION, domain, parsePrimary());
-                } else {
-                    domain = new BinaryNode(BinaryNode.Op.INTERSECT, domain, parsePrimary());
-                }
+            domain = parseDomainIntersection();
+            while (peekIs("\\cup")) {
+                next();
+                domain = new BinaryNode(BinaryNode.Op.UNION, domain, parseDomainIntersection());
             }
         }
         if (peekIs(",") || peekIs(":")) {
             next();
         }
         if (peek() == null || peekIs(")") || peekIs("}") || peekIs("]") || peekIs("\\}")) {
-            throw new UncalculableException();
+            throw new UncalculableException(UncalculableException.NOTHING_TO_CHECK);
         }
         boundNames.add(variable);
         Node body = parseStatement();
         boundNames.remove(boundNames.size() - 1);
         if (plusMinusCount > plusMinusBefore) {
-            throw new UncalculableException();
+            throw new UncalculableException(UncalculableException.PLUS_MINUS_HERE);
         }
         return new QuantifierNode(isForAll, variable, domain, body);
+    }
+
+    private Node parseDomainIntersection() {
+        Node domain = parsePrimary();
+        while (peekIs("\\cap")) {
+            next();
+            domain = new BinaryNode(BinaryNode.Op.INTERSECT, domain, parsePrimary());
+        }
+        return domain;
     }
 
     private Node parseRelation() {
@@ -177,14 +189,21 @@ public final class MathParser {
         return new RelationNode(operands, operators);
     }
 
+    // \cap binds tighter than \cup, like * over +
     private Node parseSetExpression() {
+        Node result = parseIntersection();
+        while (peekIs("\\cup")) {
+            next();
+            result = new BinaryNode(BinaryNode.Op.UNION, result, parseIntersection());
+        }
+        return result;
+    }
+
+    private Node parseIntersection() {
         Node result = parseAdditive();
-        while (peekIs("\\cup") || peekIs("\\cap")) {
-            if (next().equals("\\cup")) {
-                result = new BinaryNode(BinaryNode.Op.UNION, result, parseAdditive());
-            } else {
-                result = new BinaryNode(BinaryNode.Op.INTERSECT, result, parseAdditive());
-            }
+        while (peekIs("\\cap")) {
+            next();
+            result = new BinaryNode(BinaryNode.Op.INTERSECT, result, parseAdditive());
         }
         return result;
     }
@@ -278,7 +297,12 @@ public final class MathParser {
             return parseNumber(token);
         }
         if (token.equals("(")) {
-            return parseParenthesized();
+            int open = position - 1;
+            Node group = parseParenthesized();
+            if (peekIs("+") || peekIs("-")) {
+                groupsBeforeSign.put(open, group);  // d/dx(..)+rest splits here, symbolic only
+            }
+            return group;
         }
         if (token.equals("\\langle")) {
             return parseAngleVector();
@@ -293,7 +317,12 @@ public final class MathParser {
             return parseRestOfGroup("]");
         }
         if (token.equals("|")) {
-            return new UnaryNode(UnaryNode.Op.ABSOLUTE, parseRestOfGroup("|"));
+            absoluteDepth++;
+            try {
+                return new UnaryNode(UnaryNode.Op.ABSOLUTE, parseRestOfGroup("|"));
+            } finally {
+                absoluteDepth--;
+            }
         }
         if (token.equals("\\{")) {
             return parseSetLiteral();
@@ -331,8 +360,8 @@ public final class MathParser {
             return parseLog();
         }
         if (token.equals("\\sin") || token.equals("\\cos") || token.equals("\\tan") || token.equals("\\ln")) {
-            Node power = parseFunctionPower();
-            Node value = new FunctionNode(token, parseFunctionArgument(), null);
+            Node power = parseFunctionPower(token);
+            Node value = new FunctionNode(token, parseNamedFunctionArgument(), null);
             return power == null ? value : new BinaryNode(BinaryNode.Op.POWER, value, power);
         }
         if (token.equals("\\infty")) {
@@ -349,17 +378,17 @@ public final class MathParser {
             return parseDecorated(token);
         }
         if (MathLexer.isLetter(token)) {
-            if (functions.containsKey(token) && !peekIs("_")) {
+            if (functions.containsKey(token) && !peekIs("_") && !boundNames.contains(token)) {
                 return parseFunctionUse(token);
             }
             String name = parseName(token);
             if (peekIs("'")) {
-                throw new UncalculableException();
+                throw new UncalculableException(UncalculableException.NOT_DEFINED);
             }
             return new VariableNode(name);
         }
         if (MEANINGLESS.contains(token)) {
-            throw new UncalculableException();
+            throw new UncalculableException(meaninglessReason(token));
         }
         if (OPERATORS.contains(token)) {
             throw new MathSyntaxException("Unexpected \"" + token + "\".");
@@ -440,7 +469,7 @@ public final class MathParser {
                 kind = NumberSetValue.Kind.COMPLEX;
                 break;
             default:
-                throw new UncalculableException();
+                throw new UncalculableException(UncalculableException.UNKNOWN_SET);
         }
         int dimension = 1;
         if (peekIs("^")) {
@@ -459,7 +488,7 @@ public final class MathParser {
 
     private int parseDimension(String token) {
         if (MathLexer.isLetter(token)) {
-            throw new UncalculableException();
+            throw new UncalculableException(UncalculableException.UNKNOWN_SET);
         }
         try {
             int dimension = Integer.parseInt(token);
@@ -523,7 +552,7 @@ public final class MathParser {
         if (command.equals("\\hat")) {
             return new UnaryNode(UnaryNode.Op.UNIT, argument);
         }
-        throw new UncalculableException();
+        throw new UncalculableException(UncalculableException.WRONG_KIND);
     }
 
     private Node parseFunctionUse(String name) {
@@ -539,7 +568,7 @@ public final class MathParser {
             position = position + 6;
         }
         if (order > DerivativeCalculator.MAX_ORDER) {
-            throw new UncalculableException();
+            throw new UncalculableException(UncalculableException.MAX_DERIVATIVE);
         }
         return parseCall(name, order, 0);
     }
@@ -585,14 +614,17 @@ public final class MathParser {
         }
         next();
         if (order < 1 || order > DerivativeCalculator.MAX_ORDER) {
-            throw new UncalculableException();
+            throw new UncalculableException(UncalculableException.MAX_DERIVATIVE);
         }
         if (function == null) {
-            return new DerivativeNode(variable, order, parseBody(variable));
+            int bodyStart = position;
+            Node body = parseBody(variable);
+            return new DerivativeNode(variable, order, body, "\\partial".equals(operator),
+                    groupsBeforeSign.get(bodyStart));
         }
         int parameter = functions.get(function).getParameters().indexOf(variable);
         if (parameter < 0) {
-            throw new UncalculableException();
+            throw new UncalculableException(UncalculableException.NOT_AN_INPUT);
         }
         return parseCall(function, order, parameter);
     }
@@ -631,22 +663,22 @@ public final class MathParser {
     // \sum / \prod w/ range, no range -> uncalc
     private Node parseSeries(boolean isProduct) {
         if (!peekIs("_") || !"{".equals(tokenAt(position + 1))) {
-            throw new UncalculableException();
+            throw new UncalculableException(UncalculableException.SUM_RANGE);
         }
         int start = position + 2;
         int end = closingBrace(start);
         if (start == end || !MathLexer.isLetter(tokens.get(start))) {
-            throw new UncalculableException();
+            throw new UncalculableException(UncalculableException.SUM_RANGE);
         }
         position = start + 1;
         String variable = parseName(tokens.get(start));
         if (position >= end || !tokens.get(position).equals("=")) {
-            throw new UncalculableException();
+            throw new UncalculableException(UncalculableException.SUM_RANGE);
         }
         Node lower = parseBound(position + 1, end);
         position = end + 1;
         if (!peekIs("^")) {
-            throw new UncalculableException();
+            throw new UncalculableException(UncalculableException.SUM_RANGE);
         }
         next();
         Node upper;
@@ -658,13 +690,21 @@ public final class MathParser {
             next();
             upper = parseBound(position - 1, position);
         }
-        return new SeriesNode(isProduct, variable, lower, upper, parseBody(variable));
+        return new SeriesNode(isProduct, variable, lower, upper, parseSeriesBody(variable));
     }
 
     // body where the var is bound (even e)
     private Node parseBody(String variable) {
         boundNames.add(variable);
         Node body = parseAdditive();
+        boundNames.remove(boundNames.size() - 1);
+        return body;
+    }
+
+    // sum body stops at + / -, so \sum n+1 = (\sum n)+1
+    private Node parseSeriesBody(String variable) {
+        boundNames.add(variable);
+        Node body = parseTerm();
         boundNames.remove(boundNames.size() - 1);
         return body;
     }
@@ -678,7 +718,7 @@ public final class MathParser {
         boundParser.boundNames.addAll(boundNames);
         Node bound = boundParser.parse();
         if (boundParser.getPlusMinusCount() > 0) {
-            throw new UncalculableException();
+            throw new UncalculableException(UncalculableException.PLUS_MINUS_HERE);
         }
         return bound;
     }
@@ -750,17 +790,17 @@ public final class MathParser {
             next();
             base = parsePrimary();
         }
-        return new FunctionNode("\\log", parseFunctionArgument(), base);
+        return new FunctionNode("\\log", parseNamedFunctionArgument(), base);
     }
 
     // \sin^2 x = (\sin x)^2, \sin^{-1} is ambiguous
-    private Node parseFunctionPower() {
+    private Node parseFunctionPower(String function) {
         if (!peekIs("^")) {
             return null;
         }
         next();
         if (peekIs("-") || (peekIs("{") && "-".equals(tokenAt(position + 1)))) {
-            throw new UncalculableException();
+            throw new UncalculableException(UncalculableException.inverseOf(function));
         }
         return parsePrimary();
     }
@@ -775,6 +815,31 @@ public final class MathParser {
             return parseRestOfGroup("}");
         }
         return parseUnary();
+    }
+
+    // \sin 2x = \sin(2x), stops at next \sin etc
+    private Node parseNamedFunctionArgument() {
+        if (peekIs("(") || peekIs("{")) {
+            return parseFunctionArgument();
+        }
+        Node argument = parseUnary();
+        while (startsValue(peek()) && !NAMED_FUNCTIONS.contains(peek())) {
+            argument = new BinaryNode(BinaryNode.Op.MULTIPLY, argument, parsePower());
+        }
+        return argument;
+    }
+
+    private static String meaninglessReason(String token) {
+        switch (token) {
+            case "\\int":
+                return UncalculableException.INTEGRAL;
+            case "\\ldots":
+                return UncalculableException.ELLIPSIS;
+            case "\\partial":
+                return UncalculableException.PARTIAL;
+            default:
+                return UncalculableException.NOT_CALCULATION;
+        }
     }
 
     private Node parseRestOfGroup(String closingBracket) {
@@ -815,6 +880,8 @@ public final class MathParser {
                 || token.equals("\\infty") || token.equals("\\top") || token.equals("\\bot")
                 || token.equals("\\vec") || token.equals("\\hat") || token.equals("\\bar")
                 || token.equals("\\overline")
+                // inside |..| a | closes it, so 5|x| only outside
+                || token.equals("|") && absoluteDepth == 0
                 || token.equals("\\sin") || token.equals("\\cos") || token.equals("\\tan");
     }
 

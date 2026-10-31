@@ -49,6 +49,7 @@ public abstract class CanvasPage extends JPanel {
     private final GlassDock messageDock = new GlassDock();
     private final Timer messageTimer = new Timer(0, e -> hideMessage());
     private boolean messageIsError;
+    private CanvasArea canvasArea;
 
     protected CanvasPage(SharedCanvas sharedCanvas) {
         super(new BorderLayout());
@@ -73,7 +74,8 @@ public abstract class CanvasPage extends JPanel {
         toolDock.setBackdrop(sharedCanvas::paintInkCopy);
         zoomDock.setBackdrop(sharedCanvas::paintInkCopy);
         messageDock.setBackdrop(sharedCanvas::paintInkCopy);
-        add(new CanvasArea(), BorderLayout.CENTER);
+        canvasArea = new CanvasArea();
+        add(canvasArea, BorderLayout.CENTER);
     }
 
     /**
@@ -133,6 +135,17 @@ public abstract class CanvasPage extends JPanel {
         functionArea.add(component, BorderLayout.CENTER);
         functionArea.revalidate();
         functionArea.repaint();
+    }
+
+    // floats over the canvas, on top; caller sets its bounds
+    protected final void addCanvasOverlay(JComponent overlay) {
+        canvasArea.add(overlay, 0);
+        canvasArea.repaint();
+    }
+
+    // area the overlay lives in (same coords as the canvas)
+    protected final JComponent getCanvasArea() {
+        return canvasArea;
     }
 
     protected final SharedCanvas getSharedCanvas() {

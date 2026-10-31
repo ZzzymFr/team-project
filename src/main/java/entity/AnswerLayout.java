@@ -88,6 +88,37 @@ public final class AnswerLayout {
                 && strokeBounds.getMaxY() >= formulaBounds.getMinY() - my;
     }
 
+    // median height of tall single strokes; lines stacked above each other don't add up
+    public static double strokeHeight(Collection<Stroke> strokes) {
+        List<Integer> heights = new ArrayList<>();
+        for (Stroke s : strokes) {
+            Rectangle b = bounds(List.of(s));
+            if (b != null && b.height >= DOT && b.height >= 0.5 * b.width) {
+                heights.add(b.height);
+            }
+        }
+        if (heights.isEmpty()) {
+            return charHeight(strokes);
+        }
+        heights.sort(null);
+        int n = heights.size();
+        double h = n % 2 == 1 ? heights.get(n / 2) : (heights.get(n / 2 - 1) + heights.get(n / 2)) / 2.0;
+        return Math.max(MIN_CHAR_HEIGHT, Math.min(MAX_CHAR_HEIGHT, h));
+    }
+
+    public static final double NEW_INK_GAP_X = 1.5;
+    public static final double NEW_INK_GAP_Y = 0.35;
+
+    // fresh loose ink: same formula if on the same line, gaps up to 1.5 chars
+    public static boolean sameNewFormula(Rectangle group, double charHeight, Rectangle stroke) {
+        double mx = NEW_INK_GAP_X * charHeight;
+        double my = NEW_INK_GAP_Y * charHeight;
+        return stroke.getMinX() <= group.getMaxX() + mx
+                && stroke.getMaxX() >= group.getMinX() - mx
+                && stroke.getMinY() <= group.getMaxY() + my
+                && stroke.getMaxY() >= group.getMinY() - my;
+    }
+
     // box around every point, null if none
     public static Rectangle bounds(Iterable<Stroke> strokes) {
         Rectangle bounds = null;

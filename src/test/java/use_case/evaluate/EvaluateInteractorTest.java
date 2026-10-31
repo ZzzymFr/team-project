@@ -227,11 +227,11 @@ class EvaluateInteractorTest {
         assertEquals("false", Calc.once("5+7=13"));
         assertEquals("= 2", Calc.once("1+1="));
         assertEquals("= undefined", Calc.once("1/0"));
-        assertEquals("Uncalculable", Calc.once("10^{400}"));
-        assertEquals("Uncalculable", Calc.once("200!"));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("10^{400}")));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("200!")));
         assertEquals("no solution", Calc.once("x^2=-1"));
         assertEquals("true for all x", Calc.once("2(x+1)=2x+2"));
-        assertEquals("Uncalculable", Calc.once("\\text{hi}"));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\text{hi}")));
     }
 
     @Test

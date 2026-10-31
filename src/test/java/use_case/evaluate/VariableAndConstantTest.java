@@ -40,7 +40,7 @@ class VariableAndConstantTest {
         assertEquals("= 1 or -1", Calc.once("\\pm1"));
         assertEquals("= 2", Calc.once("2\\pm0"));
         assertEquals("x = -1 or x = 3", Calc.once("x=1\\pm2"));
-        assertEquals("Uncalculable", Calc.once("1\\pm1\\pm1\\pm1\\pm1\\pm1"));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("1\\pm1\\pm1\\pm1\\pm1\\pm1")));
     }
 
     @Test
@@ -58,6 +58,6 @@ class VariableAndConstantTest {
 
     @Test
     void plusMinusInFunctionDefinitionIsUncalculable() {
-        assertEquals("Uncalculable", Calc.once("f(x)=x\\pm1"));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("f(x)=x\\pm1")));
     }
 }

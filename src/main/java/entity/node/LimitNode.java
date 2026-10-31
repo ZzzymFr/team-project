@@ -1,6 +1,7 @@
 package entity.node;
 
 import entity.Context;
+import entity.UncalculableException;
 import entity.UndefinedException;
 import entity.calculus.LimitCalculator;
 import entity.value.NumberValue;
@@ -68,14 +69,29 @@ public class LimitNode extends Node {
     @Override
     public Value evaluate(Context context) {
         double point = Values.toNumber(target.evaluate(context));
-        return new NumberValue(LimitCalculator.limit(t -> sample(context.withVariable(variable, t)), point, side));
+        boolean[] lost = {false};
+        double limit = LimitCalculator.limit(t -> sample(context.withVariable(variable, t), lost),
+                t -> NoiseScale.noiseOf(body, context.withVariable(variable, t)), point, side);
+        if (Double.isNaN(limit) && lost[0]) {
+            // inf-inf in the samples, not a real "no limit"
+            throw new UncalculableException(UncalculableException.TOO_BIG);
+        }
+        return new NumberValue(limit);
     }
 
-    private double sample(Context context) {
+    private double sample(Context context, boolean[] lost) {
+        boolean outer = context.isAbsorbed();
+        context.setAbsorbed(false);
         try {
-            return DerivativeNode.numberAt(body, context);
+            double value = DerivativeNode.numberAt(body, context);
+            if (Double.isNaN(value) && context.isAbsorbed()) {
+                lost[0] = true;
+            }
+            return value;
         } catch (UndefinedException e) {
             return Double.NaN;
+        } finally {
+            context.setAbsorbed(outer || context.isAbsorbed());
         }
     }
 }

@@ -101,7 +101,8 @@ public class CallNode extends Node {
         }
         if (derivativeOrder < 0 || derivativeOrder > DerivativeCalculator.MAX_ORDER
                 || derivativeParameter < 0 || derivativeParameter >= parameters.size()) {
-            throw new UncalculableException();
+            throw new UncalculableException(derivativeOrder > DerivativeCalculator.MAX_ORDER
+                    ? UncalculableException.MAX_DERIVATIVE : UncalculableException.NOT_AN_INPUT);
         }
         Context bound = context.forFunctionBody(name);
         double[] values = new double[arguments.size()];

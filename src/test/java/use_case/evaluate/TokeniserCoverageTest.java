@@ -38,7 +38,7 @@ class TokeniserCoverageTest {
         for (String s : new String[] {"\\text{Let }A", "\\square", "\\begin{pmatrix}1\\end{pmatrix}", "1;2",
                 "f:\\mathbb{R}\\rightarrow\\mathbb{R}", "g:\\mathbb{N}\\rightarrow\\mathbb{R}", "v=(x_1,...x_n)",
                 "\\mathbb{R}", "1\\oplus2", "\\sum_{i=1}^{25}ix_i=x_1+2x_2+...+24x_{24}+25x_{25}"}) {
-            assertEquals("Uncalculable", Calc.once(s), s);
+            assertEquals("Uncalculable", Calc.withoutReason(Calc.once(s)), s);
         }
     }
 
@@ -75,15 +75,15 @@ class TokeniserCoverageTest {
         assertEquals("true", Calc.once("\\frac{5\\times6\\times7\\times8}{2}=840"));
         assertEquals("x = 2", Calc.once("8x+4=20"));
         assertEquals("true", Calc.once("\\lim_{x\\rightarrow\\infty}8x+3=\\infty"));
-        assertEquals("Uncalculable", Calc.once("\\forall x\\in\\mathbb{R}^{n}"));
-        assertEquals("Uncalculable", Calc.once("f'(x)=\\cos(e^{x})"));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\forall x\\in\\mathbb{R}^{n}")));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("f'(x)=\\cos(e^{x})")));
     }
 
     @Test
     void integralsAreUncalculable() {
-        assertEquals("Uncalculable", Calc.once("\\int"));
-        assertEquals("Uncalculable", Calc.once("\\int_a^x g=\\lim_{n\\rightarrow\\infty}\\int_a^x f_n'"));
-        assertEquals("Uncalculable", Calc.once("\\int_{0}^{1}x"));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\int")));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\int_a^x g=\\lim_{n\\rightarrow\\infty}\\int_a^x f_n'")));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\int_{0}^{1}x")));
     }
 
     // go thru interactor + parser directly so catch cant hide crashes

@@ -13,11 +13,19 @@ public class DerivativeNode extends Node {
     private final String variable;
     private final int order;
     private final Node body;
+    private final boolean partial;
+    private final Node leadingGroup;  // (..) the body starts with, when a + or - follows it
 
     public DerivativeNode(String variable, int order, Node body) {
+        this(variable, order, body, false, null);
+    }
+
+    public DerivativeNode(String variable, int order, Node body, boolean partial, Node leadingGroup) {
         this.variable = variable;
         this.order = order;
         this.body = body;
+        this.partial = partial;
+        this.leadingGroup = leadingGroup;
     }
 
     public String getVariable() {
@@ -30,6 +38,15 @@ public class DerivativeNode extends Node {
 
     public Node getBody() {
         return body;
+    }
+
+    public boolean isPartial() {
+        return partial;
+    }
+
+    // null unless written like d/dx(..)+rest
+    public Node getLeadingGroup() {
+        return leadingGroup;
     }
 
     @Override
