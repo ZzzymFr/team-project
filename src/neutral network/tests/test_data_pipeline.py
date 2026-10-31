@@ -91,6 +91,20 @@ class PipelineTests(unittest.TestCase):
         data.mix_manifests({'fixture': paths}, output)
         self.assertEqual(stamp, data.file_stamp(output / 'train.jsonl'))
 
+    def test_mixing_rehashes_legacy_labels_and_invalidates_old_cache(self):
+        heldout = data.image_record(self.image('heldout.png'), r'\cos(x)', 'fixture', 'test')
+        training = data.image_record(self.image('training.png', y=6), 'c o s ( x )', 'fixture', 'train')
+        heldout['label_hash'], training['label_hash'] = 'old-a', 'old-b'
+        paths = data.prepare_manifests('fixture', {}, lambda: iter([('test', heldout), ('train', training)]))
+        output = self.root / 'mixed'
+        report = data.mix_manifests({'fixture': paths}, output)
+        self.assertEqual(report['skipped']['train/fixture/heldout_formula'], 1)
+        self.assertEqual((output / 'train.jsonl').read_text(), '')
+        report.pop('normalization_version')
+        data.write_json(output / 'summary.json', report)
+        refreshed = data.mix_manifests({'fixture': paths}, output)
+        self.assertIn('normalization_version', refreshed)
+
     def test_unimer_uses_image_index_not_sorted_position(self):
         downloads = self.root / 'downloads'
         downloads.mkdir()
