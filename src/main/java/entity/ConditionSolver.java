@@ -1,5 +1,6 @@
 package entity;
 
+import entity.calculus.Rounding;
 import entity.node.BinaryNode;
 import entity.node.FunctionNode;
 import entity.node.LiteralNode;
@@ -45,6 +46,10 @@ public class ConditionSolver {
     private static final double NOISE = 1e-12;
     private static final double TOUCHING = 1e-6;
     private static final int MAX_ISOLATED_POINTS = 10;
+    private static final int EDGE_DIGITS = 12;
+    private static final int TAIL_POINTS = 4;
+    private static final double CLOSING_GAP = 1e-6;
+    private static final double SLOW_SHRINK = 0.99;
     private static final int REAL = 0;
     private static final int INTEGER = 1;
     private static final int NATURAL = 2;
@@ -104,18 +109,54 @@ public class ConditionSolver {
         boolean below = intervals.isEmpty() || intervals.get(0).getLow() == Double.NEGATIVE_INFINITY;
         boolean above = intervals.isEmpty()
                 || intervals.get(intervals.size() - 1).getHigh() == Double.POSITIVE_INFINITY;
-        if (below && changesBeyond(-1, new ArrayList<Double>(), 0)
-                || above && changesBeyond(1, new ArrayList<Double>(), 0)) {
-            throw new UncalculableException();
+        boolean edgeTruth = !intervals.isEmpty();
+        if (below && closesPastEnd(-1) || above && closesPastEnd(1)) {
+            throw new UncalculableException(UncalculableException.BEYOND_RANGE);
+        }
+        if (below && flipsBeyond(-1, edgeTruth) || above && flipsBeyond(1, edgeTruth)) {
+            // keeps flipping out there = endless solutions
+            throw new UncalculableException(rootsBeyond(MAX_ISOLATED_POINTS) == null
+                    ? UncalculableException.TOO_MANY_SOLUTIONS : UncalculableException.BEYOND_RANGE);
         }
         return intervals;
+    }
+
+    // sides meeting past range only counts if truth flips (sin x<=1 just touches)
+    private boolean flipsBeyond(double sign, boolean edgeTruth) {
+        List<Double> roots = new ArrayList<>();
+        if (!changesBeyond(sign, roots, MAX_ISOLATED_POINTS)) {
+            return false;
+        }
+        if (roots.isEmpty()) {
+            return true;
+        }
+        try {
+            for (double root : roots) {
+                double offset = ROOT_OFFSET * Math.max(1, Math.abs(root));
+                if (isTrueAt(root) != edgeTruth || isTrueAt(root - offset) != edgeTruth
+                        || isTrueAt(root + offset) != edgeTruth) {
+                    return true;
+                }
+            }
+            for (int k = 0; k <= SCAN_POINTS; k++) {
+                double point = sign * EquationSolver.SEARCH_END * Math.pow(10, k / (double) POINTS_PER_DECADE);
+                if (isTrueAt(point) != edgeTruth) {
+                    return true;
+                }
+            }
+        } catch (BudgetExceededException | UndecidableException e) {
+            throw e;
+        } catch (UncalculableException e) {
+            return true;
+        }
+        return false;
     }
 
     // intervals in range, ends as unbounded
     public List<Interval> solveInRange() {
         double[] points = sortedCandidates();
         if (undersampled) {
-            throw new UncalculableException();
+            throw new UncalculableException(UncalculableException.TOO_FAST);
         }
         Set<Double> genuineRoots = new HashSet<>();
         List<Double> sortedRoots = sortedRootValues();
@@ -150,7 +191,7 @@ public class ConditionSolver {
             if (start == end && !rootValues.contains(points[start]) && !midpoints.contains(points[start])) {
                 isolatedPoints++;
                 if (isolatedPoints > MAX_ISOLATED_POINTS || !isIsolated(points[start], true)) {
-                    throw new UncalculableException();
+                    throw new UncalculableException(UncalculableException.TOO_MANY_SOLUTIONS);
                 }
                 addInterval(intervals, new Interval(points[start], true, points[start], true));
                 i++;
@@ -215,11 +256,11 @@ public class ConditionSolver {
             // only fill from a stretch at the end, not one point
             boolean atEnd = start == 0 || i == samples.length;
             if (lost && atEnd && !(isBacked(samples, start - 1, -1) && isBacked(samples, i, 1))) {
-                throw new UncalculableException();
+                throw new UncalculableException(UncalculableException.TOO_BIG);
             }
             if (before == UNKNOWN && after == UNKNOWN || before != UNKNOWN && after != UNKNOWN && before != after) {
                 if (lost) {
-                    throw new UncalculableException();
+                    throw new UncalculableException(UncalculableException.TOO_BIG);
                 }
                 continue;
             }
@@ -438,7 +479,8 @@ public class ConditionSolver {
         int result = scanFar(wanted, mode);
         // nested quantifier: close call might hold elsewhere
         boolean nestedMiss = nearMiss && !context.getVariableValues().isEmpty();
-        if (result == NOT_FOUND && (skippedRoot || !sawVerdict || undersampled || nestedMiss)) {
+        boolean pastEnd = result == NOT_FOUND && mode == REAL && (closesPastEnd(1) || closesPastEnd(-1));
+        if (result == NOT_FOUND && (skippedRoot || !sawVerdict || undersampled || nestedMiss || pastEnd)) {
             throw new UndecidableException();
         }
         return result;
@@ -583,6 +625,61 @@ public class ConditionSolver {
             lastSize = size;
         }
         return NOT_FOUND;
+    }
+
+    // sides still closing in at 1e300 = root past what doubles hold (ln x=1000)
+    private boolean closesPastEnd(double sign) {
+        for (Pair pair : numericPairs()) {
+            if (closesPastEnd(pair, sign)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean closesPastEnd(Pair pair, double sign) {
+        double[] gap = new double[TAIL_POINTS];
+        double direction = 0;
+        boolean logGap = true;
+        double scale = 1;
+        for (int j = 0; j < TAIL_POINTS; j++) {
+            int k = SCAN_POINTS - TAIL_POINTS + 1 + j;
+            scanValue(pair, sign * EquationSolver.SEARCH_END * Math.pow(10, k / (double) POINTS_PER_DECADE));
+            double a = pair.lastLeft;
+            double b = pair.lastRight;
+            if (!isFinite(a) || !isFinite(b) || a == b) {
+                return false;
+            }
+            // ratio not difference, so 1e150 vs 1e200 isnt absorbed
+            logGap = logGap && a * b > 0;
+            double signed = a * b > 0 ? Math.log(Math.abs(a)) - Math.log(Math.abs(b)) : a - b;
+            if (direction == 0) {
+                direction = Math.signum(signed);
+            } else if (Math.signum(signed) != direction) {
+                return false;
+            }
+            gap[j] = Math.abs(signed);
+            scale = Math.max(scale, Math.max(Math.abs(a), Math.abs(b)));
+        }
+        int last = TAIL_POINTS - 1;
+        // gap ~0 = just an asymptote (1/x=0)
+        if (gap[last] <= CLOSING_GAP * (logGap ? 1 : scale)) {
+            return false;
+        }
+        for (int j = 1; j < TAIL_POINTS; j++) {
+            if (gap[j] >= gap[j - 1]) {
+                return false;
+            }
+        }
+        double earlierStep = gap[last - 2] - gap[last - 1];
+        double lastStep = gap[last - 1] - gap[last];
+        double ratio = lastStep / earlierStep;
+        // barely slowing (ln ln x) could still get there
+        if (ratio >= SLOW_SHRINK) {
+            return true;
+        }
+        // shrinking steps: does what is left still reach 0
+        return lastStep * ratio / (1 - ratio) >= gap[last];
     }
 
     // scan root, keep probes between roots
@@ -738,6 +835,9 @@ public class ConditionSolver {
         changesBeyond(1, roots, limit);
         if (roots.size() > limit) {
             return null;
+        }
+        if (closesPastEnd(-1) || closesPastEnd(1)) {
+            throw new UncalculableException(UncalculableException.BEYOND_RANGE);
         }
         Collections.sort(roots);
         return roots;
@@ -1042,6 +1142,14 @@ public class ConditionSolver {
             return new double[] {snapped, isTrueAt(snapped) ? INCLUDED : 0};
         }
         if (domainEdge && isTrueAt(truePoint)) {
+            // pole next door isnt an included end (1/(x+2) at -2)
+            double tidyEdge = Rounding.toSignificant(truePoint, EDGE_DIGITS);
+            if (tidyEdge != truePoint && isUndefinedAt(tidyEdge)) {
+                return new double[] {tidyEdge, 0};
+            }
+            if (tidyEdge != truePoint && isTrueAt(tidyEdge)) {
+                return new double[] {tidyEdge, INCLUDED};
+            }
             return new double[] {truePoint, INCLUDED};
         }
         return new double[] {limit, 0};
@@ -1215,7 +1323,7 @@ public class ConditionSolver {
             }
         } else if (leftShape[0] == SET_SHAPE && rightShape[0] == SET_SHAPE) {
             if (leftShape[1] * rightShape[1] > MAX_ELEMENT_PAIRS) {
-                throw new UncalculableException();
+                throw new UncalculableException(UncalculableException.SETS_TOO_LARGE);
             }
             for (int j = 0; j < leftShape[1]; j++) {
                 for (int k = 0; k < rightShape[1]; k++) {

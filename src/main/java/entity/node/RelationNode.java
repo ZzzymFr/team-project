@@ -19,6 +19,8 @@ import java.util.List;
 public class RelationNode extends Node {
     private final List<Node> operands;
     private final List<String> operators;
+    private static final double USUAL_TOLERANCE = 1e-9;
+    private boolean[] plain;
 
     public RelationNode(List<Node> operands, List<String> operators) {
         this.operands = Collections.unmodifiableList(new ArrayList<>(operands));
@@ -57,16 +59,63 @@ public class RelationNode extends Node {
             String operator = operators.get(i);
             boolean approximate = operands.get(i).isApproximate() || operands.get(i + 1).isApproximate();
             double error = approximate ? Math.max(leftError, rightError) : -1;
-            if (result && isDecidedByTolerance(operator, left, right, error)) {
+            double exact = exactTolerance(i, left, right, context);
+            boolean tolerated = Double.isNaN(exact) ? isDecidedByTolerance(operator, left, right, error)
+                    : isDecidedWithin(operator, left, right, exact);
+            if (result && tolerated) {
                 context.markTolerated();
             }
-            result = result && holds(operator, left, right, operands.get(i), operands.get(i + 1));
+            result = result && holds(operator, left, right, operands.get(i), operands.get(i + 1), exact);
             left = right;
             leftError = rightError;
             outer = Math.max(outer, rightError);
         }
         context.setApproximation(Math.max(outer, leftError));
         return BooleanValue.of(result);
+    }
+
+    // plain constants on both sides: tol from their own float noise, NaN = usual tol
+    private double exactTolerance(int index, Value left, Value right, Context context) {
+        if (plain == null) {
+            plain = new boolean[operands.size()];
+            for (int i = 0; i < operands.size(); i++) {
+                plain[i] = NoiseScale.isSupported(operands.get(i));
+            }
+        }
+        if (!plain[index] || !plain[index + 1] || !(left instanceof NumberValue)
+                || !(right instanceof NumberValue)) {
+            return Double.NaN;
+        }
+        double scale = NoiseScale.of(operands.get(index), context) + NoiseScale.of(operands.get(index + 1), context);
+        if (Double.isNaN(scale) || Double.isInfinite(scale)) {
+            return Double.NaN;
+        }
+        double a = Math.abs(((NumberValue) left).getValue());
+        double b = Math.abs(((NumberValue) right).getValue());
+        // never looser than the usual 1e-9, noisy spots keep the old band
+        return Math.min(NoiseScale.TOLERANCE * scale, USUAL_TOLERANCE * Math.max(1, Math.max(a, b)));
+    }
+
+    // like isDecidedByTolerance but w/ the noise tol
+    private static boolean isDecidedWithin(String operator, Value left, Value right, double exact) {
+        double a = ((NumberValue) left).getValue();
+        double b = ((NumberValue) right).getValue();
+        if (a == b || Math.abs(a - b) > exact) {
+            return false;
+        }
+        switch (operator) {
+            case "=":
+            case "\\neq":
+                return true;
+            case "<":
+            case "\\geq":
+                return a < b;
+            case ">":
+            case "\\leq":
+                return a > b;
+            default:
+                return false;
+        }
     }
 
     // undefined or overflowed side cant compare
@@ -116,20 +165,20 @@ public class RelationNode extends Node {
         }
     }
 
-    private boolean holds(String operator, Value left, Value right, Node leftNode, Node rightNode) {
+    private boolean holds(String operator, Value left, Value right, Node leftNode, Node rightNode, double exact) {
         switch (operator) {
             case "=":
-                return Values.areEqual(left, right);
+                return areEqual(left, right, exact);
             case "\\neq":
-                return !Values.areEqual(left, right);
+                return !areEqual(left, right, exact);
             case "<":
-                return Values.toNumber(left) < Values.toNumber(right) && !almostEqual(left, right);
+                return Values.toNumber(left) < Values.toNumber(right) && !almostEqual(left, right, exact);
             case ">":
-                return Values.toNumber(left) > Values.toNumber(right) && !almostEqual(left, right);
+                return Values.toNumber(left) > Values.toNumber(right) && !almostEqual(left, right, exact);
             case "\\leq":
-                return Values.toNumber(left) < Values.toNumber(right) || almostEqual(left, right);
+                return Values.toNumber(left) < Values.toNumber(right) || almostEqual(left, right, exact);
             case "\\geq":
-                return Values.toNumber(left) > Values.toNumber(right) || almostEqual(left, right);
+                return Values.toNumber(left) > Values.toNumber(right) || almostEqual(left, right, exact);
             case "\\approx":
                 return approximately(Values.toNumber(left), Values.toNumber(right), leftNode, rightNode);
             case "\\perp":
@@ -147,7 +196,7 @@ public class RelationNode extends Node {
 
     private boolean isPerpendicular(Value left, Value right) {
         if (!(left instanceof VectorValue) || !(right instanceof VectorValue)) {
-            throw new UncalculableException();
+            throw new UncalculableException(UncalculableException.WRONG_KIND);
         }
         double product = BinaryNode.dot(((VectorValue) left).getComponents(),
                 ((VectorValue) right).getComponents());
@@ -173,11 +222,11 @@ public class RelationNode extends Node {
                 if (isLiteral(elementNode)) {
                     return true;
                 }
-                throw new UncalculableException();
+                throw new UncalculableException(UncalculableException.RATIONAL);
             }
             return numbers.containsNumber(number);
         }
-        throw new UncalculableException();
+        throw new UncalculableException(UncalculableException.WRONG_KIND);
     }
 
     private boolean isLiteral(Node node) {
@@ -205,11 +254,23 @@ public class RelationNode extends Node {
         if (left instanceof NumberSetValue && right instanceof FiniteSetValue) {
             return false;
         }
-        throw new UncalculableException();
+        throw new UncalculableException(UncalculableException.WRONG_KIND);
     }
 
-    private boolean almostEqual(Value left, Value right) {
-        return Values.areAlmostEqual(Values.toNumber(left), Values.toNumber(right));
+    private boolean areEqual(Value left, Value right, double exact) {
+        if (Double.isNaN(exact)) {
+            return Values.areEqual(left, right);
+        }
+        return almostEqual(left, right, exact);
+    }
+
+    private boolean almostEqual(Value left, Value right, double exact) {
+        if (Double.isNaN(exact)) {
+            return Values.areAlmostEqual(Values.toNumber(left), Values.toNumber(right));
+        }
+        double a = Values.toNumber(left);
+        double b = Values.toNumber(right);
+        return a == b || Math.abs(a - b) <= exact;
     }
 
     private boolean approximately(double a, double b, Node leftNode, Node rightNode) {

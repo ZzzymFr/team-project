@@ -41,7 +41,7 @@ public class VectorNode extends Node {
                 throw new UndefinedException();
             }
             if (Double.isInfinite(number)) {
-                throw new UncalculableException();
+                throw new UncalculableException(UncalculableException.TOO_BIG);
             }
             numbers.add(number);
         }

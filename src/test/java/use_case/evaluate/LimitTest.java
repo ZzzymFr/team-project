@@ -39,11 +39,11 @@ class LimitTest {
     void slowLimitsAreRightOrUncalculable() {
         assertEquals("= 0", Calc.once("\\lim_{x\\to0^+}x^{0.01}"));
         assertEquals("= 0", Calc.once("\\lim_{x\\to\\infty}\\frac{\\ln x}{x^{0.1}}"));
-        assertEquals("Uncalculable", Calc.once("\\lim_{x\\to\\infty}\\frac{1}{\\ln x}"));
-        assertEquals("Uncalculable", Calc.once("\\lim_{x\\to0^+}\\frac{1}{\\ln x}"));
-        assertEquals("Uncalculable", Calc.once("\\lim_{x\\to\\infty}\\frac{\\ln x}{\\ln(2x)}"));
-        assertEquals("Uncalculable", Calc.once("\\lim_{x\\to\\infty}\\frac{1}{\\sqrt{\\ln x}}"));
-        assertEquals("Uncalculable", Calc.once("\\lim_{x\\to\\infty}\\ln(\\ln x)"));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\lim_{x\\to\\infty}\\frac{1}{\\ln x}")));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\lim_{x\\to0^+}\\frac{1}{\\ln x}")));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\lim_{x\\to\\infty}\\frac{\\ln x}{\\ln(2x)}")));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\lim_{x\\to\\infty}\\frac{1}{\\sqrt{\\ln x}}")));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\lim_{x\\to\\infty}\\ln(\\ln x)")));
         assertEquals("= ∞", Calc.once("\\lim_{x\\to\\infty}\\ln x"));
         assertEquals("= undefined", Calc.once("\\lim_{x\\to\\infty}\\sin x"));
     }
@@ -86,9 +86,9 @@ class LimitTest {
 
     @Test
     void slowDampedOscillationsAreUncalculable() {
-        assertEquals("Uncalculable", Calc.once("\\lim_{x\\to\\infty}\\frac{\\sin x}{\\sqrt{x}}"));
-        assertEquals("Uncalculable", Calc.once("\\lim_{x\\to0^+}\\sqrt{x}\\sin(\\frac{1}{x})"));
-        assertEquals("Uncalculable", Calc.once("\\lim_{x\\to\\infty}\\frac{\\sin(\\ln x)}{\\ln x}"));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\lim_{x\\to\\infty}\\frac{\\sin x}{\\sqrt{x}}")));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\lim_{x\\to0^+}\\sqrt{x}\\sin(\\frac{1}{x})")));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\lim_{x\\to\\infty}\\frac{\\sin(\\ln x)}{\\ln x}")));
     }
 
     @Test

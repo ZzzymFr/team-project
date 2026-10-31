@@ -1,11 +1,17 @@
 package interface_adapter;
 
+import entity.symbolic.TextRun;
+
+import java.util.List;
+
 public class MathLabState {
     private String expression = "";
 
     private String resultText = "";
 
     private String errorText = "";
+
+    private List<TextRun> resultRuns;  // canvas text w/ raised exponents, null for plain answers
 
     public String getExpression() {
         return expression;
@@ -21,6 +27,15 @@ public class MathLabState {
 
     public void setResultText(String resultText) {
         this.resultText = resultText;
+        this.resultRuns = null;
+    }
+
+    public List<TextRun> getResultRuns() {
+        return resultRuns;
+    }
+
+    public void setResultRuns(List<TextRun> resultRuns) {
+        this.resultRuns = resultRuns;
     }
 
     public String getErrorText() {

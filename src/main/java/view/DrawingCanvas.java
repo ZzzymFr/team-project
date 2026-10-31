@@ -3,6 +3,8 @@ package view;
 import entity.AnswerKind;
 import entity.AnswerLayout;
 import entity.CanvasAnswer;
+import entity.symbolic.ExprWriter;
+import entity.symbolic.TextRun;
 import entity.Formula;
 import entity.FormulaBook;
 import entity.InkEditor;
@@ -34,13 +36,16 @@ import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 import java.util.function.UnaryOperator;
 
@@ -112,6 +117,9 @@ public class DrawingCanvas extends JPanel {
     private FormulaBook book = new FormulaBook();  // calculated formulas + their answers
     private long revisions;                       // only goes up, undo too
     private final List<LongConsumer> formulaListeners = new ArrayList<>();
+    private final List<Consumer<Stroke>> strokeListeners = new ArrayList<>();
+    private final List<Runnable> actionListeners = new ArrayList<>();  // user started doing something
+    private final List<Runnable> viewListeners = new ArrayList<>();    // pan / zoom
     private Tool tool = Tool.PEN;
     private EraserMode eraserMode = EraserMode.PRECISE;
     private Stroke currentStroke;
@@ -164,6 +172,7 @@ public class DrawingCanvas extends JPanel {
                     setCursor(Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR));
                     return;
                 }
+                fire(actionListeners);
                 switch (tool) {
                     case PEN:
                         startStroke(e);
@@ -213,6 +222,9 @@ public class DrawingCanvas extends JPanel {
                     Stroke done = currentStroke;
                     currentStroke = null;
                     inkChanged(List.of(), List.of(done));  // one check per stroke
+                    for (Consumer<Stroke> l : new ArrayList<>(strokeListeners)) {
+                        l.accept(done);
+                    }
                 }
                 lastErasePoint = null;
                 if (tool == Tool.LASSO) {
@@ -304,6 +316,7 @@ public class DrawingCanvas extends JPanel {
         originX += dx;
         originY += dy;
         repaint();
+        fire(viewListeners);
     }
 
     /** Zooms by a factor, keeping the world point under (screenX, screenY) in place. */
@@ -320,6 +333,7 @@ public class DrawingCanvas extends JPanel {
         originY = screenY - worldY * zoom;
         repaint();
         firePropertyChange(ZOOM_PROPERTY, old, zoom);
+        fire(viewListeners);
     }
 
     /** Back to 100%, with the ink (if any) in the middle of the view. */
@@ -336,6 +350,7 @@ public class DrawingCanvas extends JPanel {
         }
         repaint();
         firePropertyChange(ZOOM_PROPERTY, old, scale);
+        fire(viewListeners);
     }
 
     // ---------------------------------------------------------------- graph card
@@ -439,6 +454,11 @@ public class DrawingCanvas extends JPanel {
         return 0;
     }
 
+    // world box -> where it is on screen now
+    public Rectangle2D worldToScreen(Rectangle2D world) {
+        return toScreen(world);
+    }
+
     private Rectangle2D toScreen(Rectangle2D world) {
         return new Rectangle2D.Double(world.getX() * scale + originX, world.getY() * scale + originY,
                 world.getWidth() * scale, world.getHeight() * scale);
@@ -485,6 +505,7 @@ public class DrawingCanvas extends JPanel {
         setCursor(Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR));
         repaint();
         firePropertyChange(TOOL_PROPERTY, old, tool);
+        fire(actionListeners);
     }
 
     public EraserMode getEraserMode() {
@@ -499,6 +520,7 @@ public class DrawingCanvas extends JPanel {
         this.eraserMode = eraserMode;
         repaint();
         firePropertyChange(ERASER_MODE_PROPERTY, old, eraserMode);
+        fire(actionListeners);
     }
 
     /** The eraser's radius on screen; it stays the same size however far you zoom. */
@@ -738,6 +760,7 @@ public class DrawingCanvas extends JPanel {
         if (nothingSelected()) {
             return;
         }
+        fire(actionListeners);
         saveForUndo();
         for (long id : selectedAnswers) {
             book.remove(id);  // unbinds the formula, ink stays
@@ -812,6 +835,7 @@ public class DrawingCanvas extends JPanel {
                     notifyChanged(f.getId());  // came back without its answer, get one
                 }
             }
+            fire(actionListeners);  // after the notes above, so listeners can drop them
         }
     }
 
@@ -819,6 +843,7 @@ public class DrawingCanvas extends JPanel {
         if (strokes.isEmpty()) {
             return;
         }
+        fire(actionListeners);
         saveForUndo();
         strokes.clear();
         for (Formula f : book.all()) {
@@ -871,6 +896,17 @@ public class DrawingCanvas extends JPanel {
         }
     }
 
+    private static void fire(List<Runnable> listeners) {
+        for (Runnable l : new ArrayList<>(listeners)) {
+            l.run();
+        }
+    }
+
+    // mouse still down on something
+    public boolean isBusy() {
+        return busy();
+    }
+
     // mid-gesture a pan would shift the ink under the pen
     private boolean busy() {
         return currentStroke != null || moveStart != null || resizeHandle >= 0 || lassoPath != null
@@ -896,6 +932,70 @@ public class DrawingCanvas extends JPanel {
     // fires per edited formula id, not on undo
     public void addFormulaChangeListener(LongConsumer listener) {
         formulaListeners.add(listener);
+    }
+
+    // pen stroke finished (after the formula check)
+    public void addStrokeListener(Consumer<Stroke> listener) {
+        strokeListeners.add(listener);
+    }
+
+    // left press with a tool, tool/mode switch, undo, clear, delete
+    public void addUserActionListener(Runnable listener) {
+        actionListeners.add(listener);
+    }
+
+    public void addViewListener(Runnable listener) {
+        viewListeners.add(listener);
+    }
+
+    public boolean isBound(Stroke s) {
+        return book.isBound(s);
+    }
+
+    // world box of a formula, null if gone
+    public Rectangle formulaBounds(long id) {
+        Formula f = book.get(id);
+        return f == null ? null : boundsOf(f.getStrokes());
+    }
+
+    // bind loose ink near last as one formula (other session groups too); null if last gone/bound
+    public FormulaCapture registerNewInk(Stroke last, Collection<Stroke> session) {
+        if (!strokes.contains(last) || book.isBound(last)) {
+            return null;
+        }
+        // char size from everything written this round, a lone "-" would make it tiny
+        List<Stroke> pool = new ArrayList<>();
+        for (Stroke s : strokes) {
+            if (!book.isBound(s) && (s == last || session.contains(s))) {
+                pool.add(s);
+            }
+        }
+        double h = AnswerLayout.strokeHeight(pool);
+        Formula mine = book.add(looseGroup(last, h), nextRevision());
+        for (Stroke s : session) {
+            if (strokes.contains(s) && !book.isBound(s)) {
+                book.add(looseGroup(s, h), nextRevision());
+            }
+        }
+        return capture(mine);
+    }
+
+    // unbound strokes near seed, grown until nothing else joins
+    private Set<Stroke> looseGroup(Stroke seed, double h) {
+        Set<Stroke> group = new LinkedHashSet<>(List.of(seed));
+        boolean grew = true;
+        while (grew) {
+            grew = false;
+            Rectangle box = boundsOf(group);
+            for (Stroke s : strokes) {
+                Rectangle b = group.contains(s) || book.isBound(s) ? null : boundsOf(List.of(s));
+                if (b != null && box != null && AnswerLayout.sameNewFormula(box, h, b)) {
+                    group.add(s);
+                    grew = true;
+                }
+            }
+        }
+        return group;
     }
 
     public List<Formula> getFormulas() {
@@ -945,7 +1045,23 @@ public class DrawingCanvas extends JPanel {
     }
 
     // false if the formula is gone or changed since capture
+    public boolean isCurrent(long id, long revision) {
+        Formula f = book.get(id);
+        return f != null && f.getRevision() == revision;
+    }
+
+    // false if the formula is gone or changed since capture
     public boolean showAnswer(long id, long revision, AnswerKind kind, String text, boolean error) {
+        return placeAnswer(id, revision, kind, text, null, error);
+    }
+
+    // same spot rules, text w/ raised exponents
+    public boolean showAnswer(long id, long revision, AnswerKind kind, List<TextRun> runs, boolean error) {
+        return placeAnswer(id, revision, kind, ExprWriter.plain(runs), runs, error);
+    }
+
+    private boolean placeAnswer(long id, long revision, AnswerKind kind, String text, List<TextRun> runs,
+                                boolean error) {
         Formula f = book.get(id);
         if (f == null || f.getRevision() != revision) {
             return false;
@@ -953,14 +1069,15 @@ public class DrawingCanvas extends JPanel {
         List<Stroke> ink = inDrawingOrder(f);
         double h = AnswerLayout.charHeight(ink);
         float size = AnswerFont.sizeFor(h);
-        Rectangle2D text2d = AnswerFont.visualBounds(text, size);
+        Rectangle2D text2d = runs == null ? AnswerFont.visualBounds(text, size) : AnswerFont.visualBounds(runs, size);
         double w = text2d.getWidth();
         double ht = text2d.getHeight();
         Point2D at = kind.isBelow() ? AnswerLayout.below(ink, h) : AnswerLayout.rightOf(ink, h, ht);
         if (kind.isBelow() && hitsOtherInk(new Rectangle2D.Double(at.getX(), at.getY(), w, ht), f)) {
             at = AnswerLayout.rightOf(ink, h, ht);
         }
-        CanvasAnswer answer = new CanvasAnswer(text, error, at.getX(), at.getY(), w, ht, size);
+        CanvasAnswer answer = runs == null ? new CanvasAnswer(text, error, at.getX(), at.getY(), w, ht, size)
+                : new CanvasAnswer(runs, error, at.getX(), at.getY(), w, ht, size);
         book.put(f.withAnswer(answer));
         if (!busy()) {
             bringIntoView(answer.getBox(), answer.getBox());
@@ -1287,7 +1404,11 @@ public class DrawingCanvas extends JPanel {
         g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g.setColor(a.isError() ? ANSWER_ERROR : INK_COLOR);
-        AnswerFont.draw(g, a.getText(), a.getFontSize(), a.getX(), a.getY());
+        if (a.getRuns() == null) {
+            AnswerFont.draw(g, a.getText(), a.getFontSize(), a.getX(), a.getY());
+        } else {
+            AnswerFont.draw(g, a.getRuns(), a.getFontSize(), a.getX(), a.getY());
+        }
         g.dispose();
     }
 

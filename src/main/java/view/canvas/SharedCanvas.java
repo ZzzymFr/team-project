@@ -2,6 +2,8 @@ package view.canvas;
 
 import entity.AnswerKind;
 import entity.CanvasAnswer;
+import entity.Stroke;
+import entity.symbolic.TextRun;
 import interface_adapter.recognize.FormulaRecognizer;
 import view.DrawingCanvas;
 import view.FormulaCapture;
@@ -12,8 +14,11 @@ import java.awt.BorderLayout;
 import java.awt.Container;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
+import java.awt.event.HierarchyEvent;
+import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 import java.lang.reflect.InvocationTargetException;
+import java.util.Collection;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.DoubleConsumer;
@@ -167,8 +172,16 @@ public class SharedCanvas {
         return canvas.captureForRecalculation(id);
     }
 
+    public boolean isCurrent(long id, long revision) {
+        return canvas.isCurrent(id, revision);
+    }
+
     public boolean showAnswer(long id, long revision, AnswerKind kind, String text, boolean error) {
         return canvas.showAnswer(id, revision, kind, text, error);
+    }
+
+    public boolean showAnswer(long id, long revision, AnswerKind kind, List<TextRun> runs, boolean error) {
+        return canvas.showAnswer(id, revision, kind, runs, error);
     }
 
     public void addFormulaChangeListener(LongConsumer listener) {
@@ -177,6 +190,52 @@ public class SharedCanvas {
 
     public List<CanvasAnswer> getAnswers() {
         return canvas.getAnswers();
+    }
+
+    // hooks for the answer popup, all EDT
+    public void addStrokeListener(Consumer<Stroke> listener) {
+        canvas.addStrokeListener(listener);
+    }
+
+    public void addUserActionListener(Runnable listener) {
+        canvas.addUserActionListener(listener);
+    }
+
+    public void addViewListener(Runnable listener) {
+        canvas.addViewListener(listener);
+    }
+
+    // canvas moved to another page (or out of one)
+    public void addPageSwitchListener(Runnable listener) {
+        canvas.addHierarchyListener(e -> {
+            if ((e.getChangeFlags() & HierarchyEvent.PARENT_CHANGED) != 0 && e.getChanged() == canvas) {
+                listener.run();
+            }
+        });
+    }
+
+    public boolean isAttachedTo(CanvasPage page) {
+        return canvas.getParent() == page.getCanvasSlot();
+    }
+
+    public Rectangle2D worldToScreen(Rectangle2D world) {
+        return canvas.worldToScreen(world);
+    }
+
+    public FormulaCapture registerNewInk(Stroke last, Collection<Stroke> session) {
+        return canvas.registerNewInk(last, session);
+    }
+
+    public Rectangle formulaBounds(long id) {
+        return canvas.formulaBounds(id);
+    }
+
+    public boolean isBound(Stroke s) {
+        return canvas.isBound(s);
+    }
+
+    public boolean isBusy() {
+        return canvas.isBusy();
     }
 
     /**

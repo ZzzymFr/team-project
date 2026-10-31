@@ -1,5 +1,6 @@
 package view;
 
+import entity.symbolic.TextRun;
 import view.stack.Fonts;
 
 import java.awt.Font;
@@ -12,10 +13,13 @@ import java.awt.geom.Rectangle2D;
 import java.io.IOException;
 import java.io.InputStream;
 import java.text.AttributedString;
+import java.util.List;
 
 // Kalam handwriting for answers on the canvas
 public final class AnswerFont {
     private static final FontRenderContext FRC = new FontRenderContext(null, true, true);
+    private static final float RAISED_SCALE = 0.6f;  // exponent size vs body
+    private static final double RAISE = 0.45;        // exponent baseline lift, x the digit height
     private static Font base;
     private static double digitRatio;  // ink height of "0" per point of font size
 
@@ -58,6 +62,54 @@ public final class AnswerFont {
         TextLayout layout = layout(text, size);
         Rectangle2D ink = layout.getBounds();
         layout.draw(g, (float) (left - ink.getX()), (float) (top - ink.getY()));
+    }
+
+    // ink box of runs, raised ones small and lifted; origin at baseline start
+    public static Rectangle2D visualBounds(List<TextRun> runs, float size) {
+        Rectangle2D box = null;
+        double pen = 0;
+        for (TextRun run : runs) {
+            if (run.getText().isEmpty()) {
+                continue;
+            }
+            TextLayout layout = layout(run.getText(), sizeOf(run, size));
+            Rectangle2D ink = layout.getBounds();
+            ink.setRect(ink.getX() + pen, ink.getY() - lift(run, size), ink.getWidth(), ink.getHeight());
+            if (ink.getWidth() > 0) {
+                box = box == null ? ink : box.createUnion(ink);
+            }
+            pen += layout.getAdvance();
+        }
+        return box == null ? new Rectangle2D.Double() : box;
+    }
+
+    // same as draw(String) but w/ exponents raised
+    public static void draw(Graphics2D g, List<TextRun> runs, float size, double left, double top) {
+        Rectangle2D ink = visualBounds(runs, size);
+        double pen = left - ink.getX();
+        for (TextRun run : runs) {
+            if (run.getText().isEmpty()) {
+                continue;
+            }
+            TextLayout layout = layout(run.getText(), sizeOf(run, size));
+            layout.draw(g, (float) pen, (float) (top - ink.getY() - lift(run, size)));
+            pen += layout.getAdvance();
+        }
+    }
+
+    private static float sizeOf(TextRun run, float size) {
+        return run.isRaised() ? size * RAISED_SCALE : size;
+    }
+
+    private static double lift(TextRun run, float size) {
+        return run.isRaised() ? digitHeight(size) * RAISE : 0;
+    }
+
+    private static synchronized double digitHeight(float size) {
+        if (digitRatio == 0) {
+            digitRatio = visualBounds("0", 100f).getHeight() / 100;
+        }
+        return digitRatio * size;
     }
 
     private static TextLayout layout(String text, float size) {

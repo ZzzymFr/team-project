@@ -28,8 +28,8 @@ class QuantifierTest {
         assertEquals("true", Calc.once("\\forall x\\in\\mathbb{R} x^2\\geq0"));
         assertEquals("true", Calc.once("\\neg\\forall x\\in\\mathbb{R}, x^2>0"));
         assertEquals("false", Calc.once("\\forall x\\in\\mathbb{R}, \\frac{1}{x}\\neq0"));
-        assertEquals("Uncalculable", Calc.once("\\forall x\\in\\mathbb{R}^{n}"));
-        assertEquals("Uncalculable", Calc.once("\\forall v\\in\\mathbb{R}^2, v=v"));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\forall x\\in\\mathbb{R}^{n}")));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\forall v\\in\\mathbb{R}^2, v=v")));
         assertTimeout(Duration.ofSeconds(2), () -> {
             assertEquals("true", Calc.once("\\forall x\\in\\mathbb{R}, \\exists y\\in\\mathbb{R}, y>x"));
             assertEquals("false", Calc.once("\\exists y\\in\\mathbb{R}, \\forall x\\in\\mathbb{R}, y>x"));
@@ -39,19 +39,19 @@ class QuantifierTest {
     @Test
     void freeVariableOutsideQuantifierIsSolvedFor() {
         String answer = Calc.once("\\forall x\\in\\mathbb{R}, x^2\\geq a");
-        assertTrue(answer.equals("a ≤ 0") || answer.equals("Uncalculable"), answer);
+        assertTrue(answer.equals("a ≤ 0") || answer.startsWith("Uncalculable"), answer);
     }
 
     @Test
     void neverClaimsWhatSamplingCannotShow() {
-        assertEquals("Uncalculable", Calc.once("\\exists x\\in\\mathbb{Q}, x^2=2"));
-        assertEquals("Uncalculable", Calc.once("\\forall x\\in\\mathbb{Q}, x^2\\neq2"));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\exists x\\in\\mathbb{Q}, x^2=2")));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\forall x\\in\\mathbb{Q}, x^2\\neq2")));
         assertEquals("true", Calc.once("\\exists x\\in\\mathbb{Q}, x^2=4"));
-        assertEquals("Uncalculable", Calc.once("\\exists z\\in\\mathbb{C}, z^2=-1"));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\exists z\\in\\mathbb{C}, z^2=-1")));
         assertEquals("true", Calc.once("\\exists z\\in\\mathbb{C}, z^2=4"));
         assertEquals("false", Calc.once("\\forall z\\in\\mathbb{C}, z^2>0"));
-        assertEquals("Uncalculable", Calc.once("\\frac{1}{0}=1"));
-        assertEquals("Uncalculable", Calc.once("\\forall x\\in5, x>0"));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\frac{1}{0}=1")));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\forall x\\in5, x>0")));
     }
 
     @Test
@@ -64,18 +64,18 @@ class QuantifierTest {
 
     @Test
     void plusMinusInQuantifierIsUncalculable() {
-        assertEquals("Uncalculable", Calc.once("\\forall x\\in\\mathbb{R}, x^2\\pm1\\geq0"));
-        assertEquals("Uncalculable", Calc.once("\\exists x\\in\\{1\\pm1\\}, x=0"));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\forall x\\in\\mathbb{R}, x^2\\pm1\\geq0")));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\exists x\\in\\{1\\pm1\\}, x=0")));
     }
 
     @Test
     void undecidableInnerVerdictsAreUncalculable() {
-        assertEquals("Uncalculable", Calc.once("\\neg\\exists x\\in\\mathbb{R}, \\exists z\\in\\mathbb{C}, z^2=-1"));
-        assertEquals("Uncalculable", Calc.once("\\forall x\\in\\mathbb{R}, \\exists z\\in\\mathbb{C}, z^2=x"));
-        assertEquals("Uncalculable", Calc.once("\\exists x\\in\\{1,2\\}, \\exists z\\in\\mathbb{C}, z^2=-x"));
-        assertEquals("Uncalculable", Calc.once("\\exists x\\in\\{2\\}, \\forall q\\in\\mathbb{Q}, q^2\\neq x"));
-        assertEquals("Uncalculable", Calc.once("\\forall x\\in\\mathbb{R}, \\exists v\\in\\mathbb{R}^2, x=x"));
-        assertEquals("Uncalculable", Calc.once("\\forall x\\in\\mathbb{R}, x+1"));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\neg\\exists x\\in\\mathbb{R}, \\exists z\\in\\mathbb{C}, z^2=-1")));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\forall x\\in\\mathbb{R}, \\exists z\\in\\mathbb{C}, z^2=x")));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\exists x\\in\\{1,2\\}, \\exists z\\in\\mathbb{C}, z^2=-x")));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\exists x\\in\\{2\\}, \\forall q\\in\\mathbb{Q}, q^2\\neq x")));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\forall x\\in\\mathbb{R}, \\exists v\\in\\mathbb{R}^2, x=x")));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\forall x\\in\\mathbb{R}, x+1")));
     }
 
     @Test
@@ -98,7 +98,7 @@ class QuantifierTest {
         });
         assertTimeout(Duration.ofSeconds(2), () -> {
             String answer = Calc.once("\\forall x\\in\\mathbb{Z}, \\forall y\\in\\mathbb{Z}, \\exists z\\in\\mathbb{Z}, z=x+y");
-            assertTrue(answer.equals("true") || answer.equals("Uncalculable"), answer);
+            assertTrue(answer.equals("true") || answer.startsWith("Uncalculable"), answer);
         });
     }
 
@@ -196,8 +196,8 @@ class QuantifierTest {
 
     @Test
     void absorbedSetMembersGiveNoVerdict() {
-        assertEquals("Uncalculable", Calc.once("\\exists x\\in\\{10^{20}\\}, x+1=x"));
-        assertEquals("Uncalculable", Calc.once("\\forall x\\in\\{10^{20}\\}, x+1>x"));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\exists x\\in\\{10^{20}\\}, x+1=x")));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\forall x\\in\\{10^{20}\\}, x+1>x")));
         assertEquals("false", Calc.once("\\forall x\\in\\{10^{20}, 0\\}, x+1=x"));
     }
 
