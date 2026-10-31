@@ -13,6 +13,7 @@ public final class Simplifier {
     private static final int MAX_PASSES = 8;
     private static final int MAX_STEPS = 200_000;
     private static final int MAX_POWER = 64;
+    private static final int MAX_EXPAND = 4;
 
     private int steps;
 
@@ -33,40 +34,81 @@ public final class Simplifier {
         return current;
     }
 
-    // a/v + b/v^2 -> (av+b)/v^2 when 2+ terms have a bottom; input already simplified
+    // a/v + b/v^2 -> (av+b)/v^2 when 2+ terms share a bottom; input already simplified
     public static Expr together(Expr e) {
+        return new Simplifier().combine(e);
+    }
+
+    private Expr combine(Expr e) {
+        if (e.kind() == Expr.Kind.MUL) {
+            List<Expr> factors = new ArrayList<>();
+            for (Expr f : e.terms()) {
+                factors.add(f.kind() == Expr.Kind.ADD ? combine(f) : f);
+            }
+            return factors.equals(e.terms()) ? e : product(factors);
+        }
         if (e.kind() != Expr.Kind.ADD) {
             return e;
         }
         Map<Expr, Rational> bottom = new LinkedHashMap<>();
-        int withBottom = 0;
+        Map<Expr, Integer> uses = new LinkedHashMap<>();
         for (Expr t : e.terms()) {
-            boolean has = false;
             for (Expr f : t.kind() == Expr.Kind.MUL ? t.terms() : List.of(t)) {
                 if (f.kind() == Expr.Kind.POW && f.exponent().isNum() && f.exponent().value().isNegative()) {
                     bottom.merge(f.base(), f.exponent().value().neg(), (a, b) -> a.compareTo(b) >= 0 ? a : b);
-                    has = true;
+                    uses.merge(f.base(), 1, Integer::sum);
                 }
             }
-            withBottom += has ? 1 : 0;
         }
-        if (withBottom < 2) {
-            return e;
+        if (uses.values().stream().noneMatch(n -> n >= 2)) {
+            return e;  // 1/x + 1/(x+1) reads better apart
         }
-        Simplifier s = new Simplifier();
         List<Expr> top = new ArrayList<>();
         for (Expr t : e.terms()) {
             List<Expr> factors = new ArrayList<>(List.of(t));
             for (Map.Entry<Expr, Rational> b : bottom.entrySet()) {
                 factors.add(Expr.pow(b.getKey(), Expr.num(b.getValue(), false)));
             }
-            top.add(s.product(factors));
+            top.add(expandSmallPowers(product(factors)));
         }
-        List<Expr> whole = new ArrayList<>(List.of(s.sum(top)));
+        List<Expr> whole = new ArrayList<>(List.of(sum(top)));
         for (Map.Entry<Expr, Rational> b : bottom.entrySet()) {
             whole.add(Expr.pow(b.getKey(), Expr.num(b.getValue().neg(), false)));
         }
-        return s.product(whole);
+        return product(whole);
+    }
+
+    // (x+1)^2 -> x^2+2x+1 so the top can cancel; only inside together
+    private Expr expandSmallPowers(Expr term) {
+        List<Expr> factors = term.kind() == Expr.Kind.MUL ? term.terms() : List.of(term);
+        List<Expr> out = new ArrayList<>();
+        boolean changed = false;
+        for (Expr f : factors) {
+            if (f.kind() == Expr.Kind.POW && f.base().kind() == Expr.Kind.ADD && f.exponent().isNum()
+                    && f.exponent().value().isInteger() && f.exponent().value().getNum() >= 2
+                    && f.exponent().value().getNum() <= MAX_EXPAND) {
+                Expr expanded = f.base();
+                for (long i = 1; i < f.exponent().value().getNum(); i++) {
+                    expanded = timesTermwise(expanded, f.base());
+                }
+                out.add(expanded);
+                changed = true;
+            } else {
+                out.add(f);
+            }
+        }
+        return changed ? Expr.mul(out) : term;
+    }
+
+    // (a+b)(c+d) term by term, else product() just merges them back to a power
+    private Expr timesTermwise(Expr left, Expr right) {
+        List<Expr> terms = new ArrayList<>();
+        for (Expr l : left.kind() == Expr.Kind.ADD ? left.terms() : List.of(left)) {
+            for (Expr r : right.terms()) {
+                terms.add(product(List.of(l, r)));
+            }
+        }
+        return sum(terms);
     }
 
     private void spend() {

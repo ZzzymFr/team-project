@@ -132,4 +132,16 @@ class SymbolicDerivativeTest {
         assertFalse(SymbolicDerivative.containsDerivative(parse("x+1")));
         assertFalse(SymbolicDerivative.containsDerivative(parse("f(x)")));
     }
+
+    @Test
+    void quotientsEndUpAsOneFraction() {
+        String root = d("\\frac{d}{dx}\\sqrt{\\frac{x}{x+1}}");
+        assertEquals("\\frac{1}{2(x+1)^{2}\\sqrt{\\frac{x}{x+1}}}", root);
+        assertEquals("\\frac{x^{2}-1}{x^{2}}", d("\\frac{d}{dx}\\frac{(x+1)^2}{x}"));
+    }
+
+    @Test
+    void unrelatedFractionsStayApart() {
+        assertEquals("-\\frac{1}{(x+1)^{2}}-\\frac{1}{x^{2}}", d("\\frac{d}{dx}(\\frac{1}{x}+\\frac{1}{x+1})"));
+    }
 }
