@@ -3,6 +3,7 @@ package view.canvas;
 import entity.AnswerKind;
 import entity.CanvasAnswer;
 import entity.Stroke;
+import entity.symbolic.TextRun;
 import interface_adapter.recognize.FormulaRecognizer;
 import view.DrawingCanvas;
 import view.FormulaCapture;
@@ -177,6 +178,10 @@ public class SharedCanvas {
 
     public boolean showAnswer(long id, long revision, AnswerKind kind, String text, boolean error) {
         return canvas.showAnswer(id, revision, kind, text, error);
+    }
+
+    public boolean showAnswer(long id, long revision, AnswerKind kind, List<TextRun> runs, boolean error) {
+        return canvas.showAnswer(id, revision, kind, runs, error);
     }
 
     public void addFormulaChangeListener(LongConsumer listener) {

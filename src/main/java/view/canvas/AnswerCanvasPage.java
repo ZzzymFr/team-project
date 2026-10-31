@@ -2,6 +2,7 @@ package view.canvas;
 
 import entity.AnswerKind;
 import entity.Stroke;
+import entity.symbolic.TextRun;
 import interface_adapter.MathLabState;
 import interface_adapter.MathLabViewModel;
 import interface_adapter.evaluate.EvaluateController;
@@ -21,8 +22,10 @@ import java.awt.Font;
 import java.awt.Rectangle;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
@@ -256,22 +259,26 @@ public class AnswerCanvasPage extends CanvasPage {
         worker.execute(() -> {
             String result = "";
             String error = "";
+            List<TextRun> runs = null;
             try {
                 controller.execute(latex);  // presenter is sync, state is ready after
                 MathLabState state = viewModel.getState();
                 result = state.getResultText();
                 error = state.getErrorText();
+                runs = state.getResultRuns();
             } catch (Throwable e) {
                 error = reason(e);
             }
             AnswerKind kind = AnswerKind.of(latex);
             String r = result;
             String err = error;
-            SwingUtilities.invokeLater(() -> deliver(capture, latex, kind, r, err));
+            List<TextRun> rs = runs;
+            SwingUtilities.invokeLater(() -> deliver(capture, latex, kind, r, rs, err));
         });
     }
 
-    private void deliver(FormulaCapture capture, String latex, AnswerKind kind, String result, String error) {
+    private void deliver(FormulaCapture capture, String latex, AnswerKind kind, String result, List<TextRun> runs,
+                         String error) {
         if (!error.isEmpty()) {
             // popup only, nothing drawn
             if (getSharedCanvas().isCurrent(capture.getId(), capture.getRevision())) {
@@ -282,7 +289,9 @@ public class AnswerCanvasPage extends CanvasPage {
             ownMessage = true;
             showMessage(result, false, DEFINED_MESSAGE_MILLIS);  // nothing to draw
         } else {
-            boolean drawn = getSharedCanvas().showAnswer(capture.getId(), capture.getRevision(), kind, kind.answerText(result), false);
+            boolean drawn = runs == null
+                    ? getSharedCanvas().showAnswer(capture.getId(), capture.getRevision(), kind, kind.answerText(result), false)
+                    : getSharedCanvas().showAnswer(capture.getId(), capture.getRevision(), kind, withEquals(kind, runs), false);
             if (drawn && latex != null && !latex.isBlank()
                     && !java.util.Objects.equals(exportedRevisions.get(capture.getId()), capture.getRevision())) {
                 exportedRevisions.put(capture.getId(), capture.getRevision());
@@ -292,6 +301,20 @@ public class AnswerCanvasPage extends CanvasPage {
         if (--running == 0 && !ownMessage) {
             hideMessage();
         }
+    }
+
+    // "= " in front unless it goes right after the user's =
+    private static List<TextRun> withEquals(AnswerKind kind, List<TextRun> runs) {
+        if (kind == AnswerKind.AFTER_EQUALS) {
+            return runs;
+        }
+        List<TextRun> out = new ArrayList<>(runs);
+        if (!out.isEmpty() && !out.get(0).isRaised()) {
+            out.set(0, new TextRun("= " + out.get(0).getText(), false));
+        } else {
+            out.add(0, new TextRun("= ", false));
+        }
+        return out;
     }
 
     private static String reason(Throwable e) {
