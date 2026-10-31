@@ -37,6 +37,10 @@ public class UncalculableException extends MathSyntaxException {
     public static final String UNDEFINED_PART = "Has an undefined part";
     public static final String SUM_BOUNDS = "Bounds must be integers";
     public static final String ZERO_VECTOR = "Zero vector has no direction";
+    public static final String ABS_DERIVATIVE = "Can't differentiate |x|";
+    public static final String FACTORIAL_DERIVATIVE = "Can't differentiate n!";
+    public static final String NOT_DIFFERENTIABLE = "Can't differentiate this";
+    public static final String ANSWER_TOO_LONG = "Answer too long";
 
     public UncalculableException() {
         super("Uncalculable");

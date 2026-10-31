@@ -27,9 +27,11 @@ class SimplifierTest {
     }
 
     static void clean(String latex) {
-        for (String junk : new String[] {"0x", "1x", "^{1}", "+-", "(x)", "--"}) {
+        for (String junk : new String[] {"^{1}", "+-", "(x)", "--", "\\cdot 1"}) {
             assertFalse(latex.contains(junk), latex + " has " + junk);
         }
+        // a lone 0 or 1 stuck to a letter, e.g. 1x (10x is fine)
+        assertFalse(latex.matches(".*(^|[^0-9.])[01][a-zA-Z\\\\(].*"), latex + " has a 0 or 1 factor");
     }
 
     @Test
@@ -110,5 +112,17 @@ class SimplifierTest {
     void sumsOrderByDegree() {
         assertEquals("x^{2}+x+1", s(add(n(1), X, pow(X, n(2)))));
         assertEquals(s(add(var("y"), X)), s(add(X, var("y"))));
+    }
+
+    @Test
+    void togetherMakesOneFraction() {
+        Expr v = add(X, n(1));
+        Expr split = add(pow(v, n(-1)), mul(n(-1), X, pow(v, n(-2))));
+        Expr one = Simplifier.together(Simplifier.simplify(split));
+        assertEquals("\\frac{1}{(x+1)^{2}}", ExprWriter.latex(one));
+        assertEquals(one, Simplifier.simplify(one));
+        // only one fraction: left alone
+        Expr lone = Simplifier.simplify(add(n(1), pow(X, n(-1))));
+        assertEquals(lone, Simplifier.together(lone));
     }
 }

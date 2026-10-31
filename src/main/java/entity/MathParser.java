@@ -23,6 +23,7 @@ import entity.value.NumberValue;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -45,6 +46,7 @@ public final class MathParser {
     private int plusMinusCount = 0;
     private int absoluteDepth = 0;
     private final List<String> boundNames = new ArrayList<>();
+    private final Map<Integer, Node> groupsBeforeSign = new HashMap<>();
 
     public MathParser(List<String> tokens, Map<String, UserFunction> functions) {
         this.tokens = tokens;
@@ -295,7 +297,12 @@ public final class MathParser {
             return parseNumber(token);
         }
         if (token.equals("(")) {
-            return parseParenthesized();
+            int open = position - 1;
+            Node group = parseParenthesized();
+            if (peekIs("+") || peekIs("-")) {
+                groupsBeforeSign.put(open, group);  // d/dx(..)+rest splits here, symbolic only
+            }
+            return group;
         }
         if (token.equals("\\langle")) {
             return parseAngleVector();
@@ -610,7 +617,10 @@ public final class MathParser {
             throw new UncalculableException(UncalculableException.MAX_DERIVATIVE);
         }
         if (function == null) {
-            return new DerivativeNode(variable, order, parseBody(variable));
+            int bodyStart = position;
+            Node body = parseBody(variable);
+            return new DerivativeNode(variable, order, body, "\\partial".equals(operator),
+                    groupsBeforeSign.get(bodyStart));
         }
         int parameter = functions.get(function).getParameters().indexOf(variable);
         if (parameter < 0) {

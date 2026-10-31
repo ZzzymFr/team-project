@@ -33,6 +33,42 @@ public final class Simplifier {
         return current;
     }
 
+    // a/v + b/v^2 -> (av+b)/v^2 when 2+ terms have a bottom; input already simplified
+    public static Expr together(Expr e) {
+        if (e.kind() != Expr.Kind.ADD) {
+            return e;
+        }
+        Map<Expr, Rational> bottom = new LinkedHashMap<>();
+        int withBottom = 0;
+        for (Expr t : e.terms()) {
+            boolean has = false;
+            for (Expr f : t.kind() == Expr.Kind.MUL ? t.terms() : List.of(t)) {
+                if (f.kind() == Expr.Kind.POW && f.exponent().isNum() && f.exponent().value().isNegative()) {
+                    bottom.merge(f.base(), f.exponent().value().neg(), (a, b) -> a.compareTo(b) >= 0 ? a : b);
+                    has = true;
+                }
+            }
+            withBottom += has ? 1 : 0;
+        }
+        if (withBottom < 2) {
+            return e;
+        }
+        Simplifier s = new Simplifier();
+        List<Expr> top = new ArrayList<>();
+        for (Expr t : e.terms()) {
+            List<Expr> factors = new ArrayList<>(List.of(t));
+            for (Map.Entry<Expr, Rational> b : bottom.entrySet()) {
+                factors.add(Expr.pow(b.getKey(), Expr.num(b.getValue(), false)));
+            }
+            top.add(s.product(factors));
+        }
+        List<Expr> whole = new ArrayList<>(List.of(s.sum(top)));
+        for (Map.Entry<Expr, Rational> b : bottom.entrySet()) {
+            whole.add(Expr.pow(b.getKey(), Expr.num(b.getValue().neg(), false)));
+        }
+        return s.product(whole);
+    }
+
     private void spend() {
         if (++steps > MAX_STEPS) {
             throw new UncalculableException(UncalculableException.TOO_MUCH_WORK);
@@ -302,7 +338,16 @@ public final class Simplifier {
 
     // higher degree first, ties by structure
     private static final Comparator<Expr> TERM_ORDER =
-            Comparator.comparing(Simplifier::degree).reversed().thenComparing(Simplifier::compare);
+            Comparator.comparing(Simplifier::degree).reversed()
+                    .thenComparing((a, b) -> compare(withoutCoefficient(a), withoutCoefficient(b)));
+
+    private static Expr withoutCoefficient(Expr term) {
+        if (term.kind() != Expr.Kind.MUL || !term.terms().get(0).isNum()) {
+            return term;
+        }
+        List<Expr> rest = term.terms().subList(1, term.terms().size());
+        return rest.size() == 1 ? rest.get(0) : Expr.mul(rest);
+    }
 
     private static Rational degree(Expr term) {
         Rational total = Rational.ZERO;
