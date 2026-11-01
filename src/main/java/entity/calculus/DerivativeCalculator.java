@@ -53,7 +53,7 @@ public final class DerivativeCalculator {
         if (best[3] > LARGE_START) {
             double[] reference = extrapolate(f, x, order, LARGE_START * SMALL_STARTS[1] * scaleOf(x));
             double margin = REFERENCE_MARGIN * (best[1] + reference[1]);
-            if (isFinite(reference[0]) && !(Math.abs(reference[0] - best[0]) <= margin)) {
+            if (Double.isFinite(reference[0]) && !(Math.abs(reference[0] - best[0]) <= margin)) {
                 best = reference;
             }
         }
@@ -102,9 +102,9 @@ public final class DerivativeCalculator {
     private static double[] checkedFirstDerivative(DoubleUnaryOperator f, double x, double[] estimate) {
         double[] best = estimate;
         double floor = MIN_STEP * Math.max(Math.abs(x), Double.MIN_NORMAL);
-        double start = isFinite(best[2]) ? best[2] : Math.max(0.1, Math.abs(x) * 1e-3);
+        double start = Double.isFinite(best[2]) ? best[2] : Math.max(0.1, Math.abs(x) * 1e-3);
         while (true) {
-            if (isFinite(best[0]) && matchesSides(f, x, best[0], best[2])) {
+            if (Double.isFinite(best[0]) && matchesSides(f, x, best[0], best[2])) {
                 return best;
             }
             start = start / SHRINK_START;
@@ -121,7 +121,7 @@ public final class DerivativeCalculator {
 
     // one sided slopes at smaller steps
     private static boolean matchesSides(DoubleUnaryOperator f, double x, double derivative, double step) {
-        double h = isFinite(step) ? step : 1e-6 * Math.max(1, Math.abs(x));
+        double h = Double.isFinite(step) ? step : 1e-6 * Math.max(1, Math.abs(x));
         for (int i = 0; i < CHECKS; i++) {
             h = h / CHECK_SHRINK;
             double[] sides = oneSidedSlopes(f, x, h);
@@ -160,7 +160,7 @@ public final class DerivativeCalculator {
         double left2 = f.applyAsDouble(x - 2 * h);
         double right = (-3 * here + 4 * right1 - right2) / (2 * h);
         double left = (3 * here - 4 * left1 + left2) / (2 * h);
-        if (!isFinite(right) || !isFinite(left)) {
+        if (!Double.isFinite(right) || !Double.isFinite(left)) {
             return null;
         }
         double size = Math.max(Math.max(Math.abs(here), Math.abs(right1)),
@@ -184,19 +184,19 @@ public final class DerivativeCalculator {
         double h = firstStep;
         double first = centralDifference(f, x, h, order);
         int tries = 0;
-        while (!isFinite(first) && tries < 20) {
+        while (!Double.isFinite(first) && tries < 20) {
             h = h / SHRINK;
             first = centralDifference(f, x, h, order);
             tries++;
         }
-        if (!isFinite(first)) {
+        if (!Double.isFinite(first)) {
             return new double[] {Double.NaN, Double.POSITIVE_INFINITY, Double.NaN, firstStep};
         }
         double value = Math.abs(f.applyAsDouble(x));
-        double size = isFinite(value) ? value : 0;
+        double size = Double.isFinite(value) ? value : 0;
         // x+h rounds too
         double slope = Math.abs(order == 1 ? first : centralDifference(f, x, h, 1));
-        if (isFinite(slope)) {
+        if (Double.isFinite(slope)) {
             size = size + Math.abs(x) * slope;
         }
         double[][] table = new double[LEVELS][LEVELS];
@@ -207,7 +207,7 @@ public final class DerivativeCalculator {
         for (int i = 1; i < LEVELS; i++) {
             h = h / SHRINK;
             table[0][i] = centralDifference(f, x, h, order);
-            if (!isFinite(table[0][i])) {
+            if (!Double.isFinite(table[0][i])) {
                 break;
             }
             // cant beat the roundoff in f
@@ -244,9 +244,5 @@ public final class DerivativeCalculator {
                 return (f.applyAsDouble(x + 2 * h) - 4 * f.applyAsDouble(x + h) + 6 * f.applyAsDouble(x)
                         - 4 * f.applyAsDouble(x - h) + f.applyAsDouble(x - 2 * h)) / (h * h * h * h);
         }
-    }
-
-    private static boolean isFinite(double value) {
-        return !Double.isNaN(value) && !Double.isInfinite(value);
     }
 }

@@ -95,7 +95,7 @@ public class BinaryNode extends Node {
 
     // a+b == a or underflow/overflow -> lost value
     private boolean isAbsorbed(double x, double y, double result) {
-        if (Double.isInfinite(result) && isFinite(x) && isFinite(y)) {
+        if (Double.isInfinite(result) && Double.isFinite(x) && Double.isFinite(y)) {
             return true;
         }
         switch (op) {
@@ -113,11 +113,7 @@ public class BinaryNode extends Node {
     }
 
     private static boolean isNonzeroFinite(double value) {
-        return value != 0 && isFinite(value);
-    }
-
-    private static boolean isFinite(double value) {
-        return !Double.isNaN(value) && !Double.isInfinite(value);
+        return value != 0 && Double.isFinite(value);
     }
 
     // number/set joined by connective isnt a statement

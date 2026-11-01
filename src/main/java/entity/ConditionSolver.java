@@ -376,7 +376,7 @@ public class ConditionSolver {
             }
             double a = numberAt(operands.get(i), at);
             double b = numberAt(operands.get(i + 1), at);
-            if (!isFinite(a) || !isFinite(b)) {
+            if (!Double.isFinite(a) || !Double.isFinite(b)) {
                 return true;
             }
             double scale = Math.max(largestPart(operands.get(i), at), largestPart(operands.get(i + 1), at));
@@ -566,7 +566,7 @@ public class ConditionSolver {
         double here = difference(pair, root);
         double below = difference(pair, root - offset);
         double above = difference(pair, root + offset);
-        if (context.isAbsorbed() || !isFinite(below) || !isFinite(above)) {
+        if (context.isAbsorbed() || !Double.isFinite(below) || !Double.isFinite(above)) {
             return false;
         }
         boolean touching = here == 0 || Math.abs(here) <= TOUCHING * Math.min(Math.abs(below), Math.abs(above));
@@ -611,7 +611,7 @@ public class ConditionSolver {
                             return result;
                         }
                     }
-                    if (k == 0 || !isFinite(d) || !isFinite(before) || before == 0 || before * d > 0) {
+                    if (k == 0 || !Double.isFinite(d) || !Double.isFinite(before) || before == 0 || before * d > 0) {
                         continue;
                     }
                     double root = d == 0 ? sign * size : bisect(pairs.get(i), sign * lastSize, sign * size, before);
@@ -647,7 +647,7 @@ public class ConditionSolver {
             scanValue(pair, sign * EquationSolver.SEARCH_END * Math.pow(10, k / (double) POINTS_PER_DECADE));
             double a = pair.lastLeft;
             double b = pair.lastRight;
-            if (!isFinite(a) || !isFinite(b) || a == b) {
+            if (!Double.isFinite(a) || !Double.isFinite(b) || a == b) {
                 return false;
             }
             // ratio not difference, so 1e150 vs 1e200 isnt absorbed
@@ -726,7 +726,7 @@ public class ConditionSolver {
     }
 
     private static boolean isDomainEdge(double before, double now) {
-        return Double.isNaN(before) && isFinite(now) || isFinite(before) && Double.isNaN(now);
+        return Double.isNaN(before) && Double.isFinite(now) || Double.isFinite(before) && Double.isNaN(now);
     }
 
     // defined end of the edge
@@ -757,7 +757,7 @@ public class ConditionSolver {
             for (int k = 0; k <= SCAN_POINTS && roots.size() <= limit; k++) {
                 double point = sign * EquationSolver.SEARCH_END * Math.pow(10, k / (double) POINTS_PER_DECADE);
                 double d = scanValue(pair, point);
-                if (d != 0 && isFinite(d) && Values.areAlmostEqual(pair.lastLeft, pair.lastRight)) {
+                if (d != 0 && Double.isFinite(d) && Values.areAlmostEqual(pair.lastLeft, pair.lastRight)) {
                     // within tol only rounding shows
                     d = Double.POSITIVE_INFINITY;
                 }
@@ -767,7 +767,7 @@ public class ConditionSolver {
                     continue;
                 }
                 if (k > 0 && !Double.isInfinite(known)) {
-                    if (isFinite(d) && isFinite(known) && Math.signum(d) != Math.signum(known)) {
+                    if (Double.isFinite(d) && Double.isFinite(known) && Math.signum(d) != Math.signum(known)) {
                         changes = true;
                         if (d == 0) {
                             addRoot(roots, point);
@@ -786,7 +786,7 @@ public class ConditionSolver {
                     double dipSign = Math.signum(twoBefore);
                     double[] lowest = EquationSolver.lowest(x -> dipSign * difference(pair, x),
                             Math.min(from, point), Math.max(from, point));
-                    if (isFinite(lowest[1]) && lowest[1] <= 0) {
+                    if (Double.isFinite(lowest[1]) && lowest[1] <= 0) {
                         changes = true;
                         addCheckedRoot(roots, pair, bisect(pair, from, lowest[0], twoBefore));
                         addCheckedRoot(roots, pair, bisect(pair, point, lowest[0], d));
@@ -809,7 +809,7 @@ public class ConditionSolver {
             Context at = context.withVariable(variable, root);
             double a = pair.leftAt(at);
             double b = pair.rightAt(at);
-            if (isFinite(a) && isFinite(b) && Values.areAlmostEqual(a, b)) {
+            if (Double.isFinite(a) && Double.isFinite(b) && Values.areAlmostEqual(a, b)) {
                 addRoot(roots, root);
             }
         } catch (BudgetExceededException | UndecidableException e) {
@@ -845,7 +845,7 @@ public class ConditionSolver {
 
     // 3 same sign vals, middle closest to 0
     private static boolean isDip(double first, double middle, double last) {
-        return isFinite(first) && isFinite(middle) && isFinite(last) && first * middle > 0 && middle * last > 0
+        return Double.isFinite(first) && Double.isFinite(middle) && Double.isFinite(last) && first * middle > 0 && middle * last > 0
                 && Math.abs(middle) < Math.abs(first) && Math.abs(middle) < Math.abs(last);
     }
 
@@ -854,7 +854,7 @@ public class ConditionSolver {
         double sign = Math.signum(dFrom);
         double[] lowest = EquationSolver.lowest(x -> sign * difference(pair, x), Math.min(from, to),
                 Math.max(from, to));
-        if (!isFinite(lowest[1]) || lowest[1] > 0) {
+        if (!Double.isFinite(lowest[1]) || lowest[1] > 0) {
             return NOT_FOUND;
         }
         if (verdictAt(lowest[0]) == wanted) {
@@ -884,7 +884,7 @@ public class ConditionSolver {
         for (int round = 0; round < ROUNDS; round++) {
             double middle = (low + high) / 2;
             double dMiddle = difference(pair, middle);
-            if (dMiddle == 0 || !isFinite(dMiddle)) {
+            if (dMiddle == 0 || !Double.isFinite(dMiddle)) {
                 return middle;
             }
             if (dLow * dMiddle < 0) {
@@ -960,7 +960,7 @@ public class ConditionSolver {
             for (int i = 0; i + 1 < values.length; i++) {
                 double a = values[i];
                 double b = values[i + 1];
-                if (isSetOperator(relation.getOperators().get(i)) || !isFinite(a) || !isFinite(b)) {
+                if (isSetOperator(relation.getOperators().get(i)) || !Double.isFinite(a) || !Double.isFinite(b)) {
                     continue;
                 }
                 // x+1 rounds to x far out, equal means nothing
@@ -994,7 +994,7 @@ public class ConditionSolver {
         double largest = 0;
         try {
             Value value = node.evaluate(at);
-            if (value instanceof NumberValue && isFinite(((NumberValue) value).getValue())) {
+            if (value instanceof NumberValue && Double.isFinite(((NumberValue) value).getValue())) {
                 largest = Math.abs(((NumberValue) value).getValue());
             }
         } catch (BudgetExceededException | UndecidableException e) {
@@ -1028,15 +1028,11 @@ public class ConditionSolver {
         }
         List<Double> integers = new ArrayList<>();
         for (double point : points) {
-            if (isFinite(point) && (!naturalOnly || point >= 0)) {
+            if (Double.isFinite(point) && (!naturalOnly || point >= 0)) {
                 integers.add(point);
             }
         }
         return integers;
-    }
-
-    private static boolean isFinite(double value) {
-        return !Double.isNaN(value) && !Double.isInfinite(value);
     }
 
     List<Double> boundaryRoots() {
@@ -1191,7 +1187,7 @@ public class ConditionSolver {
         try {
             double a = root.pair.leftAt(withPoint);
             double b = root.pair.rightAt(withPoint);
-            if (!isFinite(a) || !isFinite(b)) {
+            if (!Double.isFinite(a) || !Double.isFinite(b)) {
                 return false;
             }
             double size = Math.max(1, Math.max(Math.abs(a), Math.abs(b)));

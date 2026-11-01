@@ -106,14 +106,14 @@ public final class LimitCalculator {
         double overflow = Double.NaN;
         for (int k = 0; k < POSITIONS && samples.size() < SAMPLES; k++) {
             double y = g.applyAsDouble(h);
-            double yNoise = isFinite(y) ? noise.applyAsDouble(h) : Double.NaN;
+            double yNoise = Double.isFinite(y) ? noise.applyAsDouble(h) : Double.NaN;
             h = h / SHRINK;
-            if (isFinite(yNoise) && yNoise > CLEAN * Math.max(1, Math.abs(y))) {
+            if (Double.isFinite(yNoise) && yNoise > CLEAN * Math.max(1, Math.abs(y))) {
                 // roundoff from here on, (10^6+h)^2-10^12 etc
                 noisyStop = true;
                 break;
             }
-            if (!isFinite(y)) {
+            if (!Double.isFinite(y)) {
                 if (!samples.isEmpty()) {
                     before = samples;
                     samples = new ArrayList<>();
@@ -241,7 +241,7 @@ public final class LimitCalculator {
         for (double[] candidate : candidates) {
             double value = candidate[0];
             double error = candidate[1];
-            if (isFinite(value) && isFinite(error) && error <= ACCEPTED * Math.max(Math.abs(value), swing)
+            if (Double.isFinite(value) && Double.isFinite(error) && error <= ACCEPTED * Math.max(Math.abs(value), swing)
                     && value >= min(later) - error && value <= max(later) + error) {
                 return snapped(value, error, nearest);
             }
@@ -352,7 +352,7 @@ public final class LimitCalculator {
         double previousStep = 0;
         for (int i = start + 1; i < samples.size(); i++) {
             double step = samples.get(i) - samples.get(i - 1);
-            if (step == 0 || !isFinite(step)) {
+            if (step == 0 || !Double.isFinite(step)) {
                 return 0;
             }
             if (direction == 0) {
@@ -388,7 +388,7 @@ public final class LimitCalculator {
             for (int m = 2; m < current.length; m++) {
                 double value = current[m];
                 double error = Math.max(Math.abs(value - current[m - 1]), Math.abs(value - current[m - 2]));
-                if (isFinite(value) && isFinite(error)
+                if (Double.isFinite(value) && Double.isFinite(error)
                         && relativeError(value, error) <= relativeError(bestValue, bestError)) {
                     bestValue = value;
                     bestError = error;
@@ -407,14 +407,10 @@ public final class LimitCalculator {
     }
 
     private static double relativeError(double value, double error) {
-        if (!isFinite(value) || !isFinite(error)) {
+        if (!Double.isFinite(value) || !Double.isFinite(error)) {
             return Double.POSITIVE_INFINITY;
         }
         return error / Math.max(1, Math.abs(value));
-    }
-
-    private static boolean isFinite(double value) {
-        return !Double.isNaN(value) && !Double.isInfinite(value);
     }
 
     // richardson extrap, keep best entry, count bad rows

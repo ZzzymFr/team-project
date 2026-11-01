@@ -70,7 +70,7 @@ public final class SeriesCalculator {
         }
 
         double value() {
-            if (!isFinite(total)) {
+            if (!Double.isFinite(total)) {
                 return total;
             }
             return total + compensation;
@@ -160,7 +160,7 @@ public final class SeriesCalculator {
                 sum.add(x);
                 sumOfSizes += Math.abs(x);
                 double value = sum.value();
-                if (!isFinite(value)) {
+                if (!Double.isFinite(value)) {
                     // only sums get here, logs dont overflow
                     return overflow(a);
                 }
@@ -258,14 +258,14 @@ public final class SeriesCalculator {
         // only as good as the cancellation lets it be
         private double checked(double value, double error) {
             double roundOff = ROUND_OFF * sumOfSizes;
-            if (!isFinite(value) || accuracy(new double[] {value, Math.max(error, roundOff)}) > LATE_ACCEPTED) {
+            if (!Double.isFinite(value) || accuracy(new double[] {value, Math.max(error, roundOff)}) > LATE_ACCEPTED) {
                 throw new UncalculableException(UncalculableException.SERIES);
             }
             if (!product) {
                 return value;
             }
             double result = sign * Math.exp(value);
-            if (!isFinite(result)) {
+            if (!Double.isFinite(result)) {
                 throw new UncalculableException(UncalculableException.TOO_BIG);
             }
             return result;
@@ -274,7 +274,7 @@ public final class SeriesCalculator {
         private double accuracy(double[] estimate) {
             double value = estimate[0];
             double error = estimate[1];
-            if (!isFinite(value) || !isFinite(error)) {
+            if (!Double.isFinite(value) || !Double.isFinite(error)) {
                 return Double.POSITIVE_INFINITY;
             }
             if (product || error == 0) {
@@ -303,7 +303,7 @@ public final class SeriesCalculator {
             for (int j = 0; j < 3; j++) {
                 int k = LEVELS - 2 + j;
                 double ratio = size[k - 1] / size[k];
-                if (!isFinite(ratio) || ratio <= 0) {
+                if (!Double.isFinite(ratio) || ratio <= 0) {
                     return true;
                 }
                 exponent[j] = Math.log(ratio) / Math.log(2);
@@ -329,7 +329,7 @@ public final class SeriesCalculator {
             for (int k = LEVELS - WINDOW + 1; k <= LEVELS; k++) {
                 double step = edge[k] - edge[k - 1];
                 double previousStep = edge[k - 1] - edge[k - 2];
-                if (!isFinite(step) || Math.signum(step) != direction || Math.signum(previousStep) != direction) {
+                if (!Double.isFinite(step) || Math.signum(step) != direction || Math.signum(previousStep) != direction) {
                     return false;
                 }
                 double ratio = step / previousStep;
@@ -417,7 +417,7 @@ public final class SeriesCalculator {
             for (int j = Math.max(0, recentCount - RECENT); j < recentCount; j++) {
                 terms.add(recent[j % RECENT]);
             }
-            if (isFinite(a)) {
+            if (Double.isFinite(a)) {
                 terms.add(a);
             }
             if (terms.size() < 3) {
@@ -477,7 +477,7 @@ public final class SeriesCalculator {
         }
 
         private void consider(double candidate, double candidateError) {
-            if (isFinite(candidate) && isFinite(candidateError) && candidateError < error) {
+            if (Double.isFinite(candidate) && Double.isFinite(candidateError) && candidateError < error) {
                 value = candidate;
                 error = candidateError;
             }
@@ -507,7 +507,7 @@ public final class SeriesCalculator {
             }
             double value = current[last];
             double error = Math.max(Math.abs(value - current[last - 1]), Math.abs(value - current[last - 2]));
-            if (isFinite(value) && isFinite(error) && error < bestError) {
+            if (Double.isFinite(value) && Double.isFinite(error) && error < bestError) {
                 bestValue = value;
                 bestError = error;
             }
@@ -516,10 +516,6 @@ public final class SeriesCalculator {
     }
 
     private static boolean isNormal(double value) {
-        return isFinite(value) && Math.abs(value) >= Double.MIN_NORMAL;
-    }
-
-    private static boolean isFinite(double value) {
-        return !Double.isNaN(value) && !Double.isInfinite(value);
+        return Double.isFinite(value) && Math.abs(value) >= Double.MIN_NORMAL;
     }
 }

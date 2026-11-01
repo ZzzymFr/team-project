@@ -20,7 +20,7 @@ final class NoiseScale {
         }
         if (node instanceof LiteralNode) {
             Value value = ((LiteralNode) node).getValue();
-            return value instanceof NumberValue && isFinite(((NumberValue) value).getValue());
+            return value instanceof NumberValue && Double.isFinite(((NumberValue) value).getValue());
         }
         if (node instanceof UnaryNode) {
             UnaryNode.Op op = ((UnaryNode) node).getOp();
@@ -147,9 +147,5 @@ final class NoiseScale {
     private static double number(Node node, Context context) {
         Value value = node.evaluate(context);
         return value instanceof NumberValue ? ((NumberValue) value).getValue() : Double.NaN;
-    }
-
-    private static boolean isFinite(double value) {
-        return !Double.isNaN(value) && !Double.isInfinite(value);
     }
 }
