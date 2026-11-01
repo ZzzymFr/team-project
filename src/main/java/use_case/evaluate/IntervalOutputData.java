@@ -1,7 +1,5 @@
 package use_case.evaluate;
 
-import entity.Interval;
-
 // one solution interval, plain numbers for the presenter
 public final class IntervalOutputData {
     private final double low;
@@ -10,16 +8,12 @@ public final class IntervalOutputData {
     private final boolean highIncluded;
     private final boolean point;
 
-    private IntervalOutputData(Interval interval) {
-        this.low = interval.getLow();
-        this.lowIncluded = interval.isLowIncluded();
-        this.high = interval.getHigh();
-        this.highIncluded = interval.isHighIncluded();
-        this.point = interval.isPoint();
-    }
-
-    public static IntervalOutputData of(Interval interval) {
-        return new IntervalOutputData(interval);
+    public IntervalOutputData(double low, boolean lowIncluded, double high, boolean highIncluded, boolean point) {
+        this.low = low;
+        this.lowIncluded = lowIncluded;
+        this.high = high;
+        this.highIncluded = highIncluded;
+        this.point = point;
     }
 
     public double getLow() {

@@ -158,7 +158,7 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
     private static List<ValueOutputData> toOutput(List<Value> values) {
         List<ValueOutputData> output = new ArrayList<>();
         for (Value value : values) {
-            output.add(ValueOutputData.of(value));
+            output.add(OutputDataMapper.of(value));
         }
         return output;
     }

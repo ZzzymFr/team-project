@@ -6,8 +6,7 @@ import entity.value.FiniteSetValue;
 import entity.value.NumberValue;
 import entity.value.VectorValue;
 import interface_adapter.MathLabViewModel;
-import use_case.evaluate.IntervalOutputData;
-import use_case.evaluate.ValueOutputData;
+import use_case.evaluate.OutputDataMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -67,16 +66,16 @@ class EvaluatePresenterTest {
     void neighboursThatRoundTheSameKeepDigits() {
         presenter.prepareSolutionsView("x", Arrays.asList(1.0, 1.001, 3.0));
         assertEquals("x = 1 or x = 1.001 or x = 3", viewModel.getState().getResultText());
-        presenter.prepareIntervalsView("x", List.of(IntervalOutputData.of(new Interval(1, false, 1.0001, false))));
+        presenter.prepareIntervalsView("x", List.of(OutputDataMapper.of(new Interval(1, false, 1.0001, false))));
         assertEquals("1 < x < 1.0001", viewModel.getState().getResultText());
-        presenter.prepareIntervalsView("x", List.of(IntervalOutputData.of(new Interval(Double.NEGATIVE_INFINITY, false, 2, false)),
-                IntervalOutputData.of(new Interval(2, false, Double.POSITIVE_INFINITY, false))));
+        presenter.prepareIntervalsView("x", List.of(OutputDataMapper.of(new Interval(Double.NEGATIVE_INFINITY, false, 2, false)),
+                OutputDataMapper.of(new Interval(2, false, Double.POSITIVE_INFINITY, false))));
         assertEquals("x < 2 or x > 2", viewModel.getState().getResultText());
     }
 
     @Test
     void showsNumber() {
-        presenter.prepareValuesView(List.of(ValueOutputData.of(new NumberValue(2))));
+        presenter.prepareValuesView(List.of(OutputDataMapper.of(new NumberValue(2))));
         assertEquals("= 2", viewModel.getState().getResultText());
         assertEquals("", viewModel.getState().getErrorText());
     }
@@ -100,7 +99,7 @@ class EvaluatePresenterTest {
 
     @Test
     void showsError() {
-        presenter.prepareValuesView(List.of(ValueOutputData.of(new NumberValue(2))));
+        presenter.prepareValuesView(List.of(OutputDataMapper.of(new NumberValue(2))));
         presenter.prepareFailView("Oops");
         assertEquals("", viewModel.getState().getResultText());
         assertEquals("Oops", viewModel.getState().getErrorText());
@@ -108,11 +107,11 @@ class EvaluatePresenterTest {
 
     @Test
     void formatsValues() {
-        assertEquals("true", AnswerFormatter.format(ValueOutputData.of(BooleanValue.of(true))));
-        assertEquals("{1, 2, 3}", AnswerFormatter.format(ValueOutputData.of(new FiniteSetValue(Arrays.asList(3.0, 1.0, 2.0, 1.0)))));
-        assertEquals("{}", AnswerFormatter.format(ValueOutputData.of(new FiniteSetValue(new ArrayList<>()))));
-        assertEquals("(4, 6)", AnswerFormatter.format(ValueOutputData.of(new VectorValue(Arrays.asList(4.0, 6.0)))));
-        presenter.prepareValuesView(Arrays.asList(ValueOutputData.of(new NumberValue(3)), ValueOutputData.of(new NumberValue(-1))));
+        assertEquals("true", AnswerFormatter.format(OutputDataMapper.of(BooleanValue.of(true))));
+        assertEquals("{1, 2, 3}", AnswerFormatter.format(OutputDataMapper.of(new FiniteSetValue(Arrays.asList(3.0, 1.0, 2.0, 1.0)))));
+        assertEquals("{}", AnswerFormatter.format(OutputDataMapper.of(new FiniteSetValue(new ArrayList<>()))));
+        assertEquals("(4, 6)", AnswerFormatter.format(OutputDataMapper.of(new VectorValue(Arrays.asList(4.0, 6.0)))));
+        presenter.prepareValuesView(Arrays.asList(OutputDataMapper.of(new NumberValue(3)), OutputDataMapper.of(new NumberValue(-1))));
         assertEquals("= 3 or -1", viewModel.getState().getResultText());
         presenter.prepareSolutionsView("x", new ArrayList<>());
         assertEquals("no solution", viewModel.getState().getResultText());
@@ -121,11 +120,11 @@ class EvaluatePresenterTest {
     @Test
     void formatsIntervalsAndExclusions() {
         double inf = Double.POSITIVE_INFINITY;
-        presenter.prepareIntervalsView("x", Arrays.asList(IntervalOutputData.of(new Interval(-inf, false, -2, false)), IntervalOutputData.of(new Interval(2, true, inf, false))));
+        presenter.prepareIntervalsView("x", Arrays.asList(OutputDataMapper.of(new Interval(-inf, false, -2, false)), OutputDataMapper.of(new Interval(2, true, inf, false))));
         assertEquals("x < -2 or x ≥ 2", viewModel.getState().getResultText());
-        presenter.prepareIntervalsView("x", Arrays.asList(IntervalOutputData.of(new Interval(1, false, 3, true)), IntervalOutputData.of(new Interval(5, true, 5, true))));
+        presenter.prepareIntervalsView("x", Arrays.asList(OutputDataMapper.of(new Interval(1, false, 3, true)), OutputDataMapper.of(new Interval(5, true, 5, true))));
         assertEquals("1 < x ≤ 3 or x = 5", viewModel.getState().getResultText());
-        presenter.prepareIntervalsView("x", Arrays.asList(IntervalOutputData.of(new Interval(-inf, false, 0, true))));
+        presenter.prepareIntervalsView("x", Arrays.asList(OutputDataMapper.of(new Interval(-inf, false, 0, true))));
         assertEquals("x ≤ 0", viewModel.getState().getResultText());
         presenter.prepareIntervalsView("x", new ArrayList<>());
         assertEquals("no solution", viewModel.getState().getResultText());
@@ -135,7 +134,7 @@ class EvaluatePresenterTest {
 
     @Test
     void showsBooleansWithoutEqualsSign() {
-        presenter.prepareValuesView(List.of(ValueOutputData.of(BooleanValue.of(false))));
+        presenter.prepareValuesView(List.of(OutputDataMapper.of(BooleanValue.of(false))));
         assertEquals("false", viewModel.getState().getResultText());
         presenter.prepareAlwaysTrueView("x");
         assertEquals("true for all x", viewModel.getState().getResultText());

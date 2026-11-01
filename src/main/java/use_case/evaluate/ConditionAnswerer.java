@@ -237,7 +237,7 @@ final class ConditionAnswerer {
         } else {
             List<IntervalOutputData> output = new ArrayList<>();
             for (Interval interval : intervals) {
-                output.add(IntervalOutputData.of(interval));
+                output.add(OutputDataMapper.of(interval));
             }
             presenter.prepareIntervalsView(variable, output);
         }
