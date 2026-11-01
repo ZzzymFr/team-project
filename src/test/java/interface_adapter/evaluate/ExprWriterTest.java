@@ -1,6 +1,10 @@
-package entity.symbolic;
+package interface_adapter.evaluate;
 
+import entity.symbolic.Expr;
+import entity.symbolic.Rational;
 import org.junit.jupiter.api.Test;
+
+import use_case.evaluate.TextRunOutputData;
 
 import java.util.List;
 
@@ -32,9 +36,9 @@ class ExprWriterTest {
     void powerIsRaised() {
         Expr e = mul(n(3), pow(X, n(2)));
         assertEquals("3x^{2}", ExprWriter.latex(e));
-        List<TextRun> runs = ExprWriter.runs(e);
+        List<TextRunOutputData> runs = ExprWriter.runs(e);
         assertEquals("3x2", ExprWriter.plain(runs));
-        assertEquals(new TextRun("2", true), runs.get(runs.size() - 1));
+        assertEquals(new TextRunOutputData("2", true), runs.get(runs.size() - 1));
         assertFalse(runs.get(0).isRaised());
     }
 
@@ -42,9 +46,9 @@ class ExprWriterTest {
     void negativePowerGoesUnderAFraction() {
         Expr e = pow(add(X, n(1)), n(-2));
         assertEquals("\\frac{1}{(x+1)^{2}}", ExprWriter.latex(e));
-        List<TextRun> runs = ExprWriter.runs(e);
+        List<TextRunOutputData> runs = ExprWriter.runs(e);
         assertEquals("1/(x+1)2", ExprWriter.plain(runs));
-        assertEquals(new TextRun("2", true), runs.get(runs.size() - 1));
+        assertEquals(new TextRunOutputData("2", true), runs.get(runs.size() - 1));
     }
 
     @Test

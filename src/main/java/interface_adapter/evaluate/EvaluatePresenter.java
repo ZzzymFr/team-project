@@ -1,12 +1,15 @@
 package interface_adapter.evaluate;
 
-import entity.Interval;
-import entity.symbolic.TextRun;
-import entity.value.Value;
 import interface_adapter.MathLabState;
 import interface_adapter.MathLabViewModel;
+import interface_adapter.TextRun;
 import use_case.evaluate.EvaluateOutputBoundary;
+import use_case.evaluate.ExpressionOutputData;
+import use_case.evaluate.IntervalOutputData;
+import use_case.evaluate.TextRunOutputData;
+import use_case.evaluate.ValueOutputData;
 
+import java.util.ArrayList;
 import java.util.List;
 
 // just fills the view model, text comes from AnswerFormatter
@@ -18,7 +21,7 @@ public class EvaluatePresenter implements EvaluateOutputBoundary {
     }
 
     @Override
-    public void prepareValuesView(List<Value> values) {
+    public void prepareValuesView(List<ValueOutputData> values) {
         showResult(AnswerFormatter.values(values));
     }
 
@@ -28,7 +31,7 @@ public class EvaluatePresenter implements EvaluateOutputBoundary {
     }
 
     @Override
-    public void prepareIntervalsView(String variable, List<Interval> intervals) {
+    public void prepareIntervalsView(String variable, List<IntervalOutputData> intervals) {
         showResult(AnswerFormatter.intervals(variable, intervals));
     }
 
@@ -48,8 +51,12 @@ public class EvaluatePresenter implements EvaluateOutputBoundary {
     }
 
     @Override
-    public void prepareExpressionView(String latex, List<TextRun> runs) {
-        publish("= " + latex, runs, "", false);
+    public void prepareExpressionView(ExpressionOutputData expression) {
+        List<TextRun> runs = new ArrayList<>();
+        for (TextRunOutputData run : expression.getRuns()) {
+            runs.add(new TextRun(run.getText(), run.isRaised()));
+        }
+        publish("= " + expression.getLatex(), runs, "", false);
     }
 
     @Override

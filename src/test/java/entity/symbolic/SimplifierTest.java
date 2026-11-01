@@ -1,5 +1,6 @@
 package entity.symbolic;
 
+import interface_adapter.evaluate.ExprWriter;
 import org.junit.jupiter.api.Test;
 
 import static entity.symbolic.Expr.add;

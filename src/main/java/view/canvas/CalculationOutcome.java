@@ -1,6 +1,6 @@
 package view.canvas;
 
-import entity.symbolic.TextRun;
+import interface_adapter.TextRun;
 
 import java.util.List;
 

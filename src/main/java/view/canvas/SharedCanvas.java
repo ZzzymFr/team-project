@@ -3,7 +3,7 @@ package view.canvas;
 import entity.AnswerKind;
 import entity.CanvasAnswer;
 import entity.Stroke;
-import entity.symbolic.TextRun;
+import interface_adapter.TextRun;
 import interface_adapter.recognize.FormulaRecognizer;
 import view.DrawingCanvas;
 import view.FormulaCapture;

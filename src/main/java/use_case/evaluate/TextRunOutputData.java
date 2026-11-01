@@ -1,13 +1,13 @@
-package entity.symbolic;
+package use_case.evaluate;
 
 import java.util.Objects;
 
-// bit of answer text, raised = drawn small and up like an exponent
-public final class TextRun {
+// bit of answer text, raised = goes up like an exponent
+public final class TextRunOutputData {
     private final String text;
     private final boolean raised;
 
-    public TextRun(String text, boolean raised) {
+    public TextRunOutputData(String text, boolean raised) {
         this.text = text;
         this.raised = raised;
     }
@@ -22,16 +22,12 @@ public final class TextRun {
 
     @Override
     public boolean equals(Object o) {
-        return o instanceof TextRun && ((TextRun) o).raised == raised && ((TextRun) o).text.equals(text);
+        return o instanceof TextRunOutputData && ((TextRunOutputData) o).raised == raised
+                && ((TextRunOutputData) o).text.equals(text);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(text, raised);
-    }
-
-    @Override
-    public String toString() {
-        return raised ? "^" + text : text;
     }
 }

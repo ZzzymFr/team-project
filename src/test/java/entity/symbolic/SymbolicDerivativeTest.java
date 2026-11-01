@@ -1,5 +1,6 @@
 package entity.symbolic;
 
+import interface_adapter.evaluate.ExprWriter;
 import entity.Context;
 import entity.MathLexer;
 import entity.MathParser;

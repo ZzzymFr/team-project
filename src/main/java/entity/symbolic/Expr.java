@@ -157,6 +157,8 @@ public final class Expr {
 
     @Override
     public String toString() {
-        return ExprWriter.latex(this);
+        // debug only, real writing is outside entity
+        return kind + "(" + (value != null ? value : name != null ? name : "") + (terms != null ? terms : "")
+                + (first != null ? first : "") + (second != null ? "," + second : "") + ")";
     }
 }

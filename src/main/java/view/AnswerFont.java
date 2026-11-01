@@ -1,6 +1,6 @@
 package view;
 
-import entity.symbolic.TextRun;
+import interface_adapter.TextRun;
 import view.stack.Fonts;
 
 import java.awt.Font;

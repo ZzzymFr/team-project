@@ -9,9 +9,7 @@ import entity.UserFunction;
 import entity.node.Node;
 import entity.node.RelationNode;
 import entity.symbolic.Expr;
-import entity.symbolic.ExprWriter;
 import entity.symbolic.SymbolicDerivative;
-import entity.symbolic.TextRun;
 import entity.value.NumberSetValue;
 import entity.value.NumberValue;
 import entity.value.Value;
@@ -33,12 +31,15 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
 
     private final FunctionDataAccessInterface functionDataAccess;
     private final EvaluateOutputBoundary presenter;
+    private final ExpressionWriter expressionWriter;
     private final FunctionDefiner functionDefiner;
 
     public EvaluateInteractor(FunctionDataAccessInterface functionDataAccess,
-                              EvaluateOutputBoundary presenter) {
+                              EvaluateOutputBoundary presenter,
+                              ExpressionWriter expressionWriter) {
         this.functionDataAccess = functionDataAccess;
         this.presenter = presenter;
+        this.expressionWriter = expressionWriter;
         this.functionDefiner = new FunctionDefiner(functionDataAccess, presenter);
     }
 
@@ -88,7 +89,7 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
         List<String> unknowns = new ArrayList<>(freeVariables);
 
         if (unknowns.isEmpty()) {
-            presenter.prepareValuesView(calculateAll(node, functions, masks));
+            presenter.prepareValuesView(toOutput(calculateAll(node, functions, masks)));
         } else if (countEquals(node) > 1) {
             presenter.prepareFailView("Please use only one \"=\".");
         } else if (!node.isCondition() && SymbolicDerivative.containsDerivative(node)) {
@@ -107,11 +108,11 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
     // d/dx w/ no value for x: write the derivative out
     private void showDerivative(Node node, Map<String, UserFunction> functions) {
         Expr derivative = SymbolicDerivative.differentiate(node, functions);
-        List<TextRun> runs = ExprWriter.runs(derivative);
-        if (ExprWriter.plain(runs).length() > MAX_ANSWER_LENGTH) {
+        List<TextRunOutputData> runs = expressionWriter.runs(derivative);
+        if (ExpressionOutputData.plainLength(runs) > MAX_ANSWER_LENGTH) {
             throw new UncalculableException(UncalculableException.ANSWER_TOO_LONG);
         }
-        presenter.prepareExpressionView(ExprWriter.latex(derivative), runs);
+        presenter.prepareExpressionView(new ExpressionOutputData(expressionWriter.latex(derivative), runs));
     }
 
     private Value calculate(Node node, Context context) {
@@ -152,6 +153,14 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
             }
         }
         return values;
+    }
+
+    private static List<ValueOutputData> toOutput(List<Value> values) {
+        List<ValueOutputData> output = new ArrayList<>();
+        for (Value value : values) {
+            output.add(ValueOutputData.of(value));
+        }
+        return output;
     }
 
     private String unknownVariableMessage(String name) {

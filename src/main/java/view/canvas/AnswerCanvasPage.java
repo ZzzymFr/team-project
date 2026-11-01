@@ -2,7 +2,7 @@ package view.canvas;
 
 import entity.AnswerKind;
 import entity.Stroke;
-import entity.symbolic.TextRun;
+import interface_adapter.TextRun;
 import interface_adapter.MathLabViewModel;
 import interface_adapter.evaluate.EvaluateController;
 import view.FormulaCapture;

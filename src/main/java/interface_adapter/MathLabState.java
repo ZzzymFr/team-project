@@ -1,7 +1,5 @@
 package interface_adapter;
 
-import entity.symbolic.TextRun;
-
 import java.util.List;
 
 public class MathLabState {

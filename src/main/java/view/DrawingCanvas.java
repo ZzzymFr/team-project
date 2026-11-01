@@ -3,8 +3,7 @@ package view;
 import entity.AnswerKind;
 import entity.AnswerLayout;
 import entity.CanvasAnswer;
-import entity.symbolic.ExprWriter;
-import entity.symbolic.TextRun;
+import interface_adapter.TextRun;
 import entity.Formula;
 import entity.FormulaBook;
 import entity.InkEditor;
@@ -1057,7 +1056,7 @@ public class DrawingCanvas extends JPanel {
 
     // same spot rules, text w/ raised exponents
     public boolean showAnswer(long id, long revision, AnswerKind kind, List<TextRun> runs, boolean error) {
-        return placeAnswer(id, revision, kind, ExprWriter.plain(runs), runs, error);
+        return placeAnswer(id, revision, kind, TextRun.plain(runs), runs, error);
     }
 
     private boolean placeAnswer(long id, long revision, AnswerKind kind, String text, List<TextRun> runs,

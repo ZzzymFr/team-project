@@ -1,13 +1,7 @@
 package interface_adapter.evaluate;
 
-import entity.Interval;
-import entity.value.BooleanValue;
-import entity.value.FiniteSetValue;
-import entity.value.NumberSetValue;
-import entity.value.NumberValue;
-import entity.value.Value;
-import entity.value.ValueVisitor;
-import entity.value.VectorValue;
+import use_case.evaluate.IntervalOutputData;
+import use_case.evaluate.ValueOutputData;
 
 import java.math.BigDecimal;
 import java.math.MathContext;
@@ -24,13 +18,12 @@ public final class AnswerFormatter {
     private static final double FRACTION_TOLERANCE = 1e-8;
     private static final double FRACTION_LIMIT = 1e6;
     private static final double TINY = 0.005;
-    private static final ValueVisitor<String> VALUE_TEXT = new ValueText();
 
     private AnswerFormatter() {
     }
 
     // booleans alone get no "= "
-    public static String values(List<Value> values) {
+    public static String values(List<ValueOutputData> values) {
         String text = "";
         boolean onlyBooleans = true;
         for (int i = 0; i < values.size(); i++) {
@@ -38,7 +31,7 @@ public final class AnswerFormatter {
                 text = text + " or ";
             }
             text = text + format(values.get(i));
-            if (!(values.get(i) instanceof BooleanValue)) {
+            if (values.get(i).getKind() != ValueOutputData.Kind.BOOLEAN) {
                 onlyBooleans = false;
             }
         }
@@ -57,13 +50,13 @@ public final class AnswerFormatter {
         return firstFew(parts, " or ");
     }
 
-    public static String intervals(String variable, List<Interval> intervals) {
+    public static String intervals(String variable, List<IntervalOutputData> intervals) {
         if (intervals.isEmpty()) {
             return "no solution";
         }
         // all ends together so x < 1 or x > 1.0001 stays apart
         List<Double> ends = new ArrayList<>();
-        for (Interval interval : intervals) {
+        for (IntervalOutputData interval : intervals) {
             ends.add(interval.getLow());
             ends.add(interval.getHigh());
         }
@@ -130,8 +123,20 @@ public final class AnswerFormatter {
         return rounded.toPlainString();
     }
 
-    public static String format(Value value) {
-        return value.accept(VALUE_TEXT);
+    public static String format(ValueOutputData value) {
+        switch (value.getKind()) {
+            case NUMBER:
+                return format(value.getNumbers().get(0));
+            case BOOLEAN:
+                return value.isTrue() ? "true" : "false";
+            case SET:
+                return "{" + formatList(value.getNumbers()) + "}";
+            case VECTOR:
+                return "(" + formatList(value.getNumbers()) + ")";
+            default:
+                // a set alone has no value to show
+                return "Uncalculable";
+        }
     }
 
     // first 10 joined, then "(and n more)"
@@ -212,7 +217,7 @@ public final class AnswerFormatter {
         return text;
     }
 
-    private static String interval(String variable, Interval interval, String lowText, String highText) {
+    private static String interval(String variable, IntervalOutputData interval, String lowText, String highText) {
         double low = interval.getLow();
         double high = interval.getHigh();
         String lowSign = interval.isLowIncluded() ? " ≤ " : " < ";
@@ -233,33 +238,5 @@ public final class AnswerFormatter {
             return variable + " = " + format((low + high) / 2);
         }
         return lowText + lowSign + variable + highSign + highText;
-    }
-
-    private static final class ValueText implements ValueVisitor<String> {
-        @Override
-        public String visitNumber(NumberValue value) {
-            return format(value.getValue());
-        }
-
-        @Override
-        public String visitBoolean(BooleanValue value) {
-            return value.getValue() ? "true" : "false";
-        }
-
-        @Override
-        public String visitFiniteSet(FiniteSetValue value) {
-            return "{" + formatList(value.getElements()) + "}";
-        }
-
-        @Override
-        public String visitVector(VectorValue value) {
-            return "(" + formatList(value.getComponents()) + ")";
-        }
-
-        @Override
-        public String visitNumberSet(NumberSetValue value) {
-            // a set alone has no value to show
-            return "Uncalculable";
-        }
     }
 }

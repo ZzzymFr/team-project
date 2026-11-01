@@ -1,4 +1,8 @@
-package entity.symbolic;
+package interface_adapter.evaluate;
+
+import entity.symbolic.Expr;
+import entity.symbolic.Rational;
+import use_case.evaluate.TextRunOutputData;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -19,7 +23,7 @@ public final class ExprWriter {
 
     private final boolean tex;
     private final StringBuilder latex = new StringBuilder();
-    private final List<TextRun> runs = new ArrayList<>();
+    private final List<TextRunOutputData> runs = new ArrayList<>();
     private int raised;
 
     private ExprWriter(boolean tex, int raised) {
@@ -33,15 +37,15 @@ public final class ExprWriter {
         return w.latex.toString();
     }
 
-    public static List<TextRun> runs(Expr e) {
+    public static List<TextRunOutputData> runs(Expr e) {
         ExprWriter w = new ExprWriter(false, 0);
         w.write(e);
         return Collections.unmodifiableList(w.runs);
     }
 
-    public static String plain(List<TextRun> runs) {
+    public static String plain(List<TextRunOutputData> runs) {
         StringBuilder text = new StringBuilder();
-        for (TextRun run : runs) {
+        for (TextRunOutputData run : runs) {
             text.append(run.getText());
         }
         return text.toString();
@@ -60,9 +64,9 @@ public final class ExprWriter {
         boolean up = raised > 0;
         int last = runs.size() - 1;
         if (last >= 0 && runs.get(last).isRaised() == up) {
-            runs.set(last, new TextRun(runs.get(last).getText() + runText, up));
+            runs.set(last, new TextRunOutputData(runs.get(last).getText() + runText, up));
         } else {
-            runs.add(new TextRun(runText, up));
+            runs.add(new TextRunOutputData(runText, up));
         }
     }
 
@@ -75,11 +79,11 @@ public final class ExprWriter {
             latex.append(w.latex);
             return;
         }
-        for (TextRun run : w.runs) {
+        for (TextRunOutputData run : w.runs) {
             boolean up = run.isRaised();
             int last = runs.size() - 1;
             if (last >= 0 && runs.get(last).isRaised() == up) {
-                runs.set(last, new TextRun(runs.get(last).getText() + run.getText(), up));
+                runs.set(last, new TextRunOutputData(runs.get(last).getText() + run.getText(), up));
             } else {
                 runs.add(run);
             }

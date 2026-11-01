@@ -2,7 +2,7 @@ package view;
 
 import entity.AnswerKind;
 import entity.CanvasAnswer;
-import entity.symbolic.TextRun;
+import interface_adapter.TextRun;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 

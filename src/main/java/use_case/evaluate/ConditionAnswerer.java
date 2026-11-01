@@ -235,7 +235,11 @@ final class ConditionAnswerer {
                 && intervals.get(0).getHigh() == Double.POSITIVE_INFINITY) {
             presenter.prepareAlwaysTrueView(variable);
         } else {
-            presenter.prepareIntervalsView(variable, intervals);
+            List<IntervalOutputData> output = new ArrayList<>();
+            for (Interval interval : intervals) {
+                output.add(IntervalOutputData.of(interval));
+            }
+            presenter.prepareIntervalsView(variable, output);
         }
     }
 }
