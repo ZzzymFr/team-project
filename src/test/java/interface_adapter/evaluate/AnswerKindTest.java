@@ -1,4 +1,4 @@
-package entity;
+package interface_adapter.evaluate;
 
 import org.junit.jupiter.api.Test;
 

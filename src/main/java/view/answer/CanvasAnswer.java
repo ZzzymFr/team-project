@@ -1,4 +1,4 @@
-package entity;
+package view.answer;
 
 import interface_adapter.TextRun;
 

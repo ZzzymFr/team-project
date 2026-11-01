@@ -1,11 +1,11 @@
 package view;
 
-import entity.AnswerKind;
-import entity.AnswerLayout;
-import entity.CanvasAnswer;
+import interface_adapter.evaluate.AnswerKind;
+import view.answer.AnswerLayout;
+import view.answer.CanvasAnswer;
 import interface_adapter.TextRun;
-import entity.Formula;
-import entity.FormulaBook;
+import view.answer.Formula;
+import view.answer.FormulaBook;
 import entity.InkEditor;
 import entity.InkPoint;
 import entity.Stroke;

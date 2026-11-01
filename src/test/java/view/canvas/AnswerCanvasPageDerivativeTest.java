@@ -1,7 +1,7 @@
 package view.canvas;
 
 import data_access.InMemoryFunctionDataAccessObject;
-import entity.CanvasAnswer;
+import view.answer.CanvasAnswer;
 import interface_adapter.MathLabViewModel;
 import interface_adapter.evaluate.EvaluateController;
 import interface_adapter.evaluate.EvaluatePresenter;

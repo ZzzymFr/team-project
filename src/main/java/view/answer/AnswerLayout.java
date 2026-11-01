@@ -1,4 +1,7 @@
-package entity;
+package view.answer;
+
+import entity.InkPoint;
+import entity.Stroke;
 
 import java.awt.Rectangle;
 import java.awt.geom.Point2D;

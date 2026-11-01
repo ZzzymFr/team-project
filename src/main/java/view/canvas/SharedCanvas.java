@@ -1,7 +1,7 @@
 package view.canvas;
 
-import entity.AnswerKind;
-import entity.CanvasAnswer;
+import interface_adapter.evaluate.AnswerKind;
+import view.answer.CanvasAnswer;
 import entity.Stroke;
 import interface_adapter.TextRun;
 import interface_adapter.recognize.FormulaRecognizer;
