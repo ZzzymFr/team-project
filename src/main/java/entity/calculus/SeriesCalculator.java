@@ -329,7 +329,8 @@ public final class SeriesCalculator {
             for (int k = LEVELS - WINDOW + 1; k <= LEVELS; k++) {
                 double step = edge[k] - edge[k - 1];
                 double previousStep = edge[k - 1] - edge[k - 2];
-                if (!Double.isFinite(step) || Math.signum(step) != direction || Math.signum(previousStep) != direction) {
+                if (!Double.isFinite(step) || Math.signum(step) != direction
+                        || Math.signum(previousStep) != direction) {
                     return false;
                 }
                 double ratio = step / previousStep;
