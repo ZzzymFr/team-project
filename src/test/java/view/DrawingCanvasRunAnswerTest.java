@@ -1,6 +1,7 @@
 package view;
 
 import interface_adapter.evaluate.AnswerKind;
+import view.answer.AnswerFont;
 import view.answer.CanvasAnswer;
 import interface_adapter.TextRun;
 import org.junit.jupiter.api.BeforeEach;
