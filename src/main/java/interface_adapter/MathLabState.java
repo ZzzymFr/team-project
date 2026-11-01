@@ -13,6 +13,8 @@ public class MathLabState {
 
     private List<TextRun> resultRuns;  // canvas text w/ raised exponents, null for plain answers
 
+    private boolean definition;  // f(x)= got saved, nothing to draw
+
     public String getExpression() {
         return expression;
     }
@@ -36,6 +38,14 @@ public class MathLabState {
 
     public void setResultRuns(List<TextRun> resultRuns) {
         this.resultRuns = resultRuns;
+    }
+
+    public boolean isDefinition() {
+        return definition;
+    }
+
+    public void setDefinition(boolean definition) {
+        this.definition = definition;
     }
 
     public String getErrorText() {

@@ -44,29 +44,30 @@ public class EvaluatePresenter implements EvaluateOutputBoundary {
 
     @Override
     public void prepareFunctionDefinedView(String definition) {
-        showResult(AnswerFormatter.defined(definition));
+        publish(AnswerFormatter.defined(definition), null, "", true);
     }
 
     @Override
     public void prepareExpressionView(String latex, List<TextRun> runs) {
-        publish("= " + latex, runs, "");
+        publish("= " + latex, runs, "", false);
     }
 
     @Override
     public void prepareFailView(String errorMessage) {
-        publish("", null, errorMessage);
+        publish("", null, errorMessage, false);
     }
 
     private void showResult(String text) {
-        publish(text, null, "");
+        publish(text, null, "", false);
     }
 
     // runs null = plain text answer
-    private void publish(String resultText, List<TextRun> runs, String errorText) {
+    private void publish(String resultText, List<TextRun> runs, String errorText, boolean definition) {
         MathLabState state = viewModel.getState();
         state.setResultText(resultText);
         state.setResultRuns(runs);
         state.setErrorText(errorText);
+        state.setDefinition(definition);
         viewModel.firePropertyChanged(MathLabViewModel.RESULT);
     }
 }

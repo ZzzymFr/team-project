@@ -16,6 +16,7 @@ import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.event.MouseAdapter;
 import java.awt.geom.RoundRectangle2D;
@@ -31,6 +32,9 @@ public class AnswerPopup extends JPanel {
     private static final int ARC = 14;
     private static final int SHADOW = 6;
     private static final int MAX_TEXT = 320;
+    private static final int EDGE = 10;        // stays this far inside the canvas
+    private static final int POPUP_GAP = 8;    // between formula and popup
+    private static final int POPUP_LEFT = 40;  // starts a bit left of the formula's right end
     private static final Color BORDER = new Color(203, 213, 225);
     private static final Color ERROR_TEXT = new Color(185, 28, 28);
 
@@ -76,6 +80,19 @@ public class AnswerPopup extends JPanel {
         icon = null;
         dock.setVisible(false);
         relayout();
+    }
+
+    // above-right of the formula, below if no room, always inside the canvas
+    Rectangle spotBeside(Rectangle formula, int areaWidth, int areaHeight) {
+        Dimension d = getPreferredSize();
+        int x = formula.x + formula.width - POPUP_LEFT;
+        int y = formula.y - POPUP_GAP - d.height;
+        if (y < EDGE) {
+            y = formula.y + formula.height + POPUP_GAP;
+        }
+        x = Math.max(EDGE, Math.min(x, areaWidth - d.width - EDGE));
+        y = Math.max(EDGE, Math.min(y, areaHeight - d.height - EDGE));
+        return new Rectangle(x, y, d.width, d.height);
     }
 
     String getLatex() {

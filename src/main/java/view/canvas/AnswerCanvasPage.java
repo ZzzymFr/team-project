@@ -3,7 +3,6 @@ package view.canvas;
 import entity.AnswerKind;
 import entity.Stroke;
 import entity.symbolic.TextRun;
-import interface_adapter.MathLabState;
 import interface_adapter.MathLabViewModel;
 import interface_adapter.evaluate.EvaluateController;
 import view.FormulaCapture;
@@ -16,7 +15,6 @@ import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 import java.awt.Color;
-import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.Rectangle;
@@ -29,23 +27,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 // answer page: pause -> popup with the read formula -> Calculate -> answer on the canvas
 public class AnswerCanvasPage extends CanvasPage {
     static final int POPUP_DELAY_MILLIS = 1500;
     private static final int ERROR_MESSAGE_MILLIS = 7000;
     private static final int DEFINED_MESSAGE_MILLIS = 4000;
-    private static final int EDGE = 10;        // popup stays this far inside the canvas
-    private static final int POPUP_GAP = 8;    // between formula and popup
-    private static final int POPUP_LEFT = 40;  // popup starts a bit left of the formula's right end
 
-    private final EvaluateController controller;
     private final BiConsumer<String, String> pdfResultSink;
     private final Map<Long, Long> exportedRevisions = new HashMap<>();
-    private final MathLabViewModel viewModel;
-    private final ExecutorService worker;
+    private final AnswerWorker worker;
     private final AnswerPopup popup;
     private final Timer pauseTimer;
     private final Set<Stroke> session = new LinkedHashSet<>();  // loose ink since the last pause
@@ -59,9 +50,7 @@ public class AnswerCanvasPage extends CanvasPage {
     // no evaluate feature, just a placeholder
     public AnswerCanvasPage(SharedCanvas sharedCanvas) {
         super(sharedCanvas);
-        this.controller = null;
         this.pdfResultSink = (latex, result) -> {};
-        this.viewModel = null;
         this.worker = null;
         this.popup = null;
         this.pauseTimer = null;
@@ -76,14 +65,7 @@ public class AnswerCanvasPage extends CanvasPage {
                             BiConsumer<String, String> pdfResultSink) {
         super(sharedCanvas);
         this.pdfResultSink = java.util.Objects.requireNonNull(pdfResultSink);
-        this.controller = controller;
-        this.viewModel = viewModel;
-        // one at a time so jobs don't fight over the view model
-        this.worker = Executors.newSingleThreadExecutor(r -> {
-            Thread t = new Thread(r, "answer-worker");
-            t.setDaemon(true);
-            return t;
-        });
+        this.worker = new AnswerWorker(controller, viewModel);
         popup = new AnswerPopup(sharedCanvas::paintInkCopy);
         addCanvasOverlay(popup);
         pauseTimer = new Timer(POPUP_DELAY_MILLIS, e -> paused());
@@ -191,21 +173,8 @@ public class AnswerCanvasPage extends CanvasPage {
     }
 
     private void recognize(FormulaCapture capture, long gen) {
-        worker.execute(() -> {
-            String latex = null;
-            String problem = null;
-            try {
-                latex = recognizeFormula(capture.getImage());  // fails if recognition is not connected
-                if (latex == null || latex.isBlank()) {
-                    problem = "Couldn't read the formula.";
-                }
-            } catch (Throwable e) {  // native model can throw Errors too
-                problem = reason(e);
-            }
-            String l = latex;
-            String p = problem;
-            SwingUtilities.invokeLater(() -> recognized(capture, gen, l, p));  // hop to EDT
-        });
+        worker.recognize(() -> recognizeFormula(capture.getImage()),
+                (latex, problem) -> recognized(capture, gen, latex, problem));
     }
 
     private void recognized(FormulaCapture capture, long gen, String latex, String problem) {
@@ -223,7 +192,6 @@ public class AnswerCanvasPage extends CanvasPage {
         placePopup();
     }
 
-    // above-right of the formula, below if no room, always inside the canvas
     private void placePopup() {
         if (shown == null || !popup.isVisible()) {
             return;
@@ -236,15 +204,7 @@ public class AnswerCanvasPage extends CanvasPage {
         JComponent area = getCanvasArea();
         Rectangle f = SwingUtilities.convertRectangle(getSharedCanvas().getDrawingCanvas(),
                 getSharedCanvas().worldToScreen(world).getBounds(), area);
-        Dimension d = popup.getPreferredSize();
-        int x = f.x + f.width - POPUP_LEFT;
-        int y = f.y - POPUP_GAP - d.height;
-        if (y < EDGE) {
-            y = f.y + f.height + POPUP_GAP;
-        }
-        x = Math.max(EDGE, Math.min(x, area.getWidth() - d.width - EDGE));
-        y = Math.max(EDGE, Math.min(y, area.getHeight() - d.height - EDGE));
-        popup.setBounds(x, y, d.width, d.height);
+        popup.setBounds(popup.spotBeside(f, area.getWidth(), area.getHeight()));
         area.repaint();
     }
 
@@ -256,36 +216,21 @@ public class AnswerCanvasPage extends CanvasPage {
         }
         running++;
         showMessage("Calculating " + latex + "…", false, 0);
-        worker.execute(() -> {
-            String result = "";
-            String error = "";
-            List<TextRun> runs = null;
-            try {
-                controller.execute(latex);  // presenter is sync, state is ready after
-                MathLabState state = viewModel.getState();
-                result = state.getResultText();
-                error = state.getErrorText();
-                runs = state.getResultRuns();
-            } catch (Throwable e) {
-                error = reason(e);
-            }
-            AnswerKind kind = AnswerKind.of(latex);
-            String r = result;
-            String err = error;
-            List<TextRun> rs = runs;
-            SwingUtilities.invokeLater(() -> deliver(capture, latex, kind, r, rs, err));
-        });
+        worker.calculate(latex, outcome -> deliver(capture, latex, outcome));
     }
 
-    private void deliver(FormulaCapture capture, String latex, AnswerKind kind, String result, List<TextRun> runs,
-                         String error) {
+    private void deliver(FormulaCapture capture, String latex, CalculationOutcome outcome) {
+        AnswerKind kind = AnswerKind.of(latex);
+        String result = outcome.result;
+        List<TextRun> runs = outcome.runs;
+        String error = outcome.error;
         if (!error.isEmpty()) {
             // popup only, nothing drawn
             if (getSharedCanvas().isCurrent(capture.getId(), capture.getRevision())) {
                 ownMessage = true;
                 showMessage(error, true, ERROR_MESSAGE_MILLIS);
             }
-        } else if (result.startsWith("Defined ")) {
+        } else if (outcome.definition) {
             ownMessage = true;
             showMessage(result, false, DEFINED_MESSAGE_MILLIS);  // nothing to draw
         } else {
@@ -315,9 +260,5 @@ public class AnswerCanvasPage extends CanvasPage {
             out.add(0, new TextRun("= ", false));
         }
         return out;
-    }
-
-    private static String reason(Throwable e) {
-        return e.getMessage() == null ? e.toString() : e.getMessage();
     }
 }
