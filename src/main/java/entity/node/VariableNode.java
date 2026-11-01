@@ -26,4 +26,9 @@ public class VariableNode extends Node {
     public void collectFreeVariables(Set<String> names) {
         names.add(name);
     }
+
+    @Override
+    public <R> R accept(NodeVisitor<R> visitor) {
+        return visitor.visitVariable(this);
+    }
 }

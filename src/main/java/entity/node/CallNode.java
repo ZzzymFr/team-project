@@ -122,4 +122,14 @@ public class CallNode extends Node {
         context.noteApproximation(result[1]);
         return new NumberValue(result[0]);
     }
+
+    @Override
+    public <R> R accept(NodeVisitor<R> visitor) {
+        return visitor.visitCall(this);
+    }
+
+    @Override
+    public boolean containsDerivative() {
+        return getDerivativeOrder() > 0 || super.containsDerivative();
+    }
 }

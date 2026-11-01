@@ -10,6 +10,8 @@ import java.util.Set;
 public abstract class Node {
     public abstract Value evaluate(Context context);
 
+    public abstract <R> R accept(NodeVisitor<R> visitor);
+
     public List<Node> children() {
         return Collections.emptyList();
     }
@@ -39,6 +41,16 @@ public abstract class Node {
     }
 
     public boolean isCondition() {
+        return false;
+    }
+
+    // any d/dx or f' in here
+    public boolean containsDerivative() {
+        for (Node child : children()) {
+            if (child.containsDerivative()) {
+                return true;
+            }
+        }
         return false;
     }
 }

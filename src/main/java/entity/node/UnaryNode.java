@@ -152,4 +152,9 @@ public class UnaryNode extends Node {
         // exp of the log so big x only overflows when the answer does
         return Math.sqrt(2 * Math.PI) * sum * Math.exp((shifted + 0.5) * Math.log(t) - t);
     }
+
+    @Override
+    public <R> R accept(NodeVisitor<R> visitor) {
+        return visitor.visitUnary(this);
+    }
 }

@@ -10,12 +10,19 @@ import entity.node.BinaryNode;
 import entity.node.CallNode;
 import entity.node.DerivativeNode;
 import entity.node.FunctionNode;
+import entity.node.LimitNode;
 import entity.node.LiteralNode;
 import entity.node.Node;
+import entity.node.NodeVisitor;
 import entity.node.NumberNode;
 import entity.node.PlusMinusNode;
+import entity.node.QuantifierNode;
+import entity.node.RelationNode;
+import entity.node.SeriesNode;
+import entity.node.SetLiteralNode;
 import entity.node.UnaryNode;
 import entity.node.VariableNode;
+import entity.node.VectorNode;
 import entity.value.NumberValue;
 import entity.value.Value;
 
@@ -33,26 +40,12 @@ public final class SymbolicDerivative {
     private static final long DECIMAL_SCALE = 1_000_000_000L;
 
     private final Map<String, UserFunction> functions;
+    private final NodeVisitor<Expr> outsideDerivative = new Converter(false);
+    private final NodeVisitor<Expr> insideDerivative = new Converter(true);
     private int callDepth;
 
     private SymbolicDerivative(Map<String, UserFunction> functions) {
         this.functions = functions;
-    }
-
-    // any d/dx or f' in there
-    public static boolean containsDerivative(Node node) {
-        if (node instanceof DerivativeNode) {
-            return true;
-        }
-        if (node instanceof CallNode && ((CallNode) node).getDerivativeOrder() > 0) {
-            return true;
-        }
-        for (Node child : node.children()) {
-            if (containsDerivative(child)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     public static Expr differentiate(Node node, Map<String, UserFunction> functions) {
@@ -66,47 +59,104 @@ public final class SymbolicDerivative {
     // ---- nodes -> Expr
 
     private Expr convert(Node node, boolean inDerivative) {
-        if (node instanceof NumberNode) {
-            NumberNode n = (NumberNode) node;
-            return number(n.getValue(), n.getDecimals());
+        return node.accept(inDerivative ? insideDerivative : outsideDerivative);
+    }
+
+    private final class Converter implements NodeVisitor<Expr> {
+        private final boolean inDerivative;
+
+        private Converter(boolean inDerivative) {
+            this.inDerivative = inDerivative;
         }
-        if (node instanceof VariableNode) {
-            return Expr.var(((VariableNode) node).getName());
+
+        @Override
+        public Expr visitNumber(NumberNode node) {
+            return number(node.getValue(), node.getDecimals());
         }
-        if (node instanceof LiteralNode && ((LiteralNode) node).getValue() instanceof NumberValue) {
-            double v = ((NumberValue) ((LiteralNode) node).getValue()).getValue();
-            if (v == Math.E) {
-                return Expr.constE();
+
+        @Override
+        public Expr visitVariable(VariableNode node) {
+            return Expr.var(node.getName());
+        }
+
+        @Override
+        public Expr visitLiteral(LiteralNode node) {
+            if (node.getValue() instanceof NumberValue) {
+                double v = ((NumberValue) node.getValue()).getValue();
+                if (v == Math.E) {
+                    return Expr.constE();
+                }
+                if (v == Math.PI) {
+                    return Expr.constPi();
+                }
             }
-            if (v == Math.PI) {
-                return Expr.constPi();
+            return opaque(node, inDerivative);
+        }
+
+        @Override
+        public Expr visitBinary(BinaryNode node) {
+            Expr e = binary(node, inDerivative);
+            return e != null ? e : opaque(node, inDerivative);
+        }
+
+        @Override
+        public Expr visitUnary(UnaryNode node) {
+            if (node.getOp() == UnaryNode.Op.NEGATE) {
+                return Expr.mul(Expr.num(-1), convert(node.getOperand(), inDerivative));
             }
+            return opaque(node, inDerivative);
         }
-        if (node instanceof BinaryNode) {
-            Expr e = binary((BinaryNode) node, inDerivative);
-            if (e != null) {
-                return e;
-            }
+
+        @Override
+        public Expr visitFunction(FunctionNode node) {
+            Expr e = function(node, inDerivative);
+            return e != null ? e : opaque(node, inDerivative);
         }
-        if (node instanceof UnaryNode && ((UnaryNode) node).getOp() == UnaryNode.Op.NEGATE) {
-            return Expr.mul(Expr.num(-1), convert(((UnaryNode) node).getOperand(), inDerivative));
+
+        @Override
+        public Expr visitCall(CallNode node) {
+            return call(node, inDerivative);
         }
-        if (node instanceof FunctionNode) {
-            Expr e = function((FunctionNode) node, inDerivative);
-            if (e != null) {
-                return e;
-            }
+
+        @Override
+        public Expr visitDerivative(DerivativeNode node) {
+            return derivative(node);
         }
-        if (node instanceof CallNode) {
-            return call((CallNode) node, inDerivative);
-        }
-        if (node instanceof DerivativeNode) {
-            return derivative((DerivativeNode) node);
-        }
-        if (node instanceof PlusMinusNode) {
+
+        @Override
+        public Expr visitPlusMinus(PlusMinusNode node) {
             throw new UncalculableException(UncalculableException.NOT_DIFFERENTIABLE);
         }
-        return opaque(node, inDerivative);
+
+        @Override
+        public Expr visitLimit(LimitNode node) {
+            return opaque(node, inDerivative);
+        }
+
+        @Override
+        public Expr visitQuantifier(QuantifierNode node) {
+            return opaque(node, inDerivative);
+        }
+
+        @Override
+        public Expr visitRelation(RelationNode node) {
+            return opaque(node, inDerivative);
+        }
+
+        @Override
+        public Expr visitSeries(SeriesNode node) {
+            return opaque(node, inDerivative);
+        }
+
+        @Override
+        public Expr visitSetLiteral(SetLiteralNode node) {
+            return opaque(node, inDerivative);
+        }
+
+        @Override
+        public Expr visitVector(VectorNode node) {
+            return opaque(node, inDerivative);
+        }
     }
 
     private static Expr number(double value, int decimals) {

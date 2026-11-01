@@ -127,11 +127,11 @@ class SymbolicDerivativeTest {
     @Test
     void containsDerivative() {
         define("f", "y", "3y^{2}");
-        assertTrue(SymbolicDerivative.containsDerivative(parse("\\frac{d}{dx}x")));
-        assertTrue(SymbolicDerivative.containsDerivative(parse("f'(x)")));
-        assertTrue(SymbolicDerivative.containsDerivative(parse("1+\\frac{d}{dx}x")));
-        assertFalse(SymbolicDerivative.containsDerivative(parse("x+1")));
-        assertFalse(SymbolicDerivative.containsDerivative(parse("f(x)")));
+        assertTrue(parse("\\frac{d}{dx}x").containsDerivative());
+        assertTrue(parse("f'(x)").containsDerivative());
+        assertTrue(parse("1+\\frac{d}{dx}x").containsDerivative());
+        assertFalse(parse("x+1").containsDerivative());
+        assertFalse(parse("f(x)").containsDerivative());
     }
 
     @Test

@@ -94,4 +94,9 @@ public class LimitNode extends Node {
             context.setAbsorbed(outer || context.isAbsorbed());
         }
     }
+
+    @Override
+    public <R> R accept(NodeVisitor<R> visitor) {
+        return visitor.visitLimit(this);
+    }
 }

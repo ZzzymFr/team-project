@@ -300,4 +300,9 @@ public class RelationNode extends Node {
     private boolean withinRounding(double a, double b, int decimals) {
         return Math.abs(a - b) <= 0.5 * Math.pow(10, -decimals) + 1e-12;
     }
+
+    @Override
+    public <R> R accept(NodeVisitor<R> visitor) {
+        return visitor.visitRelation(this);
+    }
 }

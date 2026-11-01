@@ -101,4 +101,9 @@ public class SeriesNode extends Node {
         }
         return (long) rounded;
     }
+
+    @Override
+    public <R> R accept(NodeVisitor<R> visitor) {
+        return visitor.visitSeries(this);
+    }
 }

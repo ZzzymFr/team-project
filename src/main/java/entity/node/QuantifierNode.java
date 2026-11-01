@@ -126,4 +126,9 @@ public class QuantifierNode extends Node {
         }
         throw new UndecidableException();
     }
+
+    @Override
+    public <R> R accept(NodeVisitor<R> visitor) {
+        return visitor.visitQuantifier(this);
+    }
 }

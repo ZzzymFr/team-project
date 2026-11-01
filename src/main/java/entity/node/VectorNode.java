@@ -47,4 +47,9 @@ public class VectorNode extends Node {
         }
         return new VectorValue(numbers);
     }
+
+    @Override
+    public <R> R accept(NodeVisitor<R> visitor) {
+        return visitor.visitVector(this);
+    }
 }

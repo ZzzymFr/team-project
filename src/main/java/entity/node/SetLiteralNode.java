@@ -43,4 +43,9 @@ public class SetLiteralNode extends Node {
         }
         return new FiniteSetValue(numbers);
     }
+
+    @Override
+    public <R> R accept(NodeVisitor<R> visitor) {
+        return visitor.visitSetLiteral(this);
+    }
 }

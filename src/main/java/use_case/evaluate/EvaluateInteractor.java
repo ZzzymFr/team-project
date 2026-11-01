@@ -92,7 +92,7 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
             presenter.prepareValuesView(toOutput(calculateAll(node, functions, masks)));
         } else if (countEquals(node) > 1) {
             presenter.prepareFailView("Please use only one \"=\".");
-        } else if (!node.isCondition() && SymbolicDerivative.containsDerivative(node)) {
+        } else if (!node.isCondition() && node.containsDerivative()) {
             showDerivative(node, functions);
         } else if (!node.isCondition()) {
             String name = unknowns.get(0);

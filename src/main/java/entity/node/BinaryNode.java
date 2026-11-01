@@ -287,4 +287,9 @@ public class BinaryNode extends Node {
                 throw new UncalculableException();
         }
     }
+
+    @Override
+    public <R> R accept(NodeVisitor<R> visitor) {
+        return visitor.visitBinary(this);
+    }
 }
