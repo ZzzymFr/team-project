@@ -1,88 +1,49 @@
 package entity;
 
 import entity.calculus.Rounding;
-import entity.node.BinaryNode;
-import entity.node.FunctionNode;
-import entity.node.LiteralNode;
 import entity.node.Node;
 import entity.node.QuantifierNode;
-import entity.node.RelationNode;
-import entity.node.UnaryNode;
-import entity.value.BooleanValue;
-import entity.value.FiniteSetValue;
-import entity.value.NumberValue;
-import entity.value.Value;
-import entity.value.Values;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
 public class ConditionSolver {
     private static final double GRID_STEP = 0.01;
     private static final double NESTED_STEP = 1;
-    private static final double ROOT_OFFSET = 1e-7;
     private static final double SNAP = 1e-6;
     private static final double NEARLY_EQUAL = 1e-8;
     // bisection can land just past the 1e-9 tol
     private static final double ZERO_SNAP = 2e-9;
-    private static final int ROUNDS = 60;
-    private static final double[] SPECIAL_POINTS = {0, 0.5, -0.5, 1, -1};
-    private static final double[] FAR_POINTS = {1e3, -1e3, 1e6, -1e6};
-    private static final double OUTER_SCALE = 10;
-    private static final double[] FAR_INTEGERS = {1e3, 1e6, 1e9, 1e12};
-    private static final double PROBE = 1e-4;
-    private static final double MIN_PROBE = 1e-12;
-    private static final double NEIGHBOUR_SHARE = 4;
-    private static final int POINTS_PER_DECADE = 3;
-    private static final int SCAN_POINTS = 3 * 298;
-    private static final double TINY = 1e-300;
-    private static final double HUGE = 1e300;
-    private static final double NOISE = 1e-12;
-    private static final double TOUCHING = 1e-6;
     private static final int MAX_ISOLATED_POINTS = 10;
     private static final int EDGE_DIGITS = 12;
-    private static final int TAIL_POINTS = 4;
-    private static final double CLOSING_GAP = 1e-6;
-    private static final double SLOW_SHRINK = 0.99;
-    private static final int REAL = 0;
-    private static final int INTEGER = 1;
-    private static final int NATURAL = 2;
-    private static final int TRUE = 1;
-    private static final int FALSE = 0;
-    private static final int SKIP = -1;
-    private static final int UNKNOWN = 2;
-    private static final int RELIABLE = 0;
-    private static final int NOISY = 1;
-    private static final int OUT_OF_RANGE = 2;
-    private static final int FOUND = 0;
-    private static final int FOUND_AT_ROOT = 1;
-    private static final int NOT_FOUND = 2;
     private static final double INCLUDED = 1;
 
     private final Node condition;
     private final String variable;
     private final Context context;
-    private final double step;
-    private final ComparisonFinder comparisons;
-    private List<Root> roots;
-    private boolean sawVerdict;
-    private boolean skippedRoot;
-    private boolean lostInSample;
-    private boolean undersampled;
-    private boolean nearMiss;
+    private final ConditionRoots conditionRoots;
+    private final SearchPoints searchPoints;
+    private final SideScan scan;
+    private final SampleTruth sampleTruth;
+    private final TruthSearch search;
 
     public ConditionSolver(Node condition, String variable, Context context) {
         this.condition = condition;
         this.variable = variable;
         this.context = context;
         boolean nested = !context.getVariableValues().isEmpty() || containsQuantifier(condition);
-        this.step = nested ? NESTED_STEP : GRID_STEP;
-        this.comparisons = new ComparisonFinder(condition, variable, context);
+        double step = nested ? NESTED_STEP : GRID_STEP;
+        ComparisonFinder comparisons = new ComparisonFinder(condition, variable, context);
+        RoundingCheck rounding = new RoundingCheck(variable, context, comparisons);
+        this.conditionRoots = new ConditionRoots(variable, context, step, comparisons);
+        this.searchPoints = new SearchPoints(context, step, conditionRoots);
+        this.scan = new SideScan(variable, context, comparisons);
+        this.sampleTruth = new SampleTruth(condition, variable, context, rounding);
+        this.search = new TruthSearch(context, scan, rounding, sampleTruth, conditionRoots, searchPoints,
+                comparisons);
     }
 
     private static boolean containsQuantifier(Node node) {
@@ -97,6 +58,10 @@ public class ConditionSolver {
         return false;
     }
 
+    List<Double> boundaryRoots() {
+        return conditionRoots.values();
+    }
+
     // intervals where it holds, only [-100,100] searched (R31)
     public List<Interval> solve() {
         List<Interval> intervals = solveInRange();
@@ -104,7 +69,7 @@ public class ConditionSolver {
         boolean above = intervals.isEmpty()
                 || intervals.get(intervals.size() - 1).getHigh() == Double.POSITIVE_INFINITY;
         boolean edgeTruth = !intervals.isEmpty();
-        if (below && closesPastEnd(-1) || above && closesPastEnd(1)) {
+        if (below && scan.closesPastEnd(-1) || above && scan.closesPastEnd(1)) {
             throw new UncalculableException(UncalculableException.BEYOND_RANGE);
         }
         if (below && flipsBeyond(-1, edgeTruth) || above && flipsBeyond(1, edgeTruth)) {
@@ -118,7 +83,7 @@ public class ConditionSolver {
     // sides meeting past range only counts if truth flips (sin x<=1 just touches)
     private boolean flipsBeyond(double sign, boolean edgeTruth) {
         List<Double> roots = new ArrayList<>();
-        if (!changesBeyond(sign, roots, MAX_ISOLATED_POINTS)) {
+        if (!scan.changesBeyond(sign, roots, MAX_ISOLATED_POINTS)) {
             return false;
         }
         if (roots.isEmpty()) {
@@ -126,15 +91,15 @@ public class ConditionSolver {
         }
         try {
             for (double root : roots) {
-                double offset = ROOT_OFFSET * Math.max(1, Math.abs(root));
-                if (isTrueAt(root) != edgeTruth || isTrueAt(root - offset) != edgeTruth
-                        || isTrueAt(root + offset) != edgeTruth) {
+                double offset = SideScan.ROOT_OFFSET * Math.max(1, Math.abs(root));
+                if (sampleTruth.isTrueAt(root) != edgeTruth || sampleTruth.isTrueAt(root - offset) != edgeTruth
+                        || sampleTruth.isTrueAt(root + offset) != edgeTruth) {
                     return true;
                 }
             }
-            for (int k = 0; k <= SCAN_POINTS; k++) {
-                double point = sign * EquationSolver.SEARCH_END * Math.pow(10, k / (double) POINTS_PER_DECADE);
-                if (isTrueAt(point) != edgeTruth) {
+            for (int k = 0; k <= SideScan.SCAN_POINTS; k++) {
+                double point = sign * EquationSolver.SEARCH_END * Math.pow(10, k / (double) SideScan.POINTS_PER_DECADE);
+                if (sampleTruth.isTrueAt(point) != edgeTruth) {
                     return true;
                 }
             }
@@ -148,25 +113,21 @@ public class ConditionSolver {
 
     // intervals in range, ends as unbounded
     public List<Interval> solveInRange() {
-        double[] points = sortedCandidates();
-        if (undersampled) {
+        double[] points = searchPoints.sortedCandidates();
+        if (conditionRoots.isUndersampled()) {
             throw new UncalculableException(UncalculableException.TOO_FAST);
         }
         Set<Double> genuineRoots = new HashSet<>();
-        List<Double> sortedRoots = sortedRootValues();
-        for (Root root : getRoots()) {
-            double offset = probeOffset(root.value, sortedRoots);
-            if (isGenuineRoot(root.pair, root.value, offset)) {
+        List<Double> sortedRoots = conditionRoots.sortedRootValues();
+        for (ConditionRoots.Root root : conditionRoots.all()) {
+            double offset = ConditionRoots.probeOffset(root.value, sortedRoots);
+            if (scan.isGenuineRoot(root.pair, root.value, offset)) {
                 genuineRoots.add(root.value);
             }
         }
-        Sample[] samples = new Sample[points.length];
-        for (int i = 0; i < points.length; i++) {
-            samples[i] = sampleAt(points[i], genuineRoots.contains(points[i]));
-        }
-        boolean[] truth = withRoundingRunsFilled(samples);
-        Set<Double> rootValues = new HashSet<>(boundaryRoots());
-        Set<Double> midpoints = new HashSet<>(rootMidpoints());
+        boolean[] truth = sampleTruth.truthAt(points, genuineRoots);
+        Set<Double> rootValues = new HashSet<>(conditionRoots.values());
+        Set<Double> midpoints = new HashSet<>(conditionRoots.rootMidpoints());
 
         List<Interval> intervals = new ArrayList<>();
         int isolatedPoints = 0;
@@ -224,903 +185,65 @@ public class ConditionSolver {
 
     // true if differs right below and above
     private boolean isIsolated(double point, boolean truth) {
-        double offset = ROOT_OFFSET * Math.max(1, Math.abs(point));
-        return isTrueAt(point - offset) != truth && isTrueAt(point + offset) != truth;
-    }
-
-    // rounding runs take truth from neighbours
-    private static boolean[] withRoundingRunsFilled(Sample[] samples) {
-        boolean[] truth = new boolean[samples.length];
-        int i = 0;
-        while (i < samples.length) {
-            if (samples[i].known != UNKNOWN) {
-                truth[i] = samples[i].known == TRUE;
-                i++;
-                continue;
-            }
-            int start = i;
-            boolean lost = false;
-            while (i < samples.length && samples[i].known == UNKNOWN) {
-                truth[i] = samples[i].truth;
-                lost = lost || samples[i].lost;
-                i++;
-            }
-            int before = start > 0 ? samples[start - 1].known : UNKNOWN;
-            int after = i < samples.length ? samples[i].known : UNKNOWN;
-            // only fill from a stretch at the end, not one point
-            boolean atEnd = start == 0 || i == samples.length;
-            if (lost && atEnd && !(isBacked(samples, start - 1, -1) && isBacked(samples, i, 1))) {
-                throw new UncalculableException(UncalculableException.TOO_BIG);
-            }
-            if (before == UNKNOWN && after == UNKNOWN || before != UNKNOWN && after != UNKNOWN && before != after) {
-                if (lost) {
-                    throw new UncalculableException(UncalculableException.TOO_BIG);
-                }
-                continue;
-            }
-            boolean fill = (before == UNKNOWN ? after : before) == TRUE;
-            for (int k = start; k < i; k++) {
-                truth[k] = fill;
-            }
-        }
-        return truth;
-    }
-
-    // true if past the search or next sample agrees
-    private static boolean isBacked(Sample[] samples, int index, int direction) {
-        if (index < 0 || index >= samples.length) {
-            return true;
-        }
-        for (int further = index + direction; further >= 0 && further < samples.length; further += direction) {
-            if (samples[further].known != UNKNOWN) {
-                return samples[further].known == samples[index].known;
-            }
-        }
-        return false;
-    }
-
-    // truth at sample + whether its just rounding
-    private Sample sampleAt(double point, boolean atRoot) {
-        context.setAbsorbed(false);
-        context.setTolerated(false);
-        context.spendStep();
-        Context at = context.withVariable(variable, point);
-        Value value;
-        try {
-            value = condition.evaluate(at);
-        } catch (UndefinedException e) {
-            return new Sample(false, FALSE, false);
-        } catch (OverflowException e) {
-            // overflow = lost value, rest decides
-            lostInSample = true;
-            int known = partTruth(condition, at, atRoot);
-            return new Sample(false, known, true);
-        }
-        if (!(value instanceof BooleanValue)) {
-            throw new UndecidableException();
-        }
-        boolean truth = ((BooleanValue) value).getValue();
-        if (!context.isAbsorbed() && (atRoot || !context.isTolerated())) {
-            return new Sample(truth, truth ? TRUE : FALSE, false);
-        }
-        lostInSample = false;
-        int known = partTruth(condition, at, atRoot);
-        return new Sample(truth, known, lostInSample);
-    }
-
-    private int partTruth(Node node, Context at, boolean atRoot) {
-        if (node instanceof UnaryNode && ((UnaryNode) node).getOp() == UnaryNode.Op.NOT) {
-            int inner = partTruth(((UnaryNode) node).getOperand(), at, atRoot);
-            return inner == UNKNOWN ? UNKNOWN : TRUE - inner;
-        }
-        if (node instanceof BinaryNode && node.isCondition()) {
-            BinaryNode binary = (BinaryNode) node;
-            int p = partTruth(binary.getLeft(), at, atRoot);
-            int q = partTruth(binary.getRight(), at, atRoot);
-            switch (binary.getOp()) {
-                case AND:
-                    return p == FALSE || q == FALSE ? FALSE : (p == TRUE && q == TRUE ? TRUE : UNKNOWN);
-                case OR:
-                    return p == TRUE || q == TRUE ? TRUE : (p == FALSE && q == FALSE ? FALSE : UNKNOWN);
-                case IMPLIES:
-                    return p == FALSE || q == TRUE ? TRUE : (p == TRUE && q == FALSE ? FALSE : UNKNOWN);
-                default:
-                    if (p == UNKNOWN || q == UNKNOWN) {
-                        return UNKNOWN;
-                    }
-                    return (binary.getOp() == BinaryNode.Op.IFF) == (p == q) ? TRUE : FALSE;
-            }
-        }
-        context.setAbsorbed(false);
-        context.setTolerated(false);
-        try {
-            Value value = node.evaluate(at);
-            if (!(value instanceof BooleanValue)) {
-                return UNKNOWN;
-            }
-            boolean tolerated = context.isTolerated();
-            if (context.isAbsorbed() && isRoundingOnly(node, at)) {
-                lostInSample = true;
-                return UNKNOWN;
-            }
-            if (tolerated && !atRoot) {
-                return UNKNOWN;
-            }
-            return ((BooleanValue) value).getValue() ? TRUE : FALSE;
-        } catch (OverflowException e) {
-            lostInSample = true;
-            return UNKNOWN;
-        } catch (BudgetExceededException | UndecidableException e) {
-            throw e;
-        } catch (UncalculableException e) {
-            return UNKNOWN;
-        }
-    }
-
-    // lost value only matters if sides are that close
-    private boolean isRoundingOnly(Node node, Context at) {
-        if (!(node instanceof RelationNode)) {
-            return true;
-        }
-        RelationNode relation = (RelationNode) node;
-        List<Node> operands = relation.getOperands();
-        for (int i = 0; i + 1 < operands.size(); i++) {
-            if (ComparisonFinder.isSetOperator(relation.getOperators().get(i))) {
-                continue;
-            }
-            double a = numberAt(operands.get(i), at);
-            double b = numberAt(operands.get(i + 1), at);
-            if (!Double.isFinite(a) || !Double.isFinite(b)) {
-                return true;
-            }
-            double scale = Math.max(largestPart(operands.get(i), at), largestPart(operands.get(i + 1), at));
-            if (Math.abs(a - b) <= NOISE * scale) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static double numberAt(Node node, Context at) {
-        try {
-            Value value = node.evaluate(at);
-            return value instanceof NumberValue ? ((NumberValue) value).getValue() : Double.NaN;
-        } catch (BudgetExceededException | UndecidableException e) {
-            throw e;
-        } catch (UncalculableException e) {
-            return Double.NaN;
-        }
+        double offset = SideScan.ROOT_OFFSET * Math.max(1, Math.abs(point));
+        return sampleTruth.isTrueAt(point - offset) != truth && sampleTruth.isTrueAt(point + offset) != truth;
     }
 
     public boolean isTrueSomewhere() {
-        return find(true, REAL, 0) != NOT_FOUND;
+        return search.find(true, TruthSearch.REAL, 0) != TruthSearch.NOT_FOUND;
     }
 
     public boolean isTrueEverywhere() {
-        return find(false, REAL, 0) == NOT_FOUND;
+        return search.find(false, TruthSearch.REAL, 0) == TruthSearch.NOT_FOUND;
     }
 
     // over Q a root may not be a member, undecidable
     public boolean isTrueSomewhereRational() {
-        return decidedWithoutRoots(find(true, REAL, 0)) == FOUND;
+        return TruthSearch.decidedWithoutRoots(search.find(true, TruthSearch.REAL, 0)) == TruthSearch.FOUND;
     }
 
     public boolean isTrueEverywhereRational() {
-        return decidedWithoutRoots(find(false, REAL, 0)) == NOT_FOUND;
+        return TruthSearch.decidedWithoutRoots(search.find(false, TruthSearch.REAL, 0)) == TruthSearch.NOT_FOUND;
     }
 
     public boolean isTrueForSomeInteger(boolean naturalOnly, int range) {
-        return find(true, naturalOnly ? NATURAL : INTEGER, range) != NOT_FOUND;
+        int mode = naturalOnly ? TruthSearch.NATURAL : TruthSearch.INTEGER;
+        return search.find(true, mode, range) != TruthSearch.NOT_FOUND;
     }
 
     public boolean isTrueForEveryInteger(boolean naturalOnly, int range) {
-        return find(false, naturalOnly ? NATURAL : INTEGER, range) == NOT_FOUND;
+        int mode = naturalOnly ? TruthSearch.NATURAL : TruthSearch.INTEGER;
+        return search.find(false, mode, range) == TruthSearch.NOT_FOUND;
     }
 
     public boolean isTrueForSome(List<Double> points) {
-        return !noMemberGives(points, TRUE);
+        return !search.noMemberGives(points, SampleTruth.TRUE);
     }
 
     public boolean isTrueForEvery(List<Double> points) {
-        return noMemberGives(points, FALSE);
-    }
-
-    // true if checked every member and none matched
-    private boolean noMemberGives(List<Double> points, int wanted) {
-        boolean open = false;
-        for (double point : points) {
-            int result = verdict(point, false);
-            if (result == wanted) {
-                return false;
-            }
-            open = open || result == SKIP;
-        }
-        if (open) {
-            throw new UndecidableException();
-        }
-        return true;
-    }
-
-    private static int decidedWithoutRoots(int result) {
-        if (result == FOUND_AT_ROOT) {
-            throw new UndecidableException();
-        }
-        return result;
-    }
-
-    // cheap points, then roots, then far scan to 1e300
-    private int find(boolean truth, int mode, int range) {
-        int wanted = truth ? TRUE : FALSE;
-        List<Double> points = mode == REAL ? cheapPoints(true) : integerPoints(mode == NATURAL, range);
-        for (double point : points) {
-            if (verdictAt(point) == wanted) {
-                return FOUND;
-            }
-        }
-        List<Double> rootValues = sortedRootValues();
-        for (Root root : getRoots()) {
-            int result = checkRoot(root.value, root.pair, wanted, mode, probeOffset(root.value, rootValues));
-            if (result != NOT_FOUND) {
-                return result;
-            }
-        }
-        // might only hold between close roots
-        for (double midpoint : mode == REAL ? rootMidpoints() : new ArrayList<Double>()) {
-            if (verdictAt(midpoint) == wanted) {
-                return FOUND;
-            }
-        }
-        int result = scanFar(wanted, mode);
-        // nested quantifier: close call might hold elsewhere
-        boolean nestedMiss = nearMiss && !context.getVariableValues().isEmpty();
-        boolean pastEnd = result == NOT_FOUND && mode == REAL && (closesPastEnd(1) || closesPastEnd(-1));
-        if (result == NOT_FOUND && (skippedRoot || !sawVerdict || undersampled || nestedMiss || pastEnd)) {
-            throw new UndecidableException();
-        }
-        return result;
-    }
-
-    // real root: 0 sides are expected, dont skip
-    private int checkRoot(double root, SidePair pair, int wanted, int mode, double offset) {
-        return checkRoot(root, pair, wanted, mode, offset, false);
-    }
-
-    // exact meet at domain edge counts
-    private int checkRoot(double root, SidePair pair, int wanted, int mode, double offset, boolean edgeRoot) {
-        boolean genuine = edgeRoot || isGenuineRoot(pair, root, offset);
-        List<Double> samples = new ArrayList<>();
-        if (mode == REAL) {
-            samples.add(root - offset);
-            samples.add(root + offset);
-        } else {
-            double[] near = {Math.floor(root) - 1, Math.floor(root), Math.ceil(root), Math.ceil(root) + 1,
-                    Math.floor(root - offset), Math.ceil(root + offset)};
-            for (double n : near) {
-                if (mode == INTEGER || n >= 0) {
-                    samples.add(n);
-                }
-            }
-        }
-        for (double sample : samples) {
-            if (rootVerdictAt(sample, genuine) == wanted) {
-                return FOUND;
-            }
-        }
-        if (mode == REAL && rootVerdictAt(root, genuine) == wanted) {
-            return FOUND_AT_ROOT;
-        }
-        return NOT_FOUND;
-    }
-
-    // close roots, might miss it on the grid
-    private List<Double> rootMidpoints() {
-        List<Double> rootValues = sortedRootValues();
-        List<Double> midpoints = new ArrayList<>();
-        for (int i = 0; i + 1 < rootValues.size(); i++) {
-            midpoints.add((rootValues.get(i) + rootValues.get(i + 1)) / 2);
-        }
-        return midpoints;
-    }
-
-    // distinct roots sorted
-    private List<Double> sortedRootValues() {
-        Set<Double> distinct = new HashSet<>(boundaryRoots());
-        List<Double> values = new ArrayList<>(distinct);
-        Collections.sort(values);
-        return values;
-    }
-
-    // probe 1e-4 of root size, max 1/4 to next root
-    private static double probeOffset(double root, List<Double> rootValues) {
-        double offset = PROBE * Math.max(1, Math.abs(root));
-        int index = Collections.binarySearch(rootValues, root);
-        if (index < 0) {
-            return offset;
-        }
-        if (index > 0) {
-            offset = Math.min(offset, (root - rootValues.get(index - 1)) / NEIGHBOUR_SHARE);
-        }
-        if (index + 1 < rootValues.size()) {
-            offset = Math.min(offset, (rootValues.get(index + 1) - root) / NEIGHBOUR_SHARE);
-        }
-        return Math.max(offset, MIN_PROBE * Math.max(1, Math.abs(root)));
-    }
-
-    private int rootVerdictAt(double point, boolean genuine) {
-        int reliability = reliabilityAt(point, genuine);
-        if (reliability == OUT_OF_RANGE && genuine) {
-            skippedRoot = true;
-        }
-        return reliability == RELIABLE ? verdict(point, genuine) : SKIP;
-    }
-
-    // sides cross/meet w/ gaps, nothing lost to rounding
-    private boolean isGenuineRoot(SidePair pair, double root, double offset) {
-        context.setAbsorbed(false);
-        double here = difference(pair, root);
-        double below = difference(pair, root - offset);
-        double above = difference(pair, root + offset);
-        if (context.isAbsorbed() || !Double.isFinite(below) || !Double.isFinite(above)) {
-            return false;
-        }
-        boolean touching = here == 0 || Math.abs(here) <= TOUCHING * Math.min(Math.abs(below), Math.abs(above));
-        return below * above < 0 || (touching && Math.abs(below) >= TINY && Math.abs(above) >= TINY);
-    }
-
-    // scan to 1e300 + dips that might cross 0
-    private int scanFar(int wanted, int mode) {
-        List<SidePair> pairs = comparisons.numericPairs();
-        if (pairs.isEmpty()) {
-            return NOT_FOUND;
-        }
-        boolean dips = context.getVariableValues().isEmpty();
-        List<Double> found = new ArrayList<>(sortedRootValues());
-        double[][] last = new double[2][pairs.size()];
-        double[][] beforeLast = new double[2][pairs.size()];
-        double lastSize = 0;
-        double beforeLastSize = 0;
-        for (int k = 0; k <= SCAN_POINTS; k++) {
-            double size = EquationSolver.SEARCH_END * Math.pow(10, k / (double) POINTS_PER_DECADE);
-            for (int side = 0; side < 2; side++) {
-                double sign = side == 0 ? 1 : -1;
-                for (int i = 0; i < pairs.size(); i++) {
-                    double d = scanValue(pairs.get(i), sign * size);
-                    double before = last[side][i];
-                    double twoBefore = beforeLast[side][i];
-                    beforeLast[side][i] = before;
-                    last[side][i] = d;
-                    if (k > 0 && isDomainEdge(before, d)) {
-                        // side might just hit the other at domain edge
-                        double edge = edgeBetween(pairs.get(i), sign * lastSize, before, sign * size);
-                        int result = checkRoot(edge, pairs.get(i), wanted, mode, PROBE * Math.max(1, Math.abs(edge)),
-                                scanValue(pairs.get(i), edge) == 0);
-                        if (result != NOT_FOUND) {
-                            return result;
-                        }
-                    }
-                    if (dips && k >= 2 && isDip(twoBefore, before, d)) {
-                        int result = checkDip(pairs.get(i), sign * beforeLastSize, twoBefore, sign * size,
-                                wanted, mode);
-                        if (result != NOT_FOUND) {
-                            return result;
-                        }
-                    }
-                    if (k == 0 || !Double.isFinite(d) || !Double.isFinite(before) || before == 0 || before * d > 0) {
-                        continue;
-                    }
-                    double root = d == 0 ? sign * size : bisect(pairs.get(i), sign * lastSize, sign * size, before);
-                    int result = checkFarRoot(root, pairs.get(i), wanted, mode, found);
-                    if (result != NOT_FOUND) {
-                        return result;
-                    }
-                }
-            }
-            beforeLastSize = lastSize;
-            lastSize = size;
-        }
-        return NOT_FOUND;
-    }
-
-    // sides still closing in at 1e300 = root past what doubles hold (ln x=1000)
-    private boolean closesPastEnd(double sign) {
-        for (SidePair pair : comparisons.numericPairs()) {
-            if (closesPastEnd(pair, sign)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private boolean closesPastEnd(SidePair pair, double sign) {
-        double[] gap = new double[TAIL_POINTS];
-        double direction = 0;
-        boolean logGap = true;
-        double scale = 1;
-        for (int j = 0; j < TAIL_POINTS; j++) {
-            int k = SCAN_POINTS - TAIL_POINTS + 1 + j;
-            scanValue(pair, sign * EquationSolver.SEARCH_END * Math.pow(10, k / (double) POINTS_PER_DECADE));
-            double a = pair.lastLeft;
-            double b = pair.lastRight;
-            if (!Double.isFinite(a) || !Double.isFinite(b) || a == b) {
-                return false;
-            }
-            // ratio not difference, so 1e150 vs 1e200 isnt absorbed
-            logGap = logGap && a * b > 0;
-            double signed = a * b > 0 ? Math.log(Math.abs(a)) - Math.log(Math.abs(b)) : a - b;
-            if (direction == 0) {
-                direction = Math.signum(signed);
-            } else if (Math.signum(signed) != direction) {
-                return false;
-            }
-            gap[j] = Math.abs(signed);
-            scale = Math.max(scale, Math.max(Math.abs(a), Math.abs(b)));
-        }
-        int last = TAIL_POINTS - 1;
-        // gap ~0 = just an asymptote (1/x=0)
-        if (gap[last] <= CLOSING_GAP * (logGap ? 1 : scale)) {
-            return false;
-        }
-        for (int j = 1; j < TAIL_POINTS; j++) {
-            if (gap[j] >= gap[j - 1]) {
-                return false;
-            }
-        }
-        double earlierStep = gap[last - 2] - gap[last - 1];
-        double lastStep = gap[last - 1] - gap[last];
-        double ratio = lastStep / earlierStep;
-        // barely slowing (ln ln x) could still get there
-        if (ratio >= SLOW_SHRINK) {
-            return true;
-        }
-        // shrinking steps: does what is left still reach 0
-        return lastStep * ratio / (1 - ratio) >= gap[last];
-    }
-
-    // scan root, keep probes between roots
-    private int checkFarRoot(double root, SidePair pair, int wanted, int mode, List<Double> found) {
-        double nearest = Double.NaN;
-        for (double other : found) {
-            if (other != root && (Double.isNaN(nearest) || Math.abs(other - root) < Math.abs(nearest - root))) {
-                nearest = other;
-            }
-        }
-        found.add(root);
-        double offset = PROBE * Math.max(1, Math.abs(root));
-        if (!Double.isNaN(nearest)) {
-            offset = Math.max(Math.min(offset, Math.abs(root - nearest) / NEIGHBOUR_SHARE),
-                    MIN_PROBE * Math.max(1, Math.abs(root)));
-        }
-        int result = checkRoot(root, pair, wanted, mode, offset);
-        if (result == NOT_FOUND && mode == REAL && !Double.isNaN(nearest)
-                && verdictAt((root + nearest) / 2) == wanted) {
-            return FOUND;
-        }
-        return result;
-    }
-
-    // left - right for far scans, NaN/inf when unknown
-    private double scanValue(SidePair pair, double point) {
-        context.spendStep();
-        context.setAbsorbed(false);
-        double d;
-        try {
-            d = pair.differenceAt(context.withVariable(variable, point));
-        } catch (UndefinedException e) {
-            return Double.NaN;
-        } catch (BudgetExceededException | UndecidableException e) {
-            throw e;
-        } catch (UncalculableException e) {
-            return Double.POSITIVE_INFINITY;
-        }
-        // lost value can give NaN too (inf - inf)
-        if (Double.isInfinite(d) || context.isAbsorbed() || pair.isNoise()) {
-            return Double.POSITIVE_INFINITY;
-        }
-        return d;
-    }
-
-    private static boolean isDomainEdge(double before, double now) {
-        return Double.isNaN(before) && Double.isFinite(now) || Double.isFinite(before) && Double.isNaN(now);
-    }
-
-    // defined end of the edge
-    private double edgeBetween(SidePair pair, double from, double dFrom, double to) {
-        double defined = Double.isNaN(dFrom) ? to : from;
-        double undefined = Double.isNaN(dFrom) ? from : to;
-        for (int round = 0; round < ROUNDS; round++) {
-            double middle = (defined + undefined) / 2;
-            if (Double.isNaN(scanValue(pair, middle))) {
-                undefined = middle;
-            } else {
-                defined = middle;
-            }
-        }
-        return defined;
-    }
-
-    // scan past the search end for sign changes
-    private boolean changesBeyond(double sign, List<Double> roots, int limit) {
-        boolean changes = false;
-        for (SidePair pair : comparisons.numericPairs()) {
-            double known = Double.POSITIVE_INFINITY;
-            double knownPoint = 0;
-            double before = Double.POSITIVE_INFINITY;
-            double twoBefore = Double.POSITIVE_INFINITY;
-            double lastPoint = 0;
-            double beforeLastPoint = 0;
-            for (int k = 0; k <= SCAN_POINTS && roots.size() <= limit; k++) {
-                double point = sign * EquationSolver.SEARCH_END * Math.pow(10, k / (double) POINTS_PER_DECADE);
-                double d = scanValue(pair, point);
-                if (d != 0 && Double.isFinite(d) && Values.areAlmostEqual(pair.lastLeft, pair.lastRight)) {
-                    // within tol only rounding shows
-                    d = Double.POSITIVE_INFINITY;
-                }
-                if (Double.isInfinite(d)) {
-                    twoBefore = before;
-                    before = d;
-                    continue;
-                }
-                if (k > 0 && !Double.isInfinite(known)) {
-                    if (Double.isFinite(d) && Double.isFinite(known) && Math.signum(d) != Math.signum(known)) {
-                        changes = true;
-                        if (d == 0) {
-                            addRoot(roots, point);
-                        } else if (known != 0) {
-                            addCheckedRoot(roots, pair, bisect(pair, knownPoint, point, known));
-                        }
-                    } else if (isDomainEdge(known, d)) {
-                        changes = true;
-                        addCheckedRoot(roots, pair, edgeBetween(pair, knownPoint, known, point));
-                    }
-                }
-                known = d;
-                knownPoint = point;
-                if (k >= 2 && isDip(twoBefore, before, d)) {
-                    double from = beforeLastPoint;
-                    double dipSign = Math.signum(twoBefore);
-                    double[] lowest = EquationSolver.lowest(x -> dipSign * difference(pair, x),
-                            Math.min(from, point), Math.max(from, point));
-                    if (Double.isFinite(lowest[1]) && lowest[1] <= 0) {
-                        changes = true;
-                        addCheckedRoot(roots, pair, bisect(pair, from, lowest[0], twoBefore));
-                        addCheckedRoot(roots, pair, bisect(pair, point, lowest[0], d));
-                    }
-                }
-                twoBefore = before;
-                before = d;
-                beforeLastPoint = lastPoint;
-                lastPoint = point;
-            }
-        }
-        return changes;
-    }
-
-    // scan root, only where sides really meet
-    private void addCheckedRoot(List<Double> roots, SidePair found, double root) {
-        context.spendStep();
-        SidePair pair = found.whole == null ? found : found.whole;
-        try {
-            Context at = context.withVariable(variable, root);
-            double a = pair.leftAt(at);
-            double b = pair.rightAt(at);
-            if (Double.isFinite(a) && Double.isFinite(b) && Values.areAlmostEqual(a, b)) {
-                addRoot(roots, root);
-            }
-        } catch (BudgetExceededException | UndecidableException e) {
-            throw e;
-        } catch (UncalculableException e) {
-            // no root
-        }
-    }
-
-    private static void addRoot(List<Double> roots, double root) {
-        for (double other : roots) {
-            if (Math.abs(other - root) <= ROOT_OFFSET * Math.max(1, Math.abs(root))) {
-                return;
-            }
-        }
-        roots.add(root);
+        return search.noMemberGives(points, SampleTruth.FALSE);
     }
 
     // roots past range out to 1e300, null if too many
     public List<Double> rootsBeyond(int limit) {
         List<Double> roots = new ArrayList<>();
-        changesBeyond(-1, roots, limit);
-        changesBeyond(1, roots, limit);
+        scan.changesBeyond(-1, roots, limit);
+        scan.changesBeyond(1, roots, limit);
         if (roots.size() > limit) {
             return null;
         }
-        if (closesPastEnd(-1) || closesPastEnd(1)) {
+        if (scan.closesPastEnd(-1) || scan.closesPastEnd(1)) {
             throw new UncalculableException(UncalculableException.BEYOND_RANGE);
         }
         Collections.sort(roots);
         return roots;
     }
 
-    // 3 same sign vals, middle closest to 0
-    private static boolean isDip(double first, double middle, double last) {
-        return Double.isFinite(first) && Double.isFinite(middle) && Double.isFinite(last)
-                && first * middle > 0 && middle * last > 0
-                && Math.abs(middle) < Math.abs(first) && Math.abs(middle) < Math.abs(last);
-    }
-
-    // lowest pt of dip, past 0 = two roots
-    private int checkDip(SidePair pair, double from, double dFrom, double to, int wanted, int mode) {
-        double sign = Math.signum(dFrom);
-        double[] lowest = EquationSolver.lowest(x -> sign * difference(pair, x), Math.min(from, to),
-                Math.max(from, to));
-        if (!Double.isFinite(lowest[1]) || lowest[1] > 0) {
-            return NOT_FOUND;
-        }
-        if (verdictAt(lowest[0]) == wanted) {
-            return FOUND;
-        }
-        double first = bisect(pair, from, lowest[0], dFrom);
-        double second = bisect(pair, to, lowest[0], difference(pair, to));
-        double offset = Math.abs(second - first) / NEIGHBOUR_SHARE;
-        for (double root : new double[] {first, second}) {
-            int result = checkRoot(root, pair, wanted, mode, Math.min(offset, PROBE * Math.max(1, Math.abs(root))));
-            if (result != NOT_FOUND) {
-                return result;
-            }
-        }
-        return NOT_FOUND;
-    }
-
-    private double outerScale() {
-        double scale = 0;
-        for (double value : context.getVariableValues()) {
-            scale = Math.max(scale, Math.abs(value));
-        }
-        return scale;
-    }
-
-    private double bisect(SidePair pair, double low, double high, double dLow) {
-        for (int round = 0; round < ROUNDS; round++) {
-            double middle = (low + high) / 2;
-            double dMiddle = difference(pair, middle);
-            if (dMiddle == 0 || !Double.isFinite(dMiddle)) {
-                return middle;
-            }
-            if (dLow * dMiddle < 0) {
-                high = middle;
-            } else {
-                low = middle;
-                dLow = dMiddle;
-            }
-        }
-        return (low + high) / 2;
-    }
-
-    private double difference(SidePair pair, double point) {
-        context.spendStep();
-        try {
-            return pair.differenceAt(context.withVariable(variable, point));
-        } catch (BudgetExceededException | UndecidableException e) {
-            throw e;
-        } catch (UncalculableException e) {
-            return Double.NaN;
-        }
-    }
-
-    private int verdictAt(double point) {
-        return reliabilityAt(point, false) == RELIABLE ? verdict(point, false) : SKIP;
-    }
-
-    // lost value proves nothing unless real root
-    private int verdict(double point, boolean atRoot) {
-        context.setAbsorbed(false);
-        boolean truth;
-        try {
-            truth = isTrueAt(point);
-        } catch (OverflowException e) {
-            return SKIP;
-        }
-        if (context.isAbsorbed() && !atRoot) {
-            return SKIP;
-        }
-        sawVerdict = true;
-        return truth ? TRUE : FALSE;
-    }
-
-    // skip samples that only show rounding
-    private int reliabilityAt(double point, boolean atRoot) {
-        boolean far = Math.abs(point) > EquationSolver.SEARCH_END;
-        Context at = context.withVariable(variable, point);
-        for (RelationNode relation : comparisons.relations()) {
-            List<Node> operands = relation.getOperands();
-            double[] values = new double[operands.size()];
-            double[] errors = new double[operands.size()];
-            for (int i = 0; i < values.length; i++) {
-                values[i] = Double.NaN;
-                try {
-                    context.setApproximation(0);
-                    Value value = operands.get(i).evaluate(at);
-                    errors[i] = context.getApproximation();
-                    if (value instanceof NumberValue) {
-                        values[i] = ((NumberValue) value).getValue();
-                        double size = Math.abs(values[i]);
-                        if (far && !(size <= HUGE && (size >= TINY || atRoot))) {
-                            return OUT_OF_RANGE;
-                        }
-                    }
-                } catch (BudgetExceededException | UndecidableException e) {
-                    throw e;
-                } catch (UncalculableException e) {
-                    if (far) {
-                        return OUT_OF_RANGE;
-                    }
-                }
-            }
-            for (int i = 0; i + 1 < values.length; i++) {
-                double a = values[i];
-                double b = values[i + 1];
-                if (ComparisonFinder.isSetOperator(relation.getOperators().get(i))
-                        || !Double.isFinite(a) || !Double.isFinite(b)) {
-                    continue;
-                }
-                // x+1 rounds to x far out, equal means nothing
-                boolean absorbing = far && !atRoot;
-                if (a == b && !absorbing) {
-                    continue;
-                }
-                double gap = Math.abs(a - b);
-                if (!atRoot && a != b && Values.areAlmostEqual(a, b)) {
-                    return NOISY;
-                }
-                boolean approximate = operands.get(i).isApproximate() || operands.get(i + 1).isApproximate();
-                if (!atRoot && a != b && approximate
-                        && Values.areApproximatelyEqual(a, b, Math.max(errors[i], errors[i + 1]))) {
-                    return NOISY;
-                }
-                if (absorbing || !Values.areAlmostEqual(a, b)) {
-                    double scale = Math.max(Math.abs(point), outerScale());
-                    scale = Math.max(scale, Math.max(largestPart(operands.get(i), at), largestPart(operands.get(i + 1), at)));
-                    if (gap <= NOISE * scale) {
-                        return NOISY;
-                    }
-                }
-            }
-        }
-        return RELIABLE;
-    }
-
-    // max size in the arithmetic, bounds rounding err
-    private static double largestPart(Node node, Context at) {
-        double largest = 0;
-        try {
-            Value value = node.evaluate(at);
-            if (value instanceof NumberValue && Double.isFinite(((NumberValue) value).getValue())) {
-                largest = Math.abs(((NumberValue) value).getValue());
-            }
-        } catch (BudgetExceededException | UndecidableException e) {
-            throw e;
-        } catch (UncalculableException e) {
-            return 0;
-        }
-        if (node instanceof BinaryNode || node instanceof UnaryNode || node instanceof FunctionNode) {
-            for (Node child : node.children()) {
-                largest = Math.max(largest, largestPart(child, at));
-            }
-        }
-        return largest;
-    }
-
-    private List<Double> integerPoints(boolean naturalOnly, int range) {
-        Set<Double> points = new LinkedHashSet<>();
-        for (int n = naturalOnly ? 0 : -range; n <= range; n++) {
-            points.add((double) n);
-        }
-        for (double far : FAR_INTEGERS) {
-            points.add(far);
-            points.add(-far);
-        }
-        for (double value : context.getVariableValues()) {
-            double[] near = {Math.floor(value) - 1, Math.floor(value), Math.ceil(value), Math.ceil(value) + 1,
-                    -Math.floor(value), -Math.ceil(value)};
-            for (double n : near) {
-                points.add(n + 0.0);
-            }
-        }
-        List<Double> integers = new ArrayList<>();
-        for (double point : points) {
-            if (Double.isFinite(point) && (!naturalOnly || point >= 0)) {
-                integers.add(point);
-            }
-        }
-        return integers;
-    }
-
-    List<Double> boundaryRoots() {
-        List<Double> values = new ArrayList<>();
-        for (Root root : getRoots()) {
-            values.add(root.value);
-        }
-        return values;
-    }
-
-    private List<Double> cheapPoints(boolean wide) {
-        List<Double> points = new ArrayList<>();
-        int count = (int) Math.round((EquationSolver.SEARCH_END - EquationSolver.SEARCH_START) / step) + 1;
-        for (int i = 0; i < count; i++) {
-            points.add(EquationSolver.SEARCH_START + i * step);
-        }
-        for (double point : SPECIAL_POINTS) {
-            points.add(point);
-        }
-        if (wide) {
-            for (double point : FAR_POINTS) {
-                points.add(point);
-            }
-            for (double value : context.getVariableValues()) {
-                points.add(value);
-                points.add(value - 0.5);
-                points.add(value + 0.5);
-                points.add(value - 1);
-                points.add(value + 1);
-                points.add(-value);
-            }
-            // past every outer value so y > 2x works at x=1e6
-            double beyond = 1;
-            for (double value : context.getVariableValues()) {
-                beyond += OUTER_SCALE * Math.abs(value);
-            }
-            if (!context.getVariableValues().isEmpty() && !Double.isInfinite(beyond)) {
-                points.add(beyond);
-                points.add(-beyond);
-            }
-        }
-        return points;
-    }
-
-    private List<Double> rootPoints() {
-        List<Double> points = new ArrayList<>();
-        for (Root root : getRoots()) {
-            points.add(root.value);
-            points.add(root.value - ROOT_OFFSET);
-            points.add(root.value + ROOT_OFFSET);
-        }
-        return points;
-    }
-
-    private double[] sortedCandidates() {
-        List<Double> points = cheapPoints(false);
-        points.addAll(rootPoints());
-        points.addAll(rootMidpoints());
-        double[] sorted = new double[points.size()];
-        for (int i = 0; i < sorted.length; i++) {
-            sorted[i] = points.get(i);
-        }
-        Arrays.sort(sorted);
-        int size = 0;
-        for (int i = 0; i < sorted.length; i++) {
-            if (size == 0 || sorted[i] != sorted[size - 1]) {
-                sorted[size] = sorted[i];
-                size++;
-            }
-        }
-        return Arrays.copyOf(sorted, size);
-    }
-
-    private boolean isTrueAt(double point) {
-        context.spendStep();
-        Value value;
-        try {
-            value = condition.evaluate(context.withVariable(variable, point));
-        } catch (UndefinedException e) {
-            return false;
-        }
-        if (!(value instanceof BooleanValue)) {
-            throw new UndecidableException();
-        }
-        return ((BooleanValue) value).getValue();
-    }
-
     // {boundary, INCLUDED?} between false and true
     private double[] boundary(double falsePoint, double truePoint) {
-        for (int round = 0; round < ROUNDS; round++) {
+        for (int round = 0; round < SideScan.ROUNDS; round++) {
             double middle = (falsePoint + truePoint) / 2;
-            if (isTrueAt(middle)) {
+            if (sampleTruth.isTrueAt(middle)) {
                 truePoint = middle;
             } else {
                 falsePoint = middle;
@@ -1131,15 +254,15 @@ public class ConditionSolver {
         boolean domainEdge = isUndefinedAt(falsePoint);
         double snapped = tidy(limit, !domainEdge);
         if (!Double.isNaN(snapped)) {
-            return new double[] {snapped, isTrueAt(snapped) ? INCLUDED : 0};
+            return new double[] {snapped, sampleTruth.isTrueAt(snapped) ? INCLUDED : 0};
         }
-        if (domainEdge && isTrueAt(truePoint)) {
+        if (domainEdge && sampleTruth.isTrueAt(truePoint)) {
             // pole next door isnt an included end (1/(x+2) at -2)
             double tidyEdge = Rounding.toSignificant(truePoint, EDGE_DIGITS);
             if (tidyEdge != truePoint && isUndefinedAt(tidyEdge)) {
                 return new double[] {tidyEdge, 0};
             }
-            if (tidyEdge != truePoint && isTrueAt(tidyEdge)) {
+            if (tidyEdge != truePoint && sampleTruth.isTrueAt(tidyEdge)) {
                 return new double[] {tidyEdge, INCLUDED};
             }
             return new double[] {truePoint, INCLUDED};
@@ -1159,8 +282,8 @@ public class ConditionSolver {
 
     // root for bisected boundary, else NaN
     private double tidy(double point, boolean nearlyEqual) {
-        Root nearest = null;
-        for (Root root : getRoots()) {
+        ConditionRoots.Root nearest = null;
+        for (ConditionRoots.Root root : conditionRoots.all()) {
             if (nearest == null || Math.abs(root.value - point) < Math.abs(nearest.value - point)) {
                 nearest = root;
             }
@@ -1178,7 +301,7 @@ public class ConditionSolver {
     }
 
     // inside tol of a root the root is the real boundary
-    private boolean isNearlyEqualAt(Root root, double point) {
+    private boolean isNearlyEqualAt(ConditionRoots.Root root, double point) {
         Context withPoint = context.withVariable(variable, point);
         try {
             double a = root.pair.leftAt(withPoint);
@@ -1207,86 +330,5 @@ public class ConditionSolver {
             }
         }
         intervals.add(interval);
-    }
-
-    private List<Root> getRoots() {
-        if (roots == null) {
-            roots = new ArrayList<>();
-            for (RelationNode relation : comparisons.relations()) {
-                addRoots(relation);
-            }
-        }
-        return roots;
-    }
-
-    private void addRoots(RelationNode relation) {
-        List<Node> operands = relation.getOperands();
-        List<String> operators = relation.getOperators();
-        for (int i = 0; i + 1 < operands.size(); i++) {
-            Node left = operands.get(i);
-            Node right = operands.get(i + 1);
-            if (ComparisonFinder.isSetOperator(operators.get(i))) {
-                addMembershipRoots(left, right);
-                continue;
-            }
-            for (SidePair pair : comparisons.pairsOf(left, right)) {
-                EquationSolver solver = new EquationSolver(left, right, variable, context, step,
-                        pair.leftPart, pair.rightPart);
-                for (double value : solver.solve()) {
-                    roots.add(new Root(value, pair, solver.isStretchEnd(value)));
-                }
-                undersampled = undersampled || solver.isUndersampled();
-                nearMiss = nearMiss || solver.isNearMiss();
-            }
-        }
-    }
-
-    private void addMembershipRoots(Node left, Node right) {
-        Set<String> names = new HashSet<>();
-        right.collectFreeVariables(names);
-        if (names.contains(variable)) {
-            return;
-        }
-        try {
-            Value set = right.evaluate(context);
-            if (set instanceof FiniteSetValue) {
-                for (double element : ((FiniteSetValue) set).getElements()) {
-                    Node target = new LiteralNode(new NumberValue(element), false);
-                    for (double value : new EquationSolver(left, target, variable, context, step).solve()) {
-                        roots.add(new Root(value,
-                                new SidePair(left, target, EquationSolver.WHOLE, EquationSolver.WHOLE), false));
-                    }
-                }
-            }
-        } catch (BudgetExceededException | UndecidableException e) {
-            throw e;
-        } catch (UncalculableException e) {
-            // no roots here
-        }
-    }
-
-    private static final class Sample {
-        private final boolean truth;
-        private final int known;
-        private final boolean lost;
-
-        private Sample(boolean truth, int known, boolean lost) {
-            this.truth = truth;
-            this.known = known;
-            this.lost = lost;
-        }
-    }
-
-    private static final class Root {
-        private final double value;
-        private final SidePair pair;
-        // just the end of an equal stretch
-        private final boolean stretchEnd;
-
-        private Root(double value, SidePair pair, boolean stretchEnd) {
-            this.value = value;
-            this.pair = pair;
-            this.stretchEnd = stretchEnd;
-        }
     }
 }
