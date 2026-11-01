@@ -27,38 +27,38 @@ class EvaluatePresenterTest {
 
     @Test
     void formatsNumbers() {
-        assertEquals("0.3", EvaluatePresenter.format(0.1 + 0.2));
-        assertEquals("2", EvaluatePresenter.format(2.0));
-        assertEquals("-100", EvaluatePresenter.format(-100));
-        assertEquals("1/3", EvaluatePresenter.format(1.0 / 3));
-        assertEquals("0", EvaluatePresenter.format(Math.sin(Math.PI)));
-        assertEquals("∞", EvaluatePresenter.format(1.0 / 0));
-        assertEquals("undefined", EvaluatePresenter.format(Double.NaN));
-        assertEquals("-∞", EvaluatePresenter.format(-1.0 / 0));
+        assertEquals("0.3", AnswerFormatter.format(0.1 + 0.2));
+        assertEquals("2", AnswerFormatter.format(2.0));
+        assertEquals("-100", AnswerFormatter.format(-100));
+        assertEquals("1/3", AnswerFormatter.format(1.0 / 3));
+        assertEquals("0", AnswerFormatter.format(Math.sin(Math.PI)));
+        assertEquals("∞", AnswerFormatter.format(1.0 / 0));
+        assertEquals("undefined", AnswerFormatter.format(Double.NaN));
+        assertEquals("-∞", AnswerFormatter.format(-1.0 / 0));
     }
 
     @Test
     void roundsToTwoDecimalsOrFractions() {
-        assertEquals("3.14", EvaluatePresenter.format(Math.PI));
-        assertEquals("1.41", EvaluatePresenter.format(Math.sqrt(2)));
-        assertEquals("-9.5", EvaluatePresenter.format(-9.5));
-        assertEquals("0.25", EvaluatePresenter.format(0.25));
-        assertEquals("-5/3", EvaluatePresenter.format(-5.0 / 3));
-        assertEquals("22/7", EvaluatePresenter.format(22.0 / 7));
-        assertEquals("5/3", EvaluatePresenter.format(1.66666667));
+        assertEquals("3.14", AnswerFormatter.format(Math.PI));
+        assertEquals("1.41", AnswerFormatter.format(Math.sqrt(2)));
+        assertEquals("-9.5", AnswerFormatter.format(-9.5));
+        assertEquals("0.25", AnswerFormatter.format(0.25));
+        assertEquals("-5/3", AnswerFormatter.format(-5.0 / 3));
+        assertEquals("22/7", AnswerFormatter.format(22.0 / 7));
+        assertEquals("5/3", AnswerFormatter.format(1.66666667));
         // ends as a decimal -> just round
-        assertEquals("0.13", EvaluatePresenter.format(0.125));
-        assertEquals("2.68", EvaluatePresenter.format(2.675));
-        assertEquals("1.64", EvaluatePresenter.format(Math.PI * Math.PI / 6));
+        assertEquals("0.13", AnswerFormatter.format(0.125));
+        assertEquals("2.68", AnswerFormatter.format(2.675));
+        assertEquals("1.64", AnswerFormatter.format(Math.PI * Math.PI / 6));
         // rounding to a plain-looking number keeps digits
-        assertEquals("99.999", EvaluatePresenter.format(99.999));
-        assertEquals("1.001", EvaluatePresenter.format(1.001));
-        assertEquals("2.0031", EvaluatePresenter.format(2.0031415));
-        assertEquals("3.01", EvaluatePresenter.format(3.0123));
+        assertEquals("99.999", AnswerFormatter.format(99.999));
+        assertEquals("1.001", AnswerFormatter.format(1.001));
+        assertEquals("2.0031", AnswerFormatter.format(2.0031415));
+        assertEquals("3.01", AnswerFormatter.format(3.0123));
         // tiny keeps 2 sig figs, not 0
-        assertEquals("0.00000001", EvaluatePresenter.format(1e-8));
-        assertEquals("-0.0046", EvaluatePresenter.format(-0.004567));
-        assertEquals("3333333.33", EvaluatePresenter.format(1e7 / 3));
+        assertEquals("0.00000001", AnswerFormatter.format(1e-8));
+        assertEquals("-0.0046", AnswerFormatter.format(-0.004567));
+        assertEquals("3333333.33", AnswerFormatter.format(1e7 / 3));
     }
 
     @Test
@@ -106,10 +106,10 @@ class EvaluatePresenterTest {
 
     @Test
     void formatsValues() {
-        assertEquals("true", EvaluatePresenter.format(BooleanValue.of(true)));
-        assertEquals("{1, 2, 3}", EvaluatePresenter.format(new FiniteSetValue(Arrays.asList(3.0, 1.0, 2.0, 1.0))));
-        assertEquals("{}", EvaluatePresenter.format(new FiniteSetValue(new ArrayList<>())));
-        assertEquals("(4, 6)", EvaluatePresenter.format(new VectorValue(Arrays.asList(4.0, 6.0))));
+        assertEquals("true", AnswerFormatter.format(BooleanValue.of(true)));
+        assertEquals("{1, 2, 3}", AnswerFormatter.format(new FiniteSetValue(Arrays.asList(3.0, 1.0, 2.0, 1.0))));
+        assertEquals("{}", AnswerFormatter.format(new FiniteSetValue(new ArrayList<>())));
+        assertEquals("(4, 6)", AnswerFormatter.format(new VectorValue(Arrays.asList(4.0, 6.0))));
         presenter.prepareValuesView(Arrays.asList(new NumberValue(3), new NumberValue(-1)));
         assertEquals("= 3 or -1", viewModel.getState().getResultText());
         presenter.prepareSolutionsView("x", new ArrayList<>());

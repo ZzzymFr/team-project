@@ -57,4 +57,9 @@ public final class NumberSetValue extends Value {
     public boolean isSubsetOf(NumberSetValue other) {
         return dimension == other.dimension && kind.ordinal() <= other.kind.ordinal();
     }
+
+    @Override
+    public <R> R accept(ValueVisitor<R> visitor) {
+        return visitor.visitNumberSet(this);
+    }
 }

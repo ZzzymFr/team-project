@@ -18,4 +18,9 @@ public final class VectorValue extends Value {
     public int getDimension() {
         return components.size();
     }
+
+    @Override
+    public <R> R accept(ValueVisitor<R> visitor) {
+        return visitor.visitVector(this);
+    }
 }

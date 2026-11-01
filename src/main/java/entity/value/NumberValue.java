@@ -10,4 +10,9 @@ public final class NumberValue extends Value {
     public double getValue() {
         return value;
     }
+
+    @Override
+    public <R> R accept(ValueVisitor<R> visitor) {
+        return visitor.visitNumber(this);
+    }
 }
