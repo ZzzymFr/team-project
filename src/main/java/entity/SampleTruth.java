@@ -149,11 +149,11 @@ final class SampleTruth {
             // only fill from a stretch at the end, not one point
             boolean atEnd = start == 0 || i == samples.length;
             if (lost && atEnd && !(isBacked(samples, start - 1, -1) && isBacked(samples, i, 1))) {
-                throw new UncalculableException(UncalculableException.TOO_BIG);
+                throw new UncalculableException(UncalculableReason.TOO_BIG);
             }
             if (before == UNKNOWN && after == UNKNOWN || before != UNKNOWN && after != UNKNOWN && before != after) {
                 if (lost) {
-                    throw new UncalculableException(UncalculableException.TOO_BIG);
+                    throw new UncalculableException(UncalculableReason.TOO_BIG);
                 }
                 continue;
             }

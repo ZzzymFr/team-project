@@ -4,6 +4,7 @@ import entity.Context;
 import entity.MathLexer;
 import entity.MathParser;
 import entity.UncalculableException;
+import entity.UncalculableReason;
 import entity.UserFunction;
 import entity.node.Node;
 
@@ -70,7 +71,7 @@ final class FunctionDefiner {
         MathParser parser = new MathParser(right, functions);
         Node body = parser.parse();
         if (parser.getPlusMinusCount() > 0) {
-            throw new UncalculableException(UncalculableException.PLUS_MINUS_HERE);
+            throw new UncalculableException(UncalculableReason.PLUS_MINUS_HERE);
         }
         Set<String> variables = new LinkedHashSet<>();
         body.collectFreeVariables(variables);

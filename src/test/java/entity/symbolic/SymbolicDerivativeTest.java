@@ -4,7 +4,8 @@ import interface_adapter.evaluate.ExprWriter;
 import entity.Context;
 import entity.MathLexer;
 import entity.MathParser;
-import entity.MathSyntaxException;
+import entity.UncalculableException;
+import entity.UncalculableReason;
 import entity.UserFunction;
 import entity.node.Node;
 import entity.value.NumberValue;
@@ -49,9 +50,9 @@ class SymbolicDerivativeTest {
         }
     }
 
-    private void fails(String latex, String reason) {
-        MathSyntaxException e = assertThrows(MathSyntaxException.class, () -> d(latex));
-        assertTrue(e.getMessage().contains(reason), e.getMessage());
+    private void fails(String latex, UncalculableReason reason) {
+        UncalculableException e = assertThrows(UncalculableException.class, () -> d(latex));
+        assertEquals(reason, e.getReason());
     }
 
     @Test
@@ -113,9 +114,9 @@ class SymbolicDerivativeTest {
 
     @Test
     void failures() {
-        fails("\\frac{d}{dx}|x|", "Can't differentiate |x|");
-        fails("\\frac{d}{dx}(x!)", "Can't differentiate n!");
-        fails("\\frac{d^5}{dx^5}x", "Max 4th derivative");
+        fails("\\frac{d}{dx}|x|", UncalculableReason.ABS_DERIVATIVE);
+        fails("\\frac{d}{dx}(x!)", UncalculableReason.FACTORIAL_DERIVATIVE);
+        fails("\\frac{d^5}{dx^5}x", UncalculableReason.MAX_DERIVATIVE);
     }
 
     @Test

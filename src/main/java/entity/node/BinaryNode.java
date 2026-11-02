@@ -2,6 +2,7 @@ package entity.node;
 
 import entity.Context;
 import entity.UncalculableException;
+import entity.UncalculableReason;
 import entity.UndefinedException;
 import entity.UndecidableException;
 import entity.value.BooleanValue;
@@ -73,8 +74,8 @@ public class BinaryNode extends Node {
         if (op == Op.UNION || op == Op.INTERSECT) {
             if (!(a instanceof FiniteSetValue) || !(b instanceof FiniteSetValue)) {
                 boolean infinite = a instanceof NumberSetValue || b instanceof NumberSetValue;
-                throw new UncalculableException(infinite ? UncalculableException.INFINITE_SET
-                        : UncalculableException.WRONG_KIND);
+                throw new UncalculableException(infinite ? UncalculableReason.INFINITE_SET
+                        : UncalculableReason.WRONG_KIND);
             }
             if (op == Op.UNION) {
                 return ((FiniteSetValue) a).union((FiniteSetValue) b);
@@ -119,7 +120,7 @@ public class BinaryNode extends Node {
     // number/set joined by connective isnt a statement
     static boolean truth(Value value) {
         if (!(value instanceof BooleanValue)) {
-            throw new UndecidableException(UncalculableException.NEEDS_BOOLEAN);
+            throw new UndecidableException(UncalculableReason.NEEDS_BOOLEAN);
         }
         return ((BooleanValue) value).getValue();
     }
@@ -138,7 +139,7 @@ public class BinaryNode extends Node {
                 case CROSS:
                     return cross(x, y);
                 default:
-                    throw new UncalculableException(UncalculableException.WRONG_KIND);
+                    throw new UncalculableException(UncalculableReason.WRONG_KIND);
             }
         }
         boolean scalarOnRight = a instanceof VectorValue;
@@ -157,7 +158,7 @@ public class BinaryNode extends Node {
             return finiteVector(divided);
         }
         if (op != Op.MULTIPLY && op != Op.DOT && op != Op.CROSS) {
-            throw new UncalculableException(UncalculableException.WRONG_KIND);
+            throw new UncalculableException(UncalculableReason.WRONG_KIND);
         }
         double factor;
         List<Double> components;
@@ -181,7 +182,7 @@ public class BinaryNode extends Node {
                 throw new UndefinedException();
             }
             if (Double.isInfinite(component)) {
-                throw new UncalculableException(UncalculableException.TOO_BIG);
+                throw new UncalculableException(UncalculableReason.TOO_BIG);
             }
         }
         return new VectorValue(components);
@@ -189,7 +190,7 @@ public class BinaryNode extends Node {
 
     private Value combine(List<Double> x, List<Double> y, Context context) {
         if (x.size() != y.size()) {
-            throw new UncalculableException(UncalculableException.VECTOR_SIZES);
+            throw new UncalculableException(UncalculableReason.VECTOR_SIZES);
         }
         List<Double> result = new ArrayList<>();
         for (int i = 0; i < x.size(); i++) {
@@ -204,7 +205,7 @@ public class BinaryNode extends Node {
 
     public static double dot(List<Double> x, List<Double> y) {
         if (x.size() != y.size()) {
-            throw new UncalculableException(UncalculableException.VECTOR_SIZES);
+            throw new UncalculableException(UncalculableReason.VECTOR_SIZES);
         }
         double sum = 0;
         for (int i = 0; i < x.size(); i++) {
@@ -215,7 +216,7 @@ public class BinaryNode extends Node {
 
     private Value cross(List<Double> x, List<Double> y) {
         if (x.size() != 3 || y.size() != 3) {
-            throw new UncalculableException(UncalculableException.CROSS_3D);
+            throw new UncalculableException(UncalculableReason.CROSS_3D);
         }
         return finiteVector(Arrays.asList(
                 x.get(1) * y.get(2) - x.get(2) * y.get(1),

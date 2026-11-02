@@ -108,7 +108,7 @@ final class ComparisonFinder {
             }
         } else if (leftShape[0] == SET_SHAPE && rightShape[0] == SET_SHAPE) {
             if (leftShape[1] * rightShape[1] > MAX_ELEMENT_PAIRS) {
-                throw new UncalculableException(UncalculableException.SETS_TOO_LARGE);
+                throw new UncalculableException(UncalculableReason.SETS_TOO_LARGE);
             }
             for (int j = 0; j < leftShape[1]; j++) {
                 for (int k = 0; k < rightShape[1]; k++) {

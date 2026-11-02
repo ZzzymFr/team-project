@@ -1,6 +1,7 @@
 package entity.value;
 
 import entity.UncalculableException;
+import entity.UncalculableReason;
 
 import java.util.List;
 
@@ -14,14 +15,14 @@ public final class Values {
 
     public static double toNumber(Value value) {
         if (!(value instanceof NumberValue)) {
-            throw new UncalculableException(UncalculableException.WRONG_KIND);
+            throw new UncalculableException(UncalculableReason.WRONG_KIND);
         }
         return ((NumberValue) value).getValue();
     }
 
     public static boolean toBoolean(Value value) {
         if (!(value instanceof BooleanValue)) {
-            throw new UncalculableException(UncalculableException.NEEDS_BOOLEAN);
+            throw new UncalculableException(UncalculableReason.NEEDS_BOOLEAN);
         }
         return ((BooleanValue) value).getValue();
     }

@@ -201,7 +201,7 @@ public class MathLexer {
             case "\\begin":
             case "\\end":
             case "\\square":
-                throw new UncalculableException(UncalculableException.TEXT);
+                throw new UncalculableException(UncalculableReason.TEXT);
             case "\\div":
                 tokens.add("/");
                 break;

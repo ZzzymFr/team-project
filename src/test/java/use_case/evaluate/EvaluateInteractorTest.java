@@ -63,6 +63,12 @@ class EvaluateInteractorTest {
         }
 
         @Override
+        public void prepareUncalculableView(UncalculableOutputData why) {
+            kind = "fail";
+            text = String.valueOf(why.getReason());
+        }
+
+        @Override
         public void prepareFailView(String errorMessage) {
             kind = "fail";
             text = errorMessage;

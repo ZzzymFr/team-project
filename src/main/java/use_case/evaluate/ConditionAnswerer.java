@@ -6,6 +6,7 @@ import entity.Context;
 import entity.EquationSolver;
 import entity.Interval;
 import entity.UncalculableException;
+import entity.UncalculableReason;
 import entity.UserFunction;
 import entity.node.Node;
 import entity.node.RelationNode;
@@ -63,7 +64,7 @@ final class ConditionAnswerer {
             }
             all.addAll(solver.solve());
             if (solver.isUndersampled()) {
-                throw new UncalculableException(UncalculableException.TOO_FAST);
+                throw new UncalculableException(UncalculableReason.TOO_FAST);
             }
             stretch = stretch || solver.hasStretch();
         }
@@ -116,13 +117,13 @@ final class ConditionAnswerer {
         for (int mask = 0; mask < masks; mask++) {
             List<Double> roots = new ConditionSolver(node, variable, context(mask)).rootsBeyond(MAX_ROOTS_BEYOND);
             if (roots == null) {
-                throw new UncalculableException(UncalculableException.BEYOND_RANGE);
+                throw new UncalculableException(UncalculableReason.BEYOND_RANGE);
             }
             all.addAll(roots);
         }
         List<Double> roots = Roots.sortedDistinct(all);
         if (roots.size() > MAX_ROOTS_BEYOND) {
-            throw new UncalculableException(UncalculableException.TOO_MANY_SOLUTIONS);
+            throw new UncalculableException(UncalculableReason.TOO_MANY_SOLUTIONS);
         }
         return roots;
     }
@@ -144,7 +145,7 @@ final class ConditionAnswerer {
             }
             if (beyond == null) {
                 // sin(x/100)=0: only 0 in range, endless past it
-                throw new UncalculableException(UncalculableException.TOO_MANY_SOLUTIONS);
+                throw new UncalculableException(UncalculableReason.TOO_MANY_SOLUTIONS);
             }
             for (double root : beyond) {
                 if (Math.abs(root) > EquationSolver.SEARCH_END && !Roots.containsSame(all, root)) {
@@ -153,7 +154,7 @@ final class ConditionAnswerer {
             }
         }
         if (all.size() > MAX_ROOTS_BEYOND) {
-            throw new UncalculableException(UncalculableException.TOO_MANY_SOLUTIONS);
+            throw new UncalculableException(UncalculableReason.TOO_MANY_SOLUTIONS);
         }
         Collections.sort(all);
         return all;
@@ -162,7 +163,7 @@ final class ConditionAnswerer {
     // exclude where a side is undefined too
     private void excludeUndefinedPoints(List<Double> solutions) {
         if (masks > 1) {
-            throw new UncalculableException(UncalculableException.PLUS_MINUS_HERE);
+            throw new UncalculableException(UncalculableReason.PLUS_MINUS_HERE);
         }
         ConditionSolver solver = new ConditionSolver(node, variable, new Context(functions));
         if (solutions.isEmpty()) {
@@ -172,7 +173,7 @@ final class ConditionAnswerer {
                 List<Interval> inRange = solver.solveInRange();
                 if (inRange.size() != 1 || inRange.get(0).getLow() != Double.NEGATIVE_INFINITY
                         || inRange.get(0).getHigh() != Double.POSITIVE_INFINITY) {
-                    throw new UncalculableException(UncalculableException.BEYOND_RANGE);
+                    throw new UncalculableException(UncalculableReason.BEYOND_RANGE);
                 }
                 presenter.prepareExcludedView(variable, beyond);
                 return;
@@ -193,14 +194,14 @@ final class ConditionAnswerer {
             List<Interval> intervals = new ConditionSolver(node, variable, context(mask)).solve();
             if (intervals.isEmpty() || intervals.get(0).getLow() != Double.NEGATIVE_INFINITY
                     || intervals.get(intervals.size() - 1).getHigh() != Double.POSITIVE_INFINITY) {
-                throw new UncalculableException(UncalculableException.PLUS_MINUS_HERE);
+                throw new UncalculableException(UncalculableReason.PLUS_MINUS_HERE);
             }
             List<Double> points = new ArrayList<>();
             for (int i = 1; i < intervals.size(); i++) {
                 points.add(intervals.get(i).getLow());
             }
             if (!isEverythingBut(intervals, points)) {
-                throw new UncalculableException(UncalculableException.PLUS_MINUS_HERE);
+                throw new UncalculableException(UncalculableReason.PLUS_MINUS_HERE);
             }
             all.addAll(points);
         }
@@ -225,7 +226,7 @@ final class ConditionAnswerer {
 
     private void solveInequality() {
         if (masks > 1) {
-            throw new UncalculableException(UncalculableException.PLUS_MINUS_HERE);
+            throw new UncalculableException(UncalculableReason.PLUS_MINUS_HERE);
         }
         showIntervals(new ConditionSolver(node, variable, new Context(functions)).solve());
     }

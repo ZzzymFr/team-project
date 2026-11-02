@@ -1,6 +1,7 @@
 package entity.calculus;
 
 import entity.UncalculableException;
+import entity.UncalculableReason;
 
 import java.util.function.DoubleUnaryOperator;
 
@@ -38,7 +39,7 @@ public final class DerivativeCalculator {
     // {deriv, rel error}
     public static double[] derivativeWithError(DoubleUnaryOperator f, double x, int order) {
         if (order < 1 || order > MAX_ORDER) {
-            throw new UncalculableException(UncalculableException.MAX_DERIVATIVE);
+            throw new UncalculableException(UncalculableReason.MAX_DERIVATIVE);
         }
         if (Double.isNaN(x) || Double.isInfinite(x)) {
             return new double[] {Double.NaN, 0};
@@ -67,7 +68,7 @@ public final class DerivativeCalculator {
         double error = best[1] / Math.max(1, Math.abs(result));
         // too far out, x rounding eats the digits
         if (!(error <= MAX_ERROR)) {
-            throw new UncalculableException(UncalculableException.DERIVATIVE);
+            throw new UncalculableException(UncalculableReason.DERIVATIVE);
         }
         if (Math.abs(result) <= NOISE_FACTOR * best[1]) {
             return new double[] {0, error};
@@ -116,7 +117,7 @@ public final class DerivativeCalculator {
         if (isCorner(f, x)) {
             return new double[] {Double.NaN, Double.POSITIVE_INFINITY, Double.NaN, Double.NaN};
         }
-        throw new UncalculableException(UncalculableException.DERIVATIVE);
+        throw new UncalculableException(UncalculableReason.DERIVATIVE);
     }
 
     // one sided slopes at smaller steps

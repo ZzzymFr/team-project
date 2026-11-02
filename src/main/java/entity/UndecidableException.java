@@ -3,10 +3,10 @@ package entity;
 // cant decide, dont treat as false
 public class UndecidableException extends UncalculableException {
     public UndecidableException() {
-        super(UNDECIDED);
+        super(UncalculableReason.UNDECIDED);
     }
 
-    public UndecidableException(String reason) {
+    public UndecidableException(UncalculableReason reason) {
         super(reason);
     }
 }

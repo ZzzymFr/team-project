@@ -7,6 +7,7 @@ import use_case.evaluate.EvaluateOutputBoundary;
 import use_case.evaluate.ExpressionOutputData;
 import use_case.evaluate.IntervalOutputData;
 import use_case.evaluate.TextRunOutputData;
+import use_case.evaluate.UncalculableOutputData;
 import use_case.evaluate.ValueOutputData;
 
 import java.util.ArrayList;
@@ -57,6 +58,11 @@ public class EvaluatePresenter implements EvaluateOutputBoundary {
             runs.add(new TextRun(run.getText(), run.isRaised()));
         }
         publish("= " + expression.getLatex(), runs, "", false);
+    }
+
+    @Override
+    public void prepareUncalculableView(UncalculableOutputData why) {
+        prepareFailView(UncalculableText.of(why.getReason(), why.getDetail()));
     }
 
     @Override

@@ -3,6 +3,7 @@ package entity.node;
 import entity.Context;
 import entity.OverflowException;
 import entity.UncalculableException;
+import entity.UncalculableReason;
 import entity.UndefinedException;
 import entity.value.BooleanValue;
 import entity.value.FiniteSetValue;
@@ -196,7 +197,7 @@ public class RelationNode extends Node {
 
     private boolean isPerpendicular(Value left, Value right) {
         if (!(left instanceof VectorValue) || !(right instanceof VectorValue)) {
-            throw new UncalculableException(UncalculableException.WRONG_KIND);
+            throw new UncalculableException(UncalculableReason.WRONG_KIND);
         }
         double product = BinaryNode.dot(((VectorValue) left).getComponents(),
                 ((VectorValue) right).getComponents());
@@ -222,11 +223,11 @@ public class RelationNode extends Node {
                 if (isLiteral(elementNode)) {
                     return true;
                 }
-                throw new UncalculableException(UncalculableException.RATIONAL);
+                throw new UncalculableException(UncalculableReason.RATIONAL);
             }
             return numbers.containsNumber(number);
         }
-        throw new UncalculableException(UncalculableException.WRONG_KIND);
+        throw new UncalculableException(UncalculableReason.WRONG_KIND);
     }
 
     private boolean isLiteral(Node node) {
@@ -254,7 +255,7 @@ public class RelationNode extends Node {
         if (left instanceof NumberSetValue && right instanceof FiniteSetValue) {
             return false;
         }
-        throw new UncalculableException(UncalculableException.WRONG_KIND);
+        throw new UncalculableException(UncalculableReason.WRONG_KIND);
     }
 
     private boolean areEqual(Value left, Value right, double exact) {

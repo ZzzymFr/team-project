@@ -1,6 +1,7 @@
 package entity.calculus;
 
 import entity.UncalculableException;
+import entity.UncalculableReason;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -21,7 +22,7 @@ public final class SeriesCalculator {
             return product ? 1 : 0;
         }
         if (end - start < 0 || end - start >= MAX_TERMS) {
-            throw new UncalculableException(UncalculableException.TOO_MANY_TERMS);
+            throw new UncalculableException(UncalculableReason.TOO_MANY_TERMS);
         }
         boolean infiniteTerm = false;
         double result;
@@ -49,7 +50,7 @@ public final class SeriesCalculator {
         }
         // overflowing finite terms -> too big
         if (Double.isInfinite(result) && !infiniteTerm) {
-            throw new UncalculableException(UncalculableException.TOO_BIG);
+            throw new UncalculableException(UncalculableReason.TOO_BIG);
         }
         return result;
     }
@@ -134,7 +135,7 @@ public final class SeriesCalculator {
 
         double calculate() {
             if (start > Long.MAX_VALUE - (2L << LEVELS)) {
-                throw new UncalculableException(UncalculableException.TOO_BIG);
+                throw new UncalculableException(UncalculableReason.TOO_BIG);
             }
             for (long i = 0; i < 1L << LEVELS; i++) {
                 double a = term.applyAsDouble(start + i);
@@ -203,7 +204,7 @@ public final class SeriesCalculator {
         private double atTheEnd() {
             if (Math.abs(start) > LARGEST_START) {
                 // big start + 2^LEVELS terms is too narrow to tell
-                throw new UncalculableException(UncalculableException.SERIES);
+                throw new UncalculableException(UncalculableReason.SERIES);
             }
             int growth = steadyGrowth();
             if (growth != 0) {
@@ -218,7 +219,7 @@ public final class SeriesCalculator {
             if (termsDoNotShrink()) {
                 // still swinging, could be slow growth
                 if (drifts()) {
-                    throw new UncalculableException(UncalculableException.SERIES);
+                    throw new UncalculableException(UncalculableReason.SERIES);
                 }
                 return Double.NaN;
             }
@@ -226,7 +227,7 @@ public final class SeriesCalculator {
             if (shrinks(LEVELS) && accuracy(estimate) <= LATE_ACCEPTED) {
                 return checked(estimate[0], estimate[1]);
             }
-            throw new UncalculableException(UncalculableException.SERIES);
+            throw new UncalculableException(UncalculableReason.SERIES);
         }
 
         // only use estimate while terms + steps shrink
@@ -259,14 +260,14 @@ public final class SeriesCalculator {
         private double checked(double value, double error) {
             double roundOff = ROUND_OFF * sumOfSizes;
             if (!Double.isFinite(value) || accuracy(new double[] {value, Math.max(error, roundOff)}) > LATE_ACCEPTED) {
-                throw new UncalculableException(UncalculableException.SERIES);
+                throw new UncalculableException(UncalculableReason.SERIES);
             }
             if (!product) {
                 return value;
             }
             double result = sign * Math.exp(value);
             if (!Double.isFinite(result)) {
-                throw new UncalculableException(UncalculableException.TOO_BIG);
+                throw new UncalculableException(UncalculableReason.TOO_BIG);
             }
             return result;
         }
@@ -391,7 +392,7 @@ public final class SeriesCalculator {
         private double undefinedTerm(long i) {
             for (long j = 1; j <= LOOK_AHEAD; j++) {
                 if (Double.isNaN(term.applyAsDouble(start + i + j))) {
-                    throw new UncalculableException(UncalculableException.SERIES);
+                    throw new UncalculableException(UncalculableReason.SERIES);
                 }
             }
             return Double.NaN;
@@ -401,13 +402,13 @@ public final class SeriesCalculator {
             if (i == 0 && (!product || a > 0)) {
                 for (long j = 1; j < ALL_INFINITE; j++) {
                     if (term.applyAsDouble(start + j) != a) {
-                        throw new UncalculableException(UncalculableException.SERIES);
+                        throw new UncalculableException(UncalculableReason.SERIES);
                     }
                 }
                 return a;
             }
             if (product) {
-                throw new UncalculableException(UncalculableException.SERIES);
+                throw new UncalculableException(UncalculableReason.SERIES);
             }
             return overflow(a);
         }
@@ -422,18 +423,18 @@ public final class SeriesCalculator {
                 terms.add(a);
             }
             if (terms.size() < 3) {
-                throw new UncalculableException(UncalculableException.SERIES);
+                throw new UncalculableException(UncalculableReason.SERIES);
             }
             double direction = Math.signum(a);
             double previousRatio = 1;
             for (int j = 0; j < terms.size(); j++) {
                 if (Math.signum(terms.get(j)) != direction) {
-                    throw new UncalculableException(UncalculableException.SERIES);
+                    throw new UncalculableException(UncalculableReason.SERIES);
                 }
                 if (j > 0) {
                     double ratio = terms.get(j) / terms.get(j - 1);
                     if (ratio < previousRatio * (1 - STEADY)) {
-                        throw new UncalculableException(UncalculableException.SERIES);
+                        throw new UncalculableException(UncalculableReason.SERIES);
                     }
                     previousRatio = ratio;
                 }

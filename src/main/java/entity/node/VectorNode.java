@@ -2,6 +2,7 @@ package entity.node;
 
 import entity.Context;
 import entity.UncalculableException;
+import entity.UncalculableReason;
 import entity.UndefinedException;
 import entity.value.Value;
 import entity.value.Values;
@@ -41,7 +42,7 @@ public class VectorNode extends Node {
                 throw new UndefinedException();
             }
             if (Double.isInfinite(number)) {
-                throw new UncalculableException(UncalculableException.TOO_BIG);
+                throw new UncalculableException(UncalculableReason.TOO_BIG);
             }
             numbers.add(number);
         }

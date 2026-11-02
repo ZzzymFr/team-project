@@ -1,6 +1,7 @@
 package entity.calculus;
 
 import entity.UncalculableException;
+import entity.UncalculableReason;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -147,7 +148,7 @@ public final class LimitCalculator {
         if (badRun >= TAIL && Double.isInfinite(overflow) && movesTowards(before, overflow)) {
             return overflow;
         }
-        throw new UncalculableException(UncalculableException.LIMIT);
+        throw new UncalculableException(UncalculableReason.LIMIT);
     }
 
     // only the samples before roundoff took over, answer to the digits they back
@@ -161,7 +162,7 @@ public final class LimitCalculator {
         }
         double accuracy = richardson.accuracy();
         if (samples.size() < MIN_CLEAN || accuracy > CLEAN) {
-            throw new UncalculableException(UncalculableException.LIMIT);
+            throw new UncalculableException(UncalculableReason.LIMIT);
         }
         int digits = Math.max(1, (int) Math.floor(-Math.log10(Math.max(accuracy, ROUND_OFF))));
         return snapped(Rounding.toSignificant(richardson.value, digits), richardson.error, richardson.value);
@@ -200,7 +201,7 @@ public final class LimitCalculator {
         if (growth != 0) {
             // slow growth might level off, fast wont
             if (Math.signum(samples.get(samples.size() - 1)) != growth && !accelerates(samples)) {
-                throw new UncalculableException(UncalculableException.LIMIT);
+                throw new UncalculableException(UncalculableReason.LIMIT);
             }
             return growth * Double.POSITIVE_INFINITY;
         }
@@ -215,7 +216,7 @@ public final class LimitCalculator {
         if (relativeError(wynn[0], wynn[1]) <= ACCEPTED) {
             return snapped(wynn[0], wynn[1], nearest);
         }
-        throw new UncalculableException(UncalculableException.LIMIT);
+        throw new UncalculableException(UncalculableReason.LIMIT);
     }
 
     // swing not shrinking = no limit
@@ -231,7 +232,7 @@ public final class LimitCalculator {
             if (early != null) {
                 return snapped(early[0], early[1], early[0]);
             }
-            throw new UncalculableException(UncalculableException.LIMIT);
+            throw new UncalculableException(UncalculableReason.LIMIT);
         }
         if (swing >= SWING_SHRINK * earlierSwing) {
             return Double.NaN;
@@ -253,7 +254,7 @@ public final class LimitCalculator {
         if (relativeError(middle, halfWidth) <= ACCEPTED) {
             return snapped(middle, halfWidth, nearest);
         }
-        throw new UncalculableException(UncalculableException.LIMIT);
+        throw new UncalculableException(UncalculableReason.LIMIT);
     }
 
     // richardson on the run before the first turn, null if that isnt enough

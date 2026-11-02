@@ -3,6 +3,7 @@ package entity.symbolic;
 import entity.Context;
 import entity.MathSyntaxException;
 import entity.UncalculableException;
+import entity.UncalculableReason;
 import entity.UndefinedException;
 import entity.UserFunction;
 import entity.calculus.DerivativeCalculator;
@@ -52,7 +53,7 @@ public final class SymbolicDerivative {
         try {
             return Simplifier.simplify(new SymbolicDerivative(functions).convert(node, false));
         } catch (ArithmeticException e) {
-            throw new UncalculableException(UncalculableException.TOO_MUCH_WORK);  // rational overflowed
+            throw new UncalculableException(UncalculableReason.TOO_MUCH_WORK);  // rational overflowed
         }
     }
 
@@ -125,7 +126,7 @@ public final class SymbolicDerivative {
 
         @Override
         public Expr visitPlusMinus(PlusMinusNode node) {
-            throw new UncalculableException(UncalculableException.NOT_DIFFERENTIABLE);
+            throw new UncalculableException(UncalculableReason.NOT_DIFFERENTIABLE);
         }
 
         @Override
@@ -161,7 +162,7 @@ public final class SymbolicDerivative {
 
     private static Expr number(double value, int decimals) {
         if (Double.isNaN(value) || Double.isInfinite(value) || Math.abs(value) > MAX_EXACT) {
-            throw new UncalculableException(UncalculableException.TOO_BIG);
+            throw new UncalculableException(UncalculableReason.TOO_BIG);
         }
         if (decimals > 0) {
             long scale = 1;
@@ -227,13 +228,13 @@ public final class SymbolicDerivative {
         }
         int order = c.getDerivativeOrder();
         if (order > DerivativeCalculator.MAX_ORDER) {
-            throw new UncalculableException(UncalculableException.MAX_DERIVATIVE);
+            throw new UncalculableException(UncalculableReason.MAX_DERIVATIVE);
         }
         if (c.getDerivativeParameter() < 0 || c.getDerivativeParameter() >= parameters.size()) {
-            throw new UncalculableException(UncalculableException.NOT_AN_INPUT);
+            throw new UncalculableException(UncalculableReason.NOT_AN_INPUT);
         }
         if (++callDepth > MAX_CALL_DEPTH) {
-            throw new UncalculableException(UncalculableException.TOO_MUCH_WORK);
+            throw new UncalculableException(UncalculableReason.TOO_MUCH_WORK);
         }
         try {
             Expr body = convert(f.getBody(), inDerivative || order > 0);
@@ -288,7 +289,7 @@ public final class SymbolicDerivative {
         if (free.isEmpty()) {
             Value v = node.evaluate(new Context(functions));
             if (!(v instanceof NumberValue)) {
-                throw new UncalculableException(UncalculableException.NOT_DIFFERENTIABLE);
+                throw new UncalculableException(UncalculableReason.NOT_DIFFERENTIABLE);
             }
             double value = ((NumberValue) v).getValue();
             if (Double.isNaN(value)) {
@@ -299,20 +300,20 @@ public final class SymbolicDerivative {
         if (inDerivative && node instanceof UnaryNode) {
             UnaryNode.Op op = ((UnaryNode) node).getOp();
             if (op == UnaryNode.Op.ABSOLUTE || op == UnaryNode.Op.NORM) {
-                throw new UncalculableException(UncalculableException.ABS_DERIVATIVE);
+                throw new UncalculableException(UncalculableReason.ABS_DERIVATIVE);
             }
             if (op == UnaryNode.Op.FACTORIAL) {
-                throw new UncalculableException(UncalculableException.FACTORIAL_DERIVATIVE);
+                throw new UncalculableException(UncalculableReason.FACTORIAL_DERIVATIVE);
             }
         }
-        throw new UncalculableException(UncalculableException.NOT_DIFFERENTIABLE);
+        throw new UncalculableException(UncalculableReason.NOT_DIFFERENTIABLE);
     }
 
     // ---- the rules
 
     private static Expr nth(Expr u, String x, int order, boolean implicit) {
         if (order > DerivativeCalculator.MAX_ORDER) {
-            throw new UncalculableException(UncalculableException.MAX_DERIVATIVE);
+            throw new UncalculableException(UncalculableReason.MAX_DERIVATIVE);
         }
         Expr result = Simplifier.simplify(u);
         for (int i = 0; i < order; i++) {
@@ -348,7 +349,7 @@ public final class SymbolicDerivative {
             case LOG:
                 return logRule(u.arg(), u.logBase(), x, implicit);
             default:
-                throw new UncalculableException(UncalculableException.NOT_DIFFERENTIABLE);  // dy/dx again
+                throw new UncalculableException(UncalculableReason.NOT_DIFFERENTIABLE);  // dy/dx again
         }
     }
 
@@ -393,7 +394,7 @@ public final class SymbolicDerivative {
             case "ln":
                 return Expr.mul(inner, Expr.pow(arg, Expr.num(-1)));
             default:
-                throw new UncalculableException(UncalculableException.NOT_DIFFERENTIABLE);
+                throw new UncalculableException(UncalculableReason.NOT_DIFFERENTIABLE);
         }
     }
 

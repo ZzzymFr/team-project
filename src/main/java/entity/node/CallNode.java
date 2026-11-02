@@ -3,6 +3,7 @@ package entity.node;
 import entity.Context;
 import entity.MathSyntaxException;
 import entity.UncalculableException;
+import entity.UncalculableReason;
 import entity.UserFunction;
 import entity.calculus.DerivativeCalculator;
 import entity.value.NumberValue;
@@ -102,7 +103,7 @@ public class CallNode extends Node {
         if (derivativeOrder < 0 || derivativeOrder > DerivativeCalculator.MAX_ORDER
                 || derivativeParameter < 0 || derivativeParameter >= parameters.size()) {
             throw new UncalculableException(derivativeOrder > DerivativeCalculator.MAX_ORDER
-                    ? UncalculableException.MAX_DERIVATIVE : UncalculableException.NOT_AN_INPUT);
+                    ? UncalculableReason.MAX_DERIVATIVE : UncalculableReason.NOT_AN_INPUT);
         }
         Context bound = context.forFunctionBody(name);
         double[] values = new double[arguments.size()];

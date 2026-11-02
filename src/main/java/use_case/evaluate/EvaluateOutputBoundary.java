@@ -17,5 +17,7 @@ public interface EvaluateOutputBoundary {
 
     void prepareExpressionView(ExpressionOutputData expression);
 
+    void prepareUncalculableView(UncalculableOutputData why);
+
     void prepareFailView(String errorMessage);
 }

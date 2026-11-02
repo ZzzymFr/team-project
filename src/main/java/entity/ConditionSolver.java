@@ -70,12 +70,12 @@ public class ConditionSolver {
                 || intervals.get(intervals.size() - 1).getHigh() == Double.POSITIVE_INFINITY;
         boolean edgeTruth = !intervals.isEmpty();
         if (below && scan.closesPastEnd(-1) || above && scan.closesPastEnd(1)) {
-            throw new UncalculableException(UncalculableException.BEYOND_RANGE);
+            throw new UncalculableException(UncalculableReason.BEYOND_RANGE);
         }
         if (below && flipsBeyond(-1, edgeTruth) || above && flipsBeyond(1, edgeTruth)) {
             // keeps flipping out there = endless solutions
             throw new UncalculableException(rootsBeyond(MAX_ISOLATED_POINTS) == null
-                    ? UncalculableException.TOO_MANY_SOLUTIONS : UncalculableException.BEYOND_RANGE);
+                    ? UncalculableReason.TOO_MANY_SOLUTIONS : UncalculableReason.BEYOND_RANGE);
         }
         return intervals;
     }
@@ -115,7 +115,7 @@ public class ConditionSolver {
     public List<Interval> solveInRange() {
         double[] points = searchPoints.sortedCandidates();
         if (conditionRoots.isUndersampled()) {
-            throw new UncalculableException(UncalculableException.TOO_FAST);
+            throw new UncalculableException(UncalculableReason.TOO_FAST);
         }
         Set<Double> genuineRoots = new HashSet<>();
         List<Double> sortedRoots = conditionRoots.sortedRootValues();
@@ -146,7 +146,7 @@ public class ConditionSolver {
             if (start == end && !rootValues.contains(points[start]) && !midpoints.contains(points[start])) {
                 isolatedPoints++;
                 if (isolatedPoints > MAX_ISOLATED_POINTS || !isIsolated(points[start], true)) {
-                    throw new UncalculableException(UncalculableException.TOO_MANY_SOLUTIONS);
+                    throw new UncalculableException(UncalculableReason.TOO_MANY_SOLUTIONS);
                 }
                 addInterval(intervals, new Interval(points[start], true, points[start], true));
                 i++;
@@ -233,7 +233,7 @@ public class ConditionSolver {
             return null;
         }
         if (scan.closesPastEnd(-1) || scan.closesPastEnd(1)) {
-            throw new UncalculableException(UncalculableException.BEYOND_RANGE);
+            throw new UncalculableException(UncalculableReason.BEYOND_RANGE);
         }
         Collections.sort(roots);
         return roots;

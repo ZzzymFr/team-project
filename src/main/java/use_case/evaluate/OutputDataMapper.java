@@ -1,6 +1,7 @@
 package use_case.evaluate;
 
 import entity.Interval;
+import entity.UncalculableException;
 import entity.value.BooleanValue;
 import entity.value.FiniteSetValue;
 import entity.value.NumberSetValue;
@@ -25,6 +26,10 @@ public final class OutputDataMapper {
     public static IntervalOutputData of(Interval interval) {
         return new IntervalOutputData(interval.getLow(), interval.isLowIncluded(), interval.getHigh(),
                 interval.isHighIncluded(), interval.isPoint());
+    }
+
+    public static UncalculableOutputData of(UncalculableException e) {
+        return new UncalculableOutputData(e.getReason() == null ? null : e.getReason().name(), e.getDetail());
     }
 
     private static final class FromValue implements ValueVisitor<ValueOutputData> {

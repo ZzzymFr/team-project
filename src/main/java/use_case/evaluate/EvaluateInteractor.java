@@ -5,6 +5,7 @@ import entity.MathLexer;
 import entity.MathParser;
 import entity.MathSyntaxException;
 import entity.UncalculableException;
+import entity.UncalculableReason;
 import entity.UserFunction;
 import entity.node.Node;
 import entity.node.RelationNode;
@@ -69,11 +70,13 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
                 return;
             }
             evaluate(tokens);
+        } catch (UncalculableException e) {
+            presenter.prepareUncalculableView(OutputDataMapper.of(e));
         } catch (MathSyntaxException e) {
             presenter.prepareFailView(e.getMessage());
         } catch (StackOverflowError e) {
             // nested too deep to even walk
-            presenter.prepareFailView(new UncalculableException(UncalculableException.TOO_MUCH_WORK).getMessage());
+            presenter.prepareUncalculableView(OutputDataMapper.of(new UncalculableException(UncalculableReason.TOO_MUCH_WORK)));
         } catch (RuntimeException e) {
             presenter.prepareFailView("Uncalculable");
         }
@@ -110,7 +113,7 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
         Expr derivative = SymbolicDerivative.differentiate(node, functions);
         List<TextRunOutputData> runs = expressionWriter.runs(derivative);
         if (ExpressionOutputData.plainLength(runs) > MAX_ANSWER_LENGTH) {
-            throw new UncalculableException(UncalculableException.ANSWER_TOO_LONG);
+            throw new UncalculableException(UncalculableReason.ANSWER_TOO_LONG);
         }
         presenter.prepareExpressionView(new ExpressionOutputData(expressionWriter.latex(derivative), runs));
     }
@@ -119,17 +122,17 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
         Value value = node.evaluate(context);
         if (value instanceof NumberValue && Double.isInfinite(((NumberValue) value).getValue())
                 && !node.canBeInfinite()) {
-            throw new UncalculableException(UncalculableException.TOO_BIG);
+            throw new UncalculableException(UncalculableReason.TOO_BIG);
         }
         if (value instanceof NumberSetValue) {
-            throw new UncalculableException(UncalculableException.SET_ALONE);
+            throw new UncalculableException(UncalculableReason.SET_ALONE);
         }
         return value;
     }
 
     private int signMaskCount(MathParser parser) {
         if (parser.getPlusMinusCount() > MAX_PLUS_MINUS) {
-            throw new UncalculableException(UncalculableException.MAX_PLUS_MINUS);
+            throw new UncalculableException(UncalculableReason.MAX_PLUS_MINUS);
         }
         return 1 << parser.getPlusMinusCount();
     }
