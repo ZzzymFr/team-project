@@ -202,6 +202,8 @@ public class MathLexer {
             case "\\end":
             case "\\square":
                 throw new UncalculableException(UncalculableReason.TEXT);
+            case "\\\\":  // latex line break, model can write it
+                throw new UncalculableException(UncalculableReason.NOT_CALCULATION);
             case "\\div":
                 tokens.add("/");
                 break;

@@ -284,6 +284,17 @@ class AnswerCanvasPageTest {
     }
 
     @Test
+    void lineBreakGivesAWarningAndNoAnswer() throws Exception {
+        shared.setFormulaRecognizer(image -> "x+1=3\\\\x=2");
+        openPage();
+        write();
+        waitPopup("x+1=3\\\\x=2");
+        clickCalculate();
+        waitFor(() -> errorShown("Uncalculable — Not a calculation"), "the warning");
+        assertTrue(answers().isEmpty());
+    }
+
+    @Test
     void functionDefinitionOnlyShowsAMessage() throws Exception {
         shared.setFormulaRecognizer(image -> "f(x)=x^{2}");
         openPage();

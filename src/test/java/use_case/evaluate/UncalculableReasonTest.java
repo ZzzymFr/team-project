@@ -16,6 +16,7 @@ class UncalculableReasonTest {
         reason("Contains text", "\\text{Let }A", "\\square", "\\square+1=3", "\\begin{pmatrix}1\\end{pmatrix}");
         reason("Has \"…\"", "1+...+n", "v=(x_1,...x_n)");
         reason("Not a calculation", "f:\\mathbb{R}\\rightarrow\\mathbb{R}", "1;2", "a:b");
+        reason("Not a calculation", "\\\\", "1\\\\2", "x+1=3\\\\x=2");
         reason("Integrals not supported", "\\int_0^1 x dx");
         reason("∂ needs a function", "\\partial x");
     }

@@ -52,6 +52,14 @@ class MathLexerTest {
     }
 
     @Test
+    void lineBreakIsNotACalculation() {
+        for (String s : new String[] {"\\\\", "1\\\\2", "\\\\{1}", "x+1=3\\\\x=2"}) {
+            UncalculableException e = assertThrows(UncalculableException.class, () -> MathLexer.tokenize(s), s);
+            assertEquals(UncalculableReason.NOT_CALCULATION, e.getReason());
+        }
+    }
+
+    @Test
     void spacesBetweenTokensDoNotMatter() {
         assertEquals(MathLexer.tokenize("\\sin(x)+x^{2}+\\frac{1}{2}"),
                 MathLexer.tokenize("\\sin ( x ) + x ^ { 2 } + \\frac { 1 } { 2 }"));
