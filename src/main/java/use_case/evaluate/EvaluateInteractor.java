@@ -9,7 +9,6 @@ import entity.UncalculableReason;
 import entity.UserFunction;
 import entity.node.Node;
 import entity.node.RelationNode;
-import entity.symbolic.Expr;
 import entity.symbolic.SymbolicDerivative;
 import entity.value.NumberSetValue;
 import entity.value.NumberValue;
@@ -27,20 +26,16 @@ import java.util.Set;
 // picks what kind of input it is and hands it off
 public class EvaluateInteractor implements EvaluateInputBoundary {
     private static final int MAX_PLUS_MINUS = 4;
-    private static final int MAX_ANSWER_LENGTH = 60;
     private static final ValueVisitor<Value> ROUNDER = new ValueRounder();
 
     private final FunctionDataAccessInterface functionDataAccess;
     private final EvaluateOutputBoundary presenter;
-    private final ExpressionWriter expressionWriter;
     private final FunctionDefiner functionDefiner;
 
     public EvaluateInteractor(FunctionDataAccessInterface functionDataAccess,
-                              EvaluateOutputBoundary presenter,
-                              ExpressionWriter expressionWriter) {
+                              EvaluateOutputBoundary presenter) {
         this.functionDataAccess = functionDataAccess;
         this.presenter = presenter;
-        this.expressionWriter = expressionWriter;
         this.functionDefiner = new FunctionDefiner(functionDataAccess, presenter);
     }
 
@@ -110,12 +105,7 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
 
     // d/dx w/ no value for x: write the derivative out
     private void showDerivative(Node node, Map<String, UserFunction> functions) {
-        Expr derivative = SymbolicDerivative.differentiate(node, functions);
-        List<TextRunOutputData> runs = expressionWriter.runs(derivative);
-        if (ExpressionOutputData.plainLength(runs) > MAX_ANSWER_LENGTH) {
-            throw new UncalculableException(UncalculableReason.ANSWER_TOO_LONG);
-        }
-        presenter.prepareExpressionView(new ExpressionOutputData(expressionWriter.latex(derivative), runs));
+        presenter.prepareExpressionView(OutputDataMapper.of(SymbolicDerivative.differentiate(node, functions)));
     }
 
     private Value calculate(Node node, Context context) {

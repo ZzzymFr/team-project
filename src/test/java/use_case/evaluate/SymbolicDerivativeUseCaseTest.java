@@ -7,7 +7,6 @@ import entity.value.Value;
 import interface_adapter.MathLabState;
 import interface_adapter.MathLabViewModel;
 import interface_adapter.evaluate.EvaluatePresenter;
-import interface_adapter.evaluate.ExprOutputWriter;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -21,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class SymbolicDerivativeUseCaseTest {
     private final MathLabViewModel viewModel = new MathLabViewModel();
     private final EvaluateInteractor interactor =
-            new EvaluateInteractor(new InMemoryFunctionDataAccessObject(), new EvaluatePresenter(viewModel), new ExprOutputWriter());
+            new EvaluateInteractor(new InMemoryFunctionDataAccessObject(), new EvaluatePresenter(viewModel));
 
     private String show(String input) {
         interactor.execute(new EvaluateInputData(input));

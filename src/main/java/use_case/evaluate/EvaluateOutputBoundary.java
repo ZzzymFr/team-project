@@ -15,7 +15,7 @@ public interface EvaluateOutputBoundary {
 
     void prepareFunctionDefinedView(String definition);
 
-    void prepareExpressionView(ExpressionOutputData expression);
+    void prepareExpressionView(ExprOutputData expression);
 
     void prepareUncalculableView(UncalculableOutputData why);
 

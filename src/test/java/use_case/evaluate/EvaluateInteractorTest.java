@@ -1,7 +1,6 @@
 package use_case.evaluate;
 
 import data_access.InMemoryFunctionDataAccessObject;
-import interface_adapter.evaluate.ExprOutputWriter;
 import entity.Interval;
 import entity.value.Value;
 import entity.value.Values;
@@ -58,7 +57,7 @@ class EvaluateInteractorTest {
         }
 
         @Override
-        public void prepareExpressionView(ExpressionOutputData expression) {
+        public void prepareExpressionView(ExprOutputData expression) {
             kind = "expression";
         }
 
@@ -81,7 +80,7 @@ class EvaluateInteractorTest {
     @BeforeEach
     void setUp() {
         presenter = new FakePresenter();
-        interactor = new EvaluateInteractor(new InMemoryFunctionDataAccessObject(), presenter, new ExprOutputWriter());
+        interactor = new EvaluateInteractor(new InMemoryFunctionDataAccessObject(), presenter);
     }
 
     private void run(String expression) {

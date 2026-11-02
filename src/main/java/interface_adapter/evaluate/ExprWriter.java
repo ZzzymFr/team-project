@@ -1,8 +1,7 @@
 package interface_adapter.evaluate;
 
-import entity.symbolic.Expr;
-import entity.symbolic.Rational;
-import use_case.evaluate.TextRunOutputData;
+import interface_adapter.TextRun;
+import use_case.evaluate.ExprOutputData;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -11,7 +10,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-// Expr -> latex (result text / pdf) or style A runs (canvas, exponents raised)
+// derivative answer -> latex (result text / pdf) or style A runs (canvas, exponents raised)
 public final class ExprWriter {
     private static final int DECIMALS = 2;
     private static final Map<String, String> GREEK = Map.ofEntries(
@@ -23,7 +22,7 @@ public final class ExprWriter {
 
     private final boolean tex;
     private final StringBuilder latex = new StringBuilder();
-    private final List<TextRunOutputData> runs = new ArrayList<>();
+    private final List<TextRun> runs = new ArrayList<>();
     private int raised;
 
     private ExprWriter(boolean tex, int raised) {
@@ -31,24 +30,16 @@ public final class ExprWriter {
         this.raised = raised;
     }
 
-    public static String latex(Expr e) {
+    public static String latex(ExprOutputData e) {
         ExprWriter w = new ExprWriter(true, 0);
         w.write(e);
         return w.latex.toString();
     }
 
-    public static List<TextRunOutputData> runs(Expr e) {
+    public static List<TextRun> runs(ExprOutputData e) {
         ExprWriter w = new ExprWriter(false, 0);
         w.write(e);
         return Collections.unmodifiableList(w.runs);
-    }
-
-    public static String plain(List<TextRunOutputData> runs) {
-        StringBuilder text = new StringBuilder();
-        for (TextRunOutputData run : runs) {
-            text.append(run.getText());
-        }
-        return text.toString();
     }
 
     // ---- output
@@ -64,9 +55,9 @@ public final class ExprWriter {
         boolean up = raised > 0;
         int last = runs.size() - 1;
         if (last >= 0 && runs.get(last).isRaised() == up) {
-            runs.set(last, new TextRunOutputData(runs.get(last).getText() + runText, up));
+            runs.set(last, new TextRun(runs.get(last).getText() + runText, up));
         } else {
-            runs.add(new TextRunOutputData(runText, up));
+            runs.add(new TextRun(runText, up));
         }
     }
 
@@ -79,11 +70,11 @@ public final class ExprWriter {
             latex.append(w.latex);
             return;
         }
-        for (TextRunOutputData run : w.runs) {
+        for (TextRun run : w.runs) {
             boolean up = run.isRaised();
             int last = runs.size() - 1;
             if (last >= 0 && runs.get(last).isRaised() == up) {
-                runs.set(last, new TextRunOutputData(runs.get(last).getText() + run.getText(), up));
+                runs.set(last, new TextRun(runs.get(last).getText() + run.getText(), up));
             } else {
                 runs.add(run);
             }
@@ -91,7 +82,7 @@ public final class ExprWriter {
     }
 
     private String flat() {
-        return tex ? latex.toString() : plain(runs);
+        return tex ? latex.toString() : TextRun.plain(runs);
     }
 
     private ExprWriter sub() {
@@ -100,8 +91,8 @@ public final class ExprWriter {
 
     // ---- sums and terms
 
-    private void write(Expr e) {
-        if (e.kind() == Expr.Kind.ADD) {
+    private void write(ExprOutputData e) {
+        if (e.kind() == ExprOutputData.Kind.ADD) {
             for (int i = 0; i < e.terms().size(); i++) {
                 writeSigned(e.terms().get(i), i == 0);
             }
@@ -110,9 +101,8 @@ public final class ExprWriter {
         }
     }
 
-    private void writeSigned(Expr term, boolean first) {
-        Rational c = coefficient(term);
-        if (c != null && c.isNegative()) {
+    private void writeSigned(ExprOutputData term, boolean first) {
+        if (hasNegativeCoefficient(term)) {
             emit("-", "−");
             writeTerm(negated(term));
         } else {
@@ -123,45 +113,45 @@ public final class ExprWriter {
         }
     }
 
-    private static Rational coefficient(Expr term) {
+    private static boolean hasNegativeCoefficient(ExprOutputData term) {
         if (term.isNum()) {
-            return term.value();
+            return term.isNegative();
         }
-        if (term.kind() == Expr.Kind.MUL && !term.terms().isEmpty() && term.terms().get(0).isNum()) {
-            return term.terms().get(0).value();
-        }
-        return null;
+        return term.kind() == ExprOutputData.Kind.MUL && !term.terms().isEmpty() && term.terms().get(0).isNum()
+                && term.terms().get(0).isNegative();
     }
 
-    private static Expr negated(Expr term) {
+    private static ExprOutputData negated(ExprOutputData term) {
         if (term.isNum()) {
-            return Expr.num(term.value().neg(), term.isDecimal());
+            return ExprOutputData.num(Math.negateExact(term.num()), term.den(), term.isDecimal());
         }
-        List<Expr> factors = new ArrayList<>(term.terms());
-        Expr c = factors.get(0);
-        Rational flipped = c.value().neg();
-        if (flipped.isOne() && !c.isDecimal() && factors.size() > 1) {
+        List<ExprOutputData> factors = new ArrayList<>(term.terms());
+        ExprOutputData c = factors.get(0);
+        long flipped = Math.negateExact(c.num());
+        if (flipped == 1 && c.den() == 1 && !c.isDecimal() && factors.size() > 1) {
             factors.remove(0);
         } else {
-            factors.set(0, Expr.num(flipped, c.isDecimal()));
+            factors.set(0, ExprOutputData.num(flipped, c.den(), c.isDecimal()));
         }
-        return factors.size() == 1 ? factors.get(0) : Expr.mul(factors);
+        return factors.size() == 1 ? factors.get(0) : ExprOutputData.mul(factors);
     }
 
     // splits into top/bottom so x^-1 and 1/2 go under a fraction
-    private void writeTerm(Expr term) {
-        List<Expr> factors = term.kind() == Expr.Kind.MUL ? term.terms() : List.of(term);
-        List<Expr> top = new ArrayList<>();
-        List<Expr> bottom = new ArrayList<>();
-        for (Expr f : factors) {
-            if (f.isNum() && !f.isDecimal() && !f.value().isInteger()) {
-                if (f.value().getNum() != 1) {
-                    top.add(Expr.num(f.value().getNum()));
+    private void writeTerm(ExprOutputData term) {
+        List<ExprOutputData> factors = term.kind() == ExprOutputData.Kind.MUL ? term.terms() : List.of(term);
+        List<ExprOutputData> top = new ArrayList<>();
+        List<ExprOutputData> bottom = new ArrayList<>();
+        for (ExprOutputData f : factors) {
+            if (f.isNum() && !f.isDecimal() && !f.isInteger()) {
+                if (f.num() != 1) {
+                    top.add(ExprOutputData.num(f.num()));
                 }
-                bottom.add(Expr.num(f.value().getDen()));
-            } else if (f.kind() == Expr.Kind.POW && f.exponent().isNum() && f.exponent().value().isNegative()) {
-                Rational flipped = f.exponent().value().neg();
-                bottom.add(flipped.isOne() ? f.base() : Expr.pow(f.base(), Expr.num(flipped, f.exponent().isDecimal())));
+                bottom.add(ExprOutputData.num(f.den()));
+            } else if (f.kind() == ExprOutputData.Kind.POW && f.exponent().isNum() && f.exponent().isNegative()) {
+                ExprOutputData exp = f.exponent();
+                long flipped = Math.negateExact(exp.num());
+                bottom.add(flipped == 1 && exp.den() == 1 ? f.base()
+                        : ExprOutputData.pow(f.base(), ExprOutputData.num(flipped, exp.den(), exp.isDecimal())));
             } else {
                 top.add(f);
             }
@@ -170,27 +160,27 @@ public final class ExprWriter {
             writeFactors(top);
         } else if (tex) {
             emit("\\frac{");
-            writeTexFractionPart(top.isEmpty() ? List.of(Expr.num(1)) : top);
+            writeTexFractionPart(top.isEmpty() ? List.of(ExprOutputData.num(1)) : top);
             emit("}{");
             writeTexFractionPart(bottom);
             emit("}");
         } else {
-            writeFractionPart(top.isEmpty() ? List.of(Expr.num(1)) : top);
+            writeFractionPart(top.isEmpty() ? List.of(ExprOutputData.num(1)) : top);
             emit("/");
             writeFractionPart(bottom);
         }
     }
 
     // lone sum needs no parens inside \frac
-    private void writeTexFractionPart(List<Expr> factors) {
-        if (factors.size() == 1 && factors.get(0).kind() == Expr.Kind.ADD) {
+    private void writeTexFractionPart(List<ExprOutputData> factors) {
+        if (factors.size() == 1 && factors.get(0).kind() == ExprOutputData.Kind.ADD) {
             write(factors.get(0));
         } else {
             writeFactors(factors);
         }
     }
 
-    private void writeFractionPart(List<Expr> factors) {
+    private void writeFractionPart(List<ExprOutputData> factors) {
         boolean parens = factors.size() > 1;  // a lone sum brings its own
         if (parens) {
             emit("(");
@@ -201,10 +191,10 @@ public final class ExprWriter {
         }
     }
 
-    private void writeFactors(List<Expr> factors) {
+    private void writeFactors(List<ExprOutputData> factors) {
         String before = "";
         for (int i = 0; i < factors.size(); i++) {
-            Expr f = factors.get(i);
+            ExprOutputData f = factors.get(i);
             boolean last = i == factors.size() - 1;
             boolean bare = last || isFunction(factors.get(i + 1));
             ExprWriter w = sub();
@@ -218,27 +208,27 @@ public final class ExprWriter {
         }
     }
 
-    private void separate(String before, String text, Expr next) {
+    private void separate(String before, String text, ExprOutputData next) {
         if (text.isEmpty()) {
             return;
         }
         char c = text.charAt(0);
         if (Character.isDigit(c) || c == '.') {
             emit("\\cdot ", "·");
-        } else if (!tex && (isFunction(next) || next.kind() == Expr.Kind.DVAR)) {
+        } else if (!tex && (isFunction(next) || next.kind() == ExprOutputData.Kind.DVAR)) {
             emit(" ");
         } else if (tex && Character.isLetter(c) && before.matches(".*\\\\[a-zA-Z]+")) {
             emit(" ");  // \pi x, not \pix
         }
     }
 
-    private static boolean isFunction(Expr e) {
-        return e.kind() == Expr.Kind.FN || e.kind() == Expr.Kind.LOG;
+    private static boolean isFunction(ExprOutputData e) {
+        return e.kind() == ExprOutputData.Kind.FN || e.kind() == ExprOutputData.Kind.LOG;
     }
 
     // ---- single factors
 
-    private void writeFactor(Expr f, boolean bare) {
+    private void writeFactor(ExprOutputData f, boolean bare) {
         switch (f.kind()) {
             case NUM:
                 writeNumber(f);
@@ -268,33 +258,32 @@ public final class ExprWriter {
         }
     }
 
-    private void writeGroup(Expr e) {
+    private void writeGroup(ExprOutputData e) {
         emit("(");
         write(e);
         emit(")");
     }
 
-    private void writeNumber(Expr n) {
-        Rational r = n.value();
+    private void writeNumber(ExprOutputData n) {
         if (n.isDecimal()) {
-            BigDecimal shown = BigDecimal.valueOf(r.getNum())
-                    .divide(BigDecimal.valueOf(r.getDen()), DECIMALS, RoundingMode.HALF_UP).stripTrailingZeros();
+            BigDecimal shown = BigDecimal.valueOf(n.num())
+                    .divide(BigDecimal.valueOf(n.den()), DECIMALS, RoundingMode.HALF_UP).stripTrailingZeros();
             emit(shown.signum() == 0 ? "0" : shown.toPlainString().replace("-", tex ? "-" : "−"));
-        } else if (r.isInteger()) {
-            emit(Long.toString(r.getNum()).replace("-", tex ? "-" : "−"));
+        } else if (n.isInteger()) {
+            emit(Long.toString(n.num()).replace("-", tex ? "-" : "−"));
         } else {
             writeGroup(n);  // stray fraction, write() splits it
         }
     }
 
-    private void writePower(Expr p) {
-        Expr exp = p.exponent();
-        if (exp.isNum() && !exp.isDecimal() && exp.value().getNum() == 1 && exp.value().getDen() > 1) {
-            writeRoot(p.base(), exp.value().getDen());
+    private void writePower(ExprOutputData p) {
+        ExprOutputData exp = p.exponent();
+        if (exp.isNum() && !exp.isDecimal() && exp.num() == 1 && exp.den() > 1) {
+            writeRoot(p.base(), exp.den());
             return;
         }
-        Expr base = p.base();
-        if (isSymbol(base) && !(base.isNum() && base.value().isNegative())) {
+        ExprOutputData base = p.base();
+        if (isSymbol(base) && !(base.isNum() && base.isNegative())) {
             writeFactor(base, true);
         } else {
             writeGroup(base);
@@ -302,7 +291,7 @@ public final class ExprWriter {
         writeRaised(exp);
     }
 
-    private void writeRoot(Expr base, long degree) {
+    private void writeRoot(ExprOutputData base, long degree) {
         if (tex) {
             emit(degree == 2 ? "\\sqrt{" : "\\sqrt[" + degree + "]{");
             write(base);
@@ -322,7 +311,7 @@ public final class ExprWriter {
         }
     }
 
-    private void writeRaised(Expr exp) {
+    private void writeRaised(ExprOutputData exp) {
         if (tex) {
             emit("^{");
             write(exp);
@@ -344,8 +333,8 @@ public final class ExprWriter {
         raised--;
     }
 
-    private void writeFunction(Expr f, boolean bare) {
-        if (f.kind() == Expr.Kind.FN) {
+    private void writeFunction(ExprOutputData f, boolean bare) {
+        if (f.kind() == ExprOutputData.Kind.FN) {
             emit("\\" + f.name(), f.name());
         } else if (f.logBase() == null) {
             emit("\\log", "log");
@@ -358,8 +347,8 @@ public final class ExprWriter {
             }
             emit("}", "");
         }
-        Expr arg = f.arg();
-        if (bare && isSymbol(arg) && !(arg.isNum() && arg.value().isNegative())) {
+        ExprOutputData arg = f.arg();
+        if (bare && isSymbol(arg) && !(arg.isNum() && arg.isNegative())) {
             emit(" ");
             writeFactor(arg, true);
         } else {
@@ -367,10 +356,10 @@ public final class ExprWriter {
         }
     }
 
-    private String subscript(Expr base) {
-        if (base.isNum() && base.value().isInteger() && !base.value().isNegative()) {
+    private String subscript(ExprOutputData base) {
+        if (base.isNum() && base.isInteger() && !base.isNegative()) {
             StringBuilder s = new StringBuilder();
-            for (char c : Long.toString(base.value().getNum()).toCharArray()) {
+            for (char c : Long.toString(base.num()).toCharArray()) {
                 s.append(SUBSCRIPTS.charAt(c - '0'));
             }
             return s.toString();
@@ -380,14 +369,14 @@ public final class ExprWriter {
         return "_" + w.flat();
     }
 
-    private static boolean isSymbol(Expr e) {
+    private static boolean isSymbol(ExprOutputData e) {
         switch (e.kind()) {
             case VAR:
             case E:
             case PI:
                 return true;
             case NUM:
-                return e.isDecimal() || e.value().isInteger();
+                return e.isDecimal() || e.isInteger();
             default:
                 return false;
         }

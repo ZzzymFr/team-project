@@ -1,6 +1,7 @@
 package entity.symbolic;
 
 import interface_adapter.evaluate.ExprWriter;
+import use_case.evaluate.OutputDataMapper;
 import entity.Context;
 import entity.MathLexer;
 import entity.MathParser;
@@ -28,7 +29,7 @@ class SymbolicDerivativeTest {
     }
 
     private String d(String latex) {
-        String out = ExprWriter.latex(SymbolicDerivative.differentiate(parse(latex), functions));
+        String out = ExprWriter.latex(OutputDataMapper.of(SymbolicDerivative.differentiate(parse(latex), functions)));
         SimplifierTest.clean(out);
         return out;
     }

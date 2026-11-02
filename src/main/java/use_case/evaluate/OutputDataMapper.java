@@ -2,6 +2,8 @@ package use_case.evaluate;
 
 import entity.Interval;
 import entity.UncalculableException;
+import entity.symbolic.Expr;
+import entity.symbolic.Rational;
 import entity.value.BooleanValue;
 import entity.value.FiniteSetValue;
 import entity.value.NumberSetValue;
@@ -10,6 +12,7 @@ import entity.value.Value;
 import entity.value.ValueVisitor;
 import entity.value.VectorValue;
 
+import java.util.ArrayList;
 import java.util.List;
 
 // entities -> output data, the only spot that knows both
@@ -30,6 +33,24 @@ public final class OutputDataMapper {
 
     public static UncalculableOutputData of(UncalculableException e) {
         return new UncalculableOutputData(e.getReason() == null ? null : e.getReason().name(), e.getDetail());
+    }
+
+    public static ExprOutputData of(Expr e) {
+        Rational value = e.value();
+        return new ExprOutputData(ExprOutputData.Kind.valueOf(e.kind().name()), value == null ? 0 : value.getNum(),
+                value == null ? 0 : value.getDen(), e.isDecimal(), e.name(), terms(e),
+                e.base() == null ? null : of(e.base()), e.exponent() == null ? null : of(e.exponent()));
+    }
+
+    private static List<ExprOutputData> terms(Expr e) {
+        if (e.terms() == null) {
+            return null;
+        }
+        List<ExprOutputData> terms = new ArrayList<>();
+        for (Expr term : e.terms()) {
+            terms.add(of(term));
+        }
+        return terms;
     }
 
     private static final class FromValue implements ValueVisitor<ValueOutputData> {

@@ -42,10 +42,13 @@ final class UncalculableText {
             Map.entry("ZERO_VECTOR", "Zero vector has no direction"),
             Map.entry("ABS_DERIVATIVE", "Can't differentiate |x|"),
             Map.entry("FACTORIAL_DERIVATIVE", "Can't differentiate n!"),
-            Map.entry("NOT_DIFFERENTIABLE", "Can't differentiate this"),
-            Map.entry("ANSWER_TOO_LONG", "Answer too long"));
+            Map.entry("NOT_DIFFERENTIABLE", "Can't differentiate this"));
 
     private UncalculableText() {
+    }
+
+    static String answerTooLong() {
+        return "Uncalculable — Answer too long";
     }
 
     static String of(String reason, String detail) {

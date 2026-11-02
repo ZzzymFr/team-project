@@ -5,7 +5,6 @@ import view.answer.CanvasAnswer;
 import interface_adapter.MathLabViewModel;
 import interface_adapter.evaluate.EvaluateController;
 import interface_adapter.evaluate.EvaluatePresenter;
-import interface_adapter.evaluate.ExprOutputWriter;
 import org.junit.jupiter.api.Test;
 import use_case.evaluate.EvaluateInteractor;
 import view.DrawingCanvas;
@@ -33,7 +32,7 @@ class AnswerCanvasPageDerivativeTest {
     private void openPage(String latex) throws Exception {
         shared.setFormulaRecognizer(image -> latex);
         EvaluateController controller = new EvaluateController(new EvaluateInteractor(
-                new InMemoryFunctionDataAccessObject(), new EvaluatePresenter(viewModel), new ExprOutputWriter()));
+                new InMemoryFunctionDataAccessObject(), new EvaluatePresenter(viewModel)));
         SwingUtilities.invokeAndWait(() -> {
             page = new AnswerCanvasPage(shared, controller, viewModel, (l, result) -> pdfResult.set(result));
             page.setPopupDelay(100);
