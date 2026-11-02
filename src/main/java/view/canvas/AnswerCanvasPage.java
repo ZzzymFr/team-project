@@ -1,6 +1,6 @@
 package view.canvas;
 
-import interface_adapter.evaluate.AnswerKind;
+import interface_adapter.AnswerKind;
 import entity.Stroke;
 import interface_adapter.TextRun;
 import interface_adapter.MathLabViewModel;
@@ -20,7 +20,6 @@ import java.awt.Font;
 import java.awt.Rectangle;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -220,9 +219,9 @@ public class AnswerCanvasPage extends CanvasPage {
     }
 
     private void deliver(FormulaCapture capture, String latex, CalculationOutcome outcome) {
-        AnswerKind kind = AnswerKind.of(latex);
+        AnswerKind kind = outcome.kind;
         String result = outcome.result;
-        List<TextRun> runs = outcome.runs;
+        List<TextRun> runs = outcome.answerRuns;
         String error = outcome.error;
         if (!error.isEmpty()) {
             // popup only, nothing drawn
@@ -235,8 +234,8 @@ public class AnswerCanvasPage extends CanvasPage {
             showMessage(result, false, DEFINED_MESSAGE_MILLIS);  // nothing to draw
         } else {
             boolean drawn = runs == null
-                    ? getSharedCanvas().showAnswer(capture.getId(), capture.getRevision(), kind, kind.answerText(result), false)
-                    : getSharedCanvas().showAnswer(capture.getId(), capture.getRevision(), kind, withEquals(kind, runs), false);
+                    ? getSharedCanvas().showAnswer(capture.getId(), capture.getRevision(), kind, outcome.answerText, false)
+                    : getSharedCanvas().showAnswer(capture.getId(), capture.getRevision(), kind, runs, false);
             if (drawn && latex != null && !latex.isBlank()
                     && !java.util.Objects.equals(exportedRevisions.get(capture.getId()), capture.getRevision())) {
                 exportedRevisions.put(capture.getId(), capture.getRevision());
@@ -246,19 +245,5 @@ public class AnswerCanvasPage extends CanvasPage {
         if (--running == 0 && !ownMessage) {
             hideMessage();
         }
-    }
-
-    // "= " in front unless it goes right after the user's =
-    private static List<TextRun> withEquals(AnswerKind kind, List<TextRun> runs) {
-        if (kind == AnswerKind.AFTER_EQUALS) {
-            return runs;
-        }
-        List<TextRun> out = new ArrayList<>(runs);
-        if (!out.isEmpty() && !out.get(0).isRaised()) {
-            out.set(0, new TextRun("= " + out.get(0).getText(), false));
-        } else {
-            out.add(0, new TextRun("= ", false));
-        }
-        return out;
     }
 }

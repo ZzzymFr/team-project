@@ -1,5 +1,7 @@
 package interface_adapter.evaluate;
 
+import interface_adapter.AnswerKind;
+import interface_adapter.TextRun;
 import use_case.evaluate.IntervalOutputData;
 import use_case.evaluate.ValueOutputData;
 
@@ -20,6 +22,26 @@ public final class AnswerFormatter {
     private static final double TINY = 0.005;
 
     private AnswerFormatter() {
+    }
+
+    // what gets drawn: drop the "= " right after the user's =, real minus sign
+    static String canvasText(AnswerKind kind, String result) {
+        String text = kind == AnswerKind.AFTER_EQUALS && result.startsWith("= ") ? result.substring(2) : result;
+        return text.replace('-', '−');
+    }
+
+    // "= " in front unless it goes right after the user's =
+    static List<TextRun> canvasRuns(AnswerKind kind, List<TextRun> runs) {
+        if (kind == AnswerKind.AFTER_EQUALS) {
+            return runs;
+        }
+        List<TextRun> out = new ArrayList<>(runs);
+        if (!out.isEmpty() && !out.get(0).isRaised()) {
+            out.set(0, new TextRun("= " + out.get(0).getText(), false));
+        } else {
+            out.add(0, new TextRun("= ", false));
+        }
+        return out;
     }
 
     // booleans alone get no "= "

@@ -24,6 +24,10 @@ class EvaluateInteractorTest {
         String text;
 
         @Override
+        public void prepareFormulaShape(FormulaShape shape) {
+        }
+
+        @Override
         public void prepareValuesView(List<ValueOutputData> values) {
             kind = "values";
             this.values = values;

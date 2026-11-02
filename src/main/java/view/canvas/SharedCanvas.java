@@ -1,6 +1,6 @@
 package view.canvas;
 
-import interface_adapter.evaluate.AnswerKind;
+import interface_adapter.AnswerKind;
 import view.answer.CanvasAnswer;
 import entity.Stroke;
 import interface_adapter.TextRun;

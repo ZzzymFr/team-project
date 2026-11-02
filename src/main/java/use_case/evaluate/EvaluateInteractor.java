@@ -44,6 +44,7 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
         String expression = inputData.getExpression();
         try {
             List<String> tokens = MathLexer.tokenize(expression);
+            presenter.prepareFormulaShape(FormulaShape.of(tokens));
 
             if (!tokens.isEmpty() && tokens.get(tokens.size() - 1).equals("=")) {
                 tokens.remove(tokens.size() - 1);

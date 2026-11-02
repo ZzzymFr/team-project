@@ -9,7 +9,11 @@ public class MathLabState {
 
     private String errorText = "";
 
-    private List<TextRun> resultRuns;  // canvas text w/ raised exponents, null for plain answers
+    private AnswerKind answerKind = AnswerKind.RIGHT;
+
+    private String answerText = "";  // what gets drawn
+
+    private List<TextRun> answerRuns;  // same w/ raised exponents, null for plain answers
 
     private boolean definition;  // f(x)= got saved, nothing to draw
 
@@ -27,15 +31,31 @@ public class MathLabState {
 
     public void setResultText(String resultText) {
         this.resultText = resultText;
-        this.resultRuns = null;
+        this.answerRuns = null;
     }
 
-    public List<TextRun> getResultRuns() {
-        return resultRuns;
+    public AnswerKind getAnswerKind() {
+        return answerKind;
     }
 
-    public void setResultRuns(List<TextRun> resultRuns) {
-        this.resultRuns = resultRuns;
+    public void setAnswerKind(AnswerKind answerKind) {
+        this.answerKind = answerKind;
+    }
+
+    public String getAnswerText() {
+        return answerText;
+    }
+
+    public void setAnswerText(String answerText) {
+        this.answerText = answerText;
+    }
+
+    public List<TextRun> getAnswerRuns() {
+        return answerRuns;
+    }
+
+    public void setAnswerRuns(List<TextRun> answerRuns) {
+        this.answerRuns = answerRuns;
     }
 
     public boolean isDefinition() {

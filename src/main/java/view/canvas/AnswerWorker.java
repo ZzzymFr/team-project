@@ -53,7 +53,7 @@ final class AnswerWorker {
             try {
                 controller.execute(latex);
             } catch (Throwable e) {
-                finish(new CalculationOutcome("", null, reason(e), false));
+                finish(CalculationOutcome.failed(reason(e)));
             }
         });
     }
@@ -63,8 +63,8 @@ final class AnswerWorker {
             return;
         }
         MathLabState state = (MathLabState) event.getNewValue();
-        finish(new CalculationOutcome(state.getResultText(), state.getResultRuns(), state.getErrorText(),
-                state.isDefinition()));
+        finish(new CalculationOutcome(state.getResultText(), state.getAnswerKind(), state.getAnswerText(),
+                state.getAnswerRuns(), state.getErrorText(), state.isDefinition()));
     }
 
     private void finish(CalculationOutcome outcome) {

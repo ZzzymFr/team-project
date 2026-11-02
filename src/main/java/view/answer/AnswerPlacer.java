@@ -1,7 +1,7 @@
 package view.answer;
 
 import entity.Stroke;
-import interface_adapter.evaluate.AnswerKind;
+import interface_adapter.AnswerKind;
 import interface_adapter.TextRun;
 
 import java.awt.geom.Point2D;

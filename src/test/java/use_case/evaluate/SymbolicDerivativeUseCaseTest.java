@@ -51,9 +51,9 @@ class SymbolicDerivativeUseCaseTest {
     @Test
     void runsComeWithTheAnswer() {
         show("\\frac{d}{dx}(x^3)");
-        List<TextRun> runs = viewModel.getState().getResultRuns();
+        List<TextRun> runs = viewModel.getState().getAnswerRuns();
         assertNotNull(runs);
-        assertEquals("3x2", TextRun.plain(runs));
+        assertEquals("= 3x2", TextRun.plain(runs));
         assertTrue(runs.get(runs.size() - 1).isRaised());
     }
 
@@ -61,10 +61,10 @@ class SymbolicDerivativeUseCaseTest {
     void numericAfterSymbolicHasNoRuns() {
         show("\\frac{d}{dx}(x^3)");
         show("1+1");
-        assertNull(viewModel.getState().getResultRuns());
+        assertNull(viewModel.getState().getAnswerRuns());
         show("\\frac{d}{dx}(x^3)");
         show("\\frac{d}{dx}|x|");
-        assertNull(viewModel.getState().getResultRuns());
+        assertNull(viewModel.getState().getAnswerRuns());
     }
 
     @Test

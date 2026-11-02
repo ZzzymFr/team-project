@@ -1,6 +1,6 @@
 package view;
 
-import interface_adapter.evaluate.AnswerKind;
+import interface_adapter.AnswerKind;
 import view.answer.CanvasAnswer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
