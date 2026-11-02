@@ -22,7 +22,7 @@ import ai.djl.modality.cv.ImageFactory;
  * 单线程使用。先 init()；返回的 NDArray 由调用方 close，最晚在模型 close 时释放。
  */
 public final class vital_mini implements AutoCloseable {
-    public static final int VOCAB_LENGTH = 188;
+    public static final int VOCAB_LENGTH = 200;
     public static final int PAD_ID = 67, BOS_ID = 68, EOS_ID = 69, MAX_LEN = 200;
     private final Path modelPath;
     private ModelRuntime runtime;
@@ -114,7 +114,7 @@ public final class vital_mini implements AutoCloseable {
 
     /**
      * encoded 为 CNN 输出 FLOAT32 [B,256,h,w]；tokens INT64 [B,T]
-     * -> FLOAT32 [B,T,188]，返回未做 softmax 的词表 logits。
+     * -> FLOAT32 [B,T,200]，返回未做 softmax 的词表 logits。
      */
     public NDArray forward(NDArray encoded, NDArray tokens) throws TranslateException {
         return forward(encoded, tokens, null, null);

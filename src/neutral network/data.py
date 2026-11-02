@@ -1,8 +1,10 @@
-"""下载并混合官方 MathWriting、UniMER 和 HME100K HF，支持缓存与断点续传。
+"""下载并混合 OCR 图文数据，或独立下载 DeepMind 数学文本；支持缓存与断点续传。
 
-python data.py                         # 下载三个数据源，输出 data/mixed
+python data.py                         # 下载四个数据源（含 CROHME 2023），输出 data/mixed
 python data.py --sample                # 示例版，约 1.5 MB
 python data.py --sources mathwriting   # 只准备 MathWriting（含 synthetic）
+python data.py --sources deepmind      # 下载独立数学问答文本，不加入 OCR 混合清单
+python data.py --sources crohme2023    # 下载/解压 CROHME，独立输出 data/crohme2023-mixed
 
 来源：https://github.com/google-research/google-research/tree/master/mathwriting
 """
@@ -20,12 +22,20 @@ import tarfile
 import time
 import urllib.error
 import urllib.request
+import xml.etree.ElementTree as ET
 import zipfile
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path, PurePosixPath
 
 
 BASE_URL = "https://storage.googleapis.com/mathwriting_data/"
+DEEPMIND_FILENAME = "mathematics_dataset-v1.0.tar.gz"
+DEEPMIND_URL = ("https://storage.googleapis.com/mathematics-dataset/" + DEEPMIND_FILENAME
+                + "?generation=1565196705731724")
+DEEPMIND_MD5 = "c5f9590beaf2d2445b55240ce0dab9a5"
+CROHME_URL = "https://zenodo.org/records/8428035/files/CROHME23.zip?download=1"
+CROHME_MD5 = "9eb899ddb0e87c80a17f489bf6162c33"
 DATA_DIR = Path(__file__).resolve().parent / "data"
 CHUNK_SIZE = 1024 * 1024
 HF_SOURCES = {
@@ -117,6 +127,138 @@ def download(url: str, destination: Path) -> Path:
             print(f"下载中断，将重试 ({attempt + 1}/2): {error}")
             time.sleep(2)
     raise RuntimeError("下载失败")
+
+
+def download_ranges(url: str, destination: Path, workers: int = 8, part_size: int = 32 * 1024**2) -> Path:
+    """并发下载支持 Range 的大文件；每段校验范围，可中断续传。"""
+    receipt = destination.with_suffix(destination.suffix + ".download.json")
+    if receipt.exists() and destination.is_file():
+        if json.loads(receipt.read_text()) == {"url": url, "file": file_stamp(destination)}:
+            return destination
+    with urllib.request.urlopen(urllib.request.Request(url, method="HEAD"), timeout=60) as response:
+        total, etag = int(response.headers["Content-Length"]), response.headers.get("ETag")
+    folder = destination.with_suffix(destination.suffix + ".ranges")
+    folder.mkdir(parents=True, exist_ok=True)
+    marker = folder / "source.json"
+    identity = {"url": url, "size": total, "etag": etag, "part_size": part_size}
+    if marker.exists() and json.loads(marker.read_text()) != identity:
+        raise ValueError(f"分段下载来源已变化，请检查旧缓存: {folder}")
+    write_json(marker, identity)
+    ranges = [(start, min(start + part_size, total) - 1) for start in range(0, total, part_size)]
+    parts = [folder / f"{i:05d}.part" for i in range(len(ranges))]
+    # 复用此前单连接下载完成的整段。
+    partial = destination.with_suffix(destination.suffix + ".part")
+    if partial.is_file() and partial.stat().st_size <= total:
+        with partial.open("rb") as source:
+            for path, (start, end) in zip(parts, ranges):
+                if end >= partial.stat().st_size:
+                    break
+                if not path.exists():
+                    source.seek(start)
+                    path.write_bytes(source.read(end - start + 1))
+
+    def fetch(index):
+        start, end = ranges[index]
+        path = parts[index]
+        size = end - start + 1
+        for attempt in range(3):
+            offset = path.stat().st_size if path.exists() else 0
+            if offset == size:
+                return size
+            if offset > size:
+                raise ValueError(f"分段大小异常: {path}")
+            headers = {"Range": f"bytes={start + offset}-{end}", "Accept-Encoding": "identity"}
+            if etag:
+                headers["If-Range"] = etag
+            try:
+                with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=60) as response:
+                    expected = f"bytes {start + offset}-{end}/{total}"
+                    if response.status != 206 or response.headers.get("Content-Range") != expected:
+                        raise ValueError(f"分段下载范围不匹配: {response.headers.get('Content-Range')}")
+                    with path.open("ab" if offset else "wb") as output:
+                        shutil.copyfileobj(response, output, CHUNK_SIZE)
+                if path.stat().st_size != size:
+                    raise OSError(f"分段未完成: {path}")
+                return size
+            except OSError:
+                if attempt == 2:
+                    raise
+                time.sleep(2)
+
+    completed = 0
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        for future in as_completed([pool.submit(fetch, i) for i in range(len(parts))]):
+            completed += future.result()
+            print(f"已完成下载分段: {completed / total:.1%}", flush=True)
+    assembled = destination.with_suffix(destination.suffix + ".assembled")
+    with assembled.open("wb") as output:
+        for path in parts:
+            with path.open("rb") as source:
+                shutil.copyfileobj(source, output, CHUNK_SIZE)
+    if assembled.stat().st_size != total:
+        raise OSError("合并后的下载大小不一致")
+    assembled.replace(destination)
+    write_json(receipt, {"url": url, "file": file_stamp(destination)})
+    for path in parts:
+        path.unlink()
+    marker.unlink()
+    folder.rmdir()
+    partial.unlink(missing_ok=True)
+    return destination
+
+
+def download_crohme2023() -> Path:
+    """下载官方 CROHME 2023 发布包，按发布页 MD5 校验并记录 SHA-256。"""
+    archive = DATA_DIR / "downloads" / "CROHME23.zip"
+    marker = archive.with_suffix(".verified.json")
+    if marker.exists() and archive.is_file():
+        saved = json.loads(marker.read_text(encoding="utf-8"))
+        if (saved.get("url") == CROHME_URL and saved.get("md5") == CROHME_MD5
+                and saved.get("file") == file_stamp(archive)):
+            print(f"复用已校验 CROHME 2023: {archive}", flush=True)
+            return archive
+    download_ranges(CROHME_URL, archive)
+    print("校验 CROHME 2023 压缩包……", flush=True)
+    md5, sha256 = hashlib.md5(), hashlib.sha256()
+    with archive.open("rb") as stream:
+        while chunk := stream.read(CHUNK_SIZE):
+            md5.update(chunk)
+            sha256.update(chunk)
+    if md5.hexdigest() != CROHME_MD5:
+        raise ValueError(f"CROHME 2023 压缩包 MD5 不匹配: {archive}")
+    write_json(marker, {"url": CROHME_URL, "md5": md5.hexdigest(),
+                        "sha256": sha256.hexdigest(), "file": file_stamp(archive)})
+    return archive
+
+
+def prepare_deepmind() -> dict:
+    """下载并校验官方数学问答压缩包；它没有手写图片，不能作为 OCR 清单。"""
+    archive = DATA_DIR / "downloads" / DEEPMIND_FILENAME
+    marker = DATA_DIR / "deepmind" / "download.json"
+    if marker.exists() and archive.is_file():
+        saved = json.loads(marker.read_text(encoding="utf-8"))
+        if (saved.get("url") == DEEPMIND_URL and saved.get("md5") == DEEPMIND_MD5
+                and saved.get("file") == file_stamp(archive)):
+            print(f"复用已校验 DeepMind 数学文本: {archive}", flush=True)
+            return saved
+    download(DEEPMIND_URL, archive)
+    print("校验 DeepMind 压缩包 MD5 / SHA-256……", flush=True)
+    md5, sha256 = hashlib.md5(), hashlib.sha256()
+    with archive.open("rb") as stream:
+        while chunk := stream.read(CHUNK_SIZE):
+            md5.update(chunk)
+            sha256.update(chunk)
+    if md5.hexdigest() != DEEPMIND_MD5:
+        raise ValueError(f"DeepMind 压缩包校验失败，文件已保留供检查: {archive}")
+    report = {"dataset": "DeepMind Mathematics Dataset v1.0", "modality": "text",
+              "url": DEEPMIND_URL, "archive": str(archive.resolve()),
+              "file": file_stamp(archive), "md5": md5.hexdigest(), "sha256": sha256.hexdigest(),
+              "source": "https://github.com/google-deepmind/mathematics_dataset",
+              "format": "tar.gz; original text files contain alternating question/answer lines",
+              "ocr_compatible": False, "extracted": False}
+    write_json(marker, report)
+    print(f"DeepMind 文本下载完成: {archive}\n这是数学问答文本，未解压或加入 OCR 训练清单。", flush=True)
+    return report
 
 
 def extract(archive_path: Path, output: Path, splits: list[str]) -> dict[str, int]:
@@ -216,22 +358,22 @@ def safe_target(root: Path, relative: str) -> Path:
     return target
 
 
-def extract_zip(archive_path: Path, output: Path, rebuild: bool = False) -> None:
+def extract_zip(archive_path: Path, output: Path, rebuild: bool = False, workers: int = 1) -> None:
     marker = output / f".{archive_path.stem}.extracted.json"
     if not rebuild and marker.exists() and json.loads(marker.read_text()) == file_stamp(archive_path):
         print(f"复用已解压 {archive_path.name}", flush=True)
         return
     output.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(archive_path) as archive:
-        for i, member in enumerate(archive.infolist()):
+        def extract_member(member):
             target = safe_target(output, member.filename)
             if member.is_dir():
                 target.mkdir(parents=True, exist_ok=True)
-                continue
+                return
             if (member.external_attr >> 16) & 0o170000 == 0o120000:
                 raise ValueError(f"不支持压缩包符号链接: {member.filename}")
             if target.is_file() and target.stat().st_size == member.file_size:
-                continue
+                return
             target.parent.mkdir(parents=True, exist_ok=True)
             temporary = target.with_suffix(target.suffix + ".part")
             if temporary.is_symlink():
@@ -239,14 +381,35 @@ def extract_zip(archive_path: Path, output: Path, rebuild: bool = False) -> None
             with archive.open(member) as source, temporary.open("wb") as dest:
                 shutil.copyfileobj(source, dest, CHUNK_SIZE)
             temporary.replace(target)
-            if i and i % 50000 == 0:
-                print(f"解压 {archive_path.name}: {i} 个文件", flush=True)
+        members = archive.infolist()
+        if workers == 1:
+            for i, member in enumerate(members, 1):
+                extract_member(member)
+                if i % 50000 == 0:
+                    print(f"解压 {archive_path.name}: {i}/{len(members)} 个文件", flush=True)
+        else:
+            # 先建立父目录，避免 Windows 在并发创建目录时解析尚不存在的路径。
+            for parent in sorted({str(PurePosixPath(m.filename).parent) for m in members
+                                  if not m.is_dir()}):
+                if parent != ".":
+                    safe_target(output, parent).mkdir(parents=True, exist_ok=True)
+            # 限制待处理任务数，避免为数十万个小文件一次创建所有 Future。
+            with ThreadPoolExecutor(max_workers=workers) as pool:
+                for start in range(0, len(members), 1000):
+                    list(pool.map(extract_member, members[start:start + 1000]))
+                    if start % 10000 == 0:
+                        print(f"解压 {archive_path.name}: {min(start + 1000, len(members))}/{len(members)} 个文件", flush=True)
     write_json(marker, file_stamp(archive_path))
 
 
 def label_key(label: str) -> str:
-    # 仅去除排版空格；不改写标签含义。保留命令边界，避免把 '\\sin x' 与 '\\sinx' 混同。
-    tokens = re.findall(r"\\[a-zA-Z]+|\\.|\S", label)
+    # 与训练使用同一规则，防止 cos / c o s / \cos 分落训练集和验证集。
+    from labels import tokenize_label
+    try:
+        tokens = tokenize_label(label)
+    except ValueError:
+        # 损坏标签仍由训练加载器过滤；保留其原始身份，不与合法公式混同。
+        tokens = ["<invalid-label>", label]
     return hashlib.sha256("\x1f".join(tokens).encode()).hexdigest()
 
 
@@ -300,6 +463,59 @@ def prepare_manifests(name: str, fingerprint: dict, records, rebuild: bool = Fal
     write_json(marker, {"fingerprint": fingerprint, "counts": dict(counts),
                         "files": {split: file_stamp(p) for split, p in paths.items()}})
     return paths
+
+
+def crohme_ink_label(path: Path) -> str | None:
+    """只读取表达式级标签；不把符号级 annotation 当作完整公式。"""
+    root = ET.parse(path).getroot()
+    if not any((node.text or "").strip() for node in root.iter("{http://www.w3.org/2003/InkML}trace")):
+        return None
+    annotations = {node.get("type", "").lower(): "".join(node.itertext()).strip()
+                   for node in root.findall("{*}annotation")}
+    for name in ("normalizedlabel", "truth", "latex"):
+        label = annotations.get(name, "")
+        if label:
+            if label.startswith("$$") and label.endswith("$$"):
+                label = label[2:-2].strip()
+            elif label.startswith("$") and label.endswith("$"):
+                label = label[1:-1].strip()
+            return label or None
+    return None
+
+
+def prepare_crohme2023(rebuild: bool = False):
+    archive = download_crohme2023()
+    output = DATA_DIR / "crohme2023"
+    extract_zip(archive, output, rebuild, workers=8)
+    root = output / "TC11_CROHME23"
+    if not (root / "INKML").is_dir():
+        raise ValueError(f"CROHME 发布包缺少 INKML 目录: {root}")
+
+    def records():
+        counts, skipped = Counter(), Counter()
+        for original, split in (("train", "train"), ("val", "valid"), ("test", "test")):
+            paths = sorted((root / "INKML" / original).rglob("*.inkml"))
+            if not paths:
+                raise ValueError(f"CROHME 缺少官方 {original} 分区")
+            for path in paths:
+                try:
+                    label = crohme_ink_label(path)
+                except ET.ParseError:
+                    skipped[f"{split}/invalid_xml"] += 1
+                    continue
+                if label is None:
+                    skipped[f"{split}/missing_label_or_traces"] += 1
+                    continue
+                counts[split] += 1
+                # 每个表达式只使用一次轨迹，避免把配套 PNG 再当成额外样本。
+                yield split, {"path": str(path.resolve()), "format": "inkml", "latex": label,
+                              "source": "crohme2023", "original_split": original,
+                              "content_hash": "inkml:" + hashlib.sha256(path.read_bytes()).hexdigest(),
+                              "label_hash": label_key(label)}
+        write_json(output / "conversion.json", {"counts": dict(counts), "skipped": dict(skipped),
+                   "input": "INKML with expression-level LaTeX and traces; rendered by train.py",
+                   "excluded_modality": "PNG-only / SymLG-only samples are downloaded but not imported"})
+    return prepare_manifests("crohme2023", {"version": 1, "archive": file_stamp(archive)}, records, rebuild)
 
 
 def prepare_mathwriting(root: Path, splits: list[str], rebuild: bool = False):
@@ -394,13 +610,14 @@ def prepare_hme100k(download_root: Path, valid_fraction: float, rebuild: bool = 
 
 def mix_manifests(sources: dict, output: Path) -> dict:
     """保留测试/验证边界，去除像素相同的图片及字节相同的 InkML。"""
+    from labels import NORMALIZATION_VERSION
     output = output.resolve()
     output.mkdir(parents=True, exist_ok=True)
     inputs = {str(p): file_stamp(p) for paths in sources.values() for p in paths.values()}
     summary_path = output / "summary.json"
     if summary_path.exists():
         cached = json.loads(summary_path.read_text())
-        if cached.get("inputs") == inputs and all(
+        if cached.get("normalization_version") == NORMALIZATION_VERSION and cached.get("inputs") == inputs and all(
             (output / name).is_file() and file_stamp(output / name) == stamp
             for name, stamp in cached.get("outputs", {}).items()
         ) and len(cached.get("outputs", {})) == 3:
@@ -423,6 +640,8 @@ def mix_manifests(sources: dict, output: Path) -> dict:
                 with manifest.open(encoding="utf-8") as stream:
                     for line in stream:
                         row = json.loads(line)
+                        # 来源清单可能是旧缓存，始终按当前训练规则重新计算标签身份。
+                        row["label_hash"] = label_key(row["latex"])
                         # 清单由上面的转换器从规范化路径生成；这里只需消除 ..，
                         # 避免对百万条记录反复逐级解析同一批父目录。
                         sample_path = Path(os.path.abspath(manifest.parent / row["path"]))
@@ -442,7 +661,8 @@ def mix_manifests(sources: dict, output: Path) -> dict:
         temporary.replace(path)
         heldout_labels.update(split_labels)
         print(f"合并完成 {split}: {dict(counts)}", flush=True)
-    report = {"counts": dict(counts), "skipped": dict(skipped),
+    report = {"normalization_version": NORMALIZATION_VERSION,
+              "counts": dict(counts), "skipped": dict(skipped),
               "inputs": inputs,
               "outputs": {f"{split}.jsonl": file_stamp(output / f"{split}.jsonl")
                           for split in ("train", "valid", "test")},
@@ -454,9 +674,9 @@ def mix_manifests(sources: dict, output: Path) -> dict:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="下载、复用并混合 MathWriting / UniMER / HME100K HF")
-    parser.add_argument("--sources", nargs="+", choices=["mathwriting", "unimer", "hme100k-hf"],
-                        default=["mathwriting", "unimer", "hme100k-hf"])
+    parser = argparse.ArgumentParser(description="下载 OCR 图文数据并混合，或独立下载 DeepMind 数学文本")
+    parser.add_argument("--sources", nargs="+", choices=["mathwriting", "unimer", "hme100k-hf", "deepmind", "crohme2023"],
+                        help="默认包含 MathWriting、UniMER、HME100K 和 CROHME 2023")
     parser.add_argument("--sample", action="store_true", help="仅下载 MathWriting 小样本")
     parser.add_argument("--out", type=Path, help="混合数据清单输出目录，默认 data/mixed")
     parser.add_argument("--splits", nargs="+", choices=["train", "valid", "test", "synthetic"],
@@ -465,14 +685,27 @@ def main() -> None:
                         help="从 UniMER/HME100K 训练集按公式固定划分验证集的比例")
     parser.add_argument("--rebuild", action="store_true", help="重建解压/转换缓存，不重新下载完整文件")
     args = parser.parse_args()
+    if args.sources is None:
+        args.sources = (["mathwriting"] if args.sample else
+                        ["mathwriting", "unimer", "hme100k-hf", "crohme2023"])
+    if args.sample and set(args.sources) & {"deepmind", "crohme2023"}:
+        parser.error("--sample 仅适用于 MathWriting，不能与 deepmind/crohme2023 一起使用")
+    if args.out and set(args.sources) == {"deepmind"}:
+        parser.error("--out 是 OCR 混合清单目录，不适用于独立 DeepMind 文本下载")
     if not 0 < args.valid_fraction < 1:
         parser.error("valid-fraction 必须介于 0 和 1 之间")
-    output = (args.out or DATA_DIR / ("mixed-sample" if args.sample else "mixed")).resolve()
     sources = ["mathwriting"] if args.sample else list(dict.fromkeys(args.sources))
+    default_output = ("mixed-sample" if args.sample else "crohme2023-mixed"
+                      if set(sources) - {"deepmind"} == {"crohme2023"} else "mixed")
+    output = (args.out or DATA_DIR / default_output).resolve()
     manifests = {}
     for source in sources:
         print(f"准备数据源: {source}", flush=True)
-        if source == "mathwriting":
+        if source == "deepmind":
+            prepare_deepmind()
+        elif source == "crohme2023":
+            manifests[source] = prepare_crohme2023(args.rebuild)
+        elif source == "mathwriting":
             name = "mathwriting-2024-excerpt" if args.sample else "mathwriting-2024"
             archive = download(BASE_URL + name + ".tgz", DATA_DIR / "downloads" / (name + ".tgz"))
             root = DATA_DIR / name
@@ -482,6 +715,8 @@ def main() -> None:
             downloaded = download_hf(source)
             prepare = prepare_unimer if source == "unimer" else prepare_hme100k
             manifests[source] = prepare(downloaded, args.valid_fraction, args.rebuild)
+    if not manifests:
+        return
     report = mix_manifests(manifests, output)
     print(json.dumps(report["counts"], ensure_ascii=False, indent=2), flush=True)
     print(f'数据准备完成。训练命令: python "{Path(__file__).with_name("train.py")}" --data "{output}" --max-samples 0')

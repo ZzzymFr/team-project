@@ -43,56 +43,11 @@ def source_name(value: str | None, kind: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ValueError("source 必须为非空字符串")
     aliases = {"mathwriting": "MathWriting", "unimer": "UniMER",
-               "hme100k": "HME100K", "hme100k-hf": "HME100K"}
+               "hme100k": "HME100K", "hme100k-hf": "HME100K", "crohme2023": "CROHME2023"}
     return aliases.get(value.strip().lower(), value.strip())
 
 # ---------- 标签 -> token ----------
-TOKEN_RE = re.compile(r"\\[a-zA-Z]+|\\.|\S", re.S)             # \frac 这类命令是一个 token,其余按单字符
-# MathWriting 的 normalizedLabel 把函数名写成普通字母(sin、log...),词表里是 \sin 这样的命令
-FUNC_RE = re.compile(r"(?<![a-zA-Z\\])(sin|cos|tan|log|ln|lim)")
-ALIASES = {r"\le": r"\leq", r"\ge": r"\geq", r"\ne": r"\neq", r"\to": r"\rightarrow"}   # 同义写法统一成词表里的那个
-ALIASES.update({r"\Box": r"\square", "□": r"\square"})
-ALIASES.update({"⟨": r"\langle", "⟩": r"\rangle", "⊥": r"\perp",
-                "‖": r"\|", r"\Vert": r"\|", r"\lVert": r"\|", r"\rVert": r"\|"})
-LABEL_RE = re.compile(r'<annotation type="normalizedLabel">(.*?)</annotation>', re.S)
-GREEK_ALIASES = dict(zip(
-    "αβγδεζηθικλμνξοπρστυφχψω",
-    ("\\" + name for name in "alpha beta gamma delta varepsilon zeta eta theta iota kappa lambda mu nu xi omicron pi rho sigma tau upsilon varphi chi psi omega".split())))
-GREEK_ALIASES.update(dict(zip("ΓΔΘΛΞΠΣΥΦΨΩ", ("\\" + name for name in
-    "Gamma Delta Theta Lambda Xi Pi Sigma Upsilon Phi Psi Omega".split()))))
-GREEK_ALIASES.update({"ϵ": r"\epsilon", "ϑ": r"\vartheta", "ϰ": r"\varkappa", "ϖ": r"\varpi",
-                      "ϱ": r"\varrho", "ς": r"\varsigma", "ϕ": r"\phi"})
-ALIASES.update(GREEK_ALIASES)
-TEXT_START_RE = re.compile(r"\\text\s*\{")
-TEXT_TOKEN_RE = re.compile(r"\\[a-zA-Z]+|\\.|\s+|\S", re.S)
-
-def tokenize_label(label: str) -> list[str]:
-    def math_tokens(text: str) -> list[str]:
-        text = FUNC_RE.sub(lambda m: "\\" + m.group(1) + " ", text)
-        # 自动大小定界符不改变符号含义，统一省略；文字区域仍保持原样。
-        return [ALIASES.get(t, t) for t in TOKEN_RE.findall(text)
-                if t not in {r"\left", r"\right"}]
-
-    result, position = [], 0
-    while match := TEXT_START_RE.search(label, position):
-        result.extend(math_tokens(label[position:match.start()]))
-        result.extend([r"\text", "{"])
-        depth = 1
-        for token_match in TEXT_TOKEN_RE.finditer(label, match.end()):
-            token = token_match.group()
-            if token == "{":
-                depth += 1
-            elif token == "}":
-                depth -= 1
-            # LaTeX 文字区域中的连续空白表示一个词间空格。
-            result.append(" " if token.isspace() else token)
-            if depth == 0:
-                position = token_match.end()
-                break
-        else:
-            raise ValueError(f"标签的 \\text 区域缺少右花括号: {label}")
-    result.extend(math_tokens(label[position:]))
-    return result
+from labels import tokenize_label, LABEL_RE
 
 def build_index(root: Path, split: str) -> list[tuple[str, str]]:
     """扫描 split 目录,返回 [(文件名, normalizedLabel)];文件有几十万个,只扫一次,之后读缓存"""
@@ -609,8 +564,9 @@ def resolve_data_root(value: str) -> Path:
     return working_path
 
 
-def main():
-    ap = argparse.ArgumentParser()
+def main(argv=None, *, freeze_cnn: bool = False):
+    ap = argparse.ArgumentParser(description="冻结 CNN 的解码器训练" if freeze_cnn else "完整 OCR 生成模型训练")
+    checkpoint_root = Path(__file__).resolve().parents[2] / "checkpoints"
     ap.add_argument("--data", default=str(Path(__file__).resolve().parent / "data" / "mixed"),
                     help="默认读取 data/mixed 中的多来源混合数据；相对路径先查工作目录，再查脚本目录")
     ap.add_argument("--image-data", nargs="+", default=[], help="额外的个人图片数据目录（train.jsonl，可选 valid.jsonl）")
@@ -630,21 +586,41 @@ def main():
     ap.add_argument("--max-samples", type=int, default=0, help="限制训练/验证样本数用于调试，0=使用全部可用数据")
     ap.add_argument("--eval-n", type=int, default=1000, help="整式正确率的固定分层均衡抽样总数；不足时使用全部可用验证样本")
     ap.add_argument("--eval-seed", type=int, default=0, help="固定验证抽样种子，独立于训练 seed")
-    ap.add_argument("--out", default=str(Path(__file__).resolve().parents[2] / "checkpoints"),
+    ap.add_argument("--out", default=str(checkpoint_root),
                     help="日志和验证抽样记录目录；默认权重为该目录下的 model.pt")
     ap.add_argument("--weights", type=Path, help="读取并原位更新的权重文件，默认 --out/model.pt")
+    if freeze_cnn:
+        ap.add_argument("--init-weights", type=Path, default=checkpoint_root / "model.pt",
+                        help="输出权重不存在时读取的预训练模型；只读，默认 checkpoints/model.pt")
     ap.add_argument("--seed", type=int, default=0)
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
     if args.max_samples < 0 or args.workers < 0 or args.epochs < 1 or args.batch_size < 1 or args.eval_n < 1:
         ap.error("max-samples、workers 必须 >= 0；epochs、batch-size、eval-n 必须 >= 1")
     args.data = str(resolve_data_root(args.data))
     args.weights = (args.weights or Path(args.out) / "model.pt").resolve()
+    args.freeze_cnn = freeze_cnn
+    if freeze_cnn:
+        args.init_weights = args.init_weights.resolve()
     with training_log(args):
         train(args)
 
 
+def set_training_mode(model: vital_mini, freeze_cnn: bool = False):
+    """训练解码器时保留 dropout；冻结 CNN 时同时固定 BatchNorm 运行统计。"""
+    model.train()
+    if freeze_cnn:
+        model.cnn.eval()
+
+
 def train(args):
     print(f"数据目录: {args.data} | batch_size={args.batch_size} | workers={args.workers}", flush=True)
+    freeze_cnn = getattr(args, "freeze_cnn", False)
+    weights_path = Path(args.weights)
+    initial_path = weights_path
+    if freeze_cnn and not initial_path.is_file():
+        initial_path = Path(args.init_weights)
+    if freeze_cnn and not initial_path.is_file():
+        raise FileNotFoundError(f"冻结 CNN 需要已有预训练权重，不能冻结随机初始化的 CNN: {initial_path}")
 
     random.seed(args.seed)
     torch.manual_seed(args.seed)
@@ -696,28 +672,32 @@ def train(args):
 
     model = vital_mini().to(device)
     best = float("inf")
-    weights_path = Path(args.weights)
     checkpoint_metadata = {}
-    if weights_path.exists():
+    if initial_path.exists():
         # 只恢复模型权重;优化器、学习率调度和训练轮数仍从本次运行开始。
-        checkpoint = torch.load(weights_path, map_location="cpu", weights_only=True)
+        checkpoint = torch.load(initial_path, map_location="cpu", weights_only=True)
         state_dict = checkpoint["model"] if "model" in checkpoint else checkpoint
         if "model" in checkpoint:
             checkpoint_metadata = {key: value for key, value in checkpoint.items() if key != "model"}
         if load_training_weights(model, state_dict):
             old_size = state_dict["token_embedding.weight"].shape[0]
             print(f"已兼容旧的 {old_size} 词权重并扩展到 {vocab_size} 词；新增符号将在本次训练中学习")
-        if "model" in checkpoint and checkpoint.get("validation_signature") == validation_signature:
+        if initial_path == weights_path and "model" in checkpoint and checkpoint.get("validation_signature") == validation_signature:
             best = float(checkpoint.get("val_loss", best))
         else:
-            print("验证集已变化或旧权重未记录验证集信息，本次重新比较最佳验证损失")
+            print("新实验或验证集签名不一致，本次重新比较最佳验证损失")
         del state_dict, checkpoint
-        print(f"已加载模型权重: {weights_path.resolve()} (优化器和学习率调度重新初始化)")
+        print(f"已加载模型权重: {initial_path.resolve()} (优化器和学习率调度重新初始化)")
     else:
         print(f"未找到模型权重: {weights_path.resolve()}, 从头训练")
     # 生成训练只更新本体，已经训练好的判断头一并加载、保存但不参与优化。
     for parameter in model.judge_parameters():
         parameter.requires_grad_(False)
+    if freeze_cnn:
+        model.cnn.requires_grad_(False)
+        model.cnn.eval()
+        print("训练模式: 冻结 CNN 参数及 BatchNorm 统计；更新生成解码器、词嵌入和共享输出层")
+    print(f"权重输出: {weights_path.resolve()}")
     print(f"device: {device} | parameters: {sum(p.numel() for p in model.parameters())}")
     optimizer = torch.optim.AdamW((p for p in model.parameters() if p.requires_grad),
                                   lr=Learning_rate, weight_decay=0.01)
@@ -745,7 +725,7 @@ def train(args):
     weights_path.parent.mkdir(parents=True, exist_ok=True)
     for epoch in range(1, args.epochs + 1):
         train_sampler.set_epoch(epoch - 1)
-        model.train()
+        set_training_mode(model, freeze_cnn)
         start, running = time.time(), 0.0
         train_loss_sum = train_token_count = 0
         for step, batch in enumerate(train_loader, 1):
@@ -782,6 +762,8 @@ def train(args):
                   f"({exact['correct']}/{exact['sample_count']})")
 
         ckpt = {**checkpoint_metadata,
+                "training_mode": "decoder_only" if freeze_cnn else "full_generator",
+                "cnn_frozen": freeze_cnn, "initial_weights": str(initial_path.resolve()),
                 "model": model.state_dict(), "epoch": epoch, "val_loss": val_loss, "exp_rate": rate,
                 "validation_signature": validation_signature, "image_invert": IMAGE_INVERT,
                 "validation": validation, "validation_by_source": validation_by_source,
