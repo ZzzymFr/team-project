@@ -16,6 +16,7 @@ import java.io.IOException;
 
 public final class PdfEditorFrame extends JFrame {
     private final MathLibrary library;
+    private final java.util.List<BufferedImage> inkRegions;
     private final DocumentEditor useCase = new DocumentEditor();
     private final DefaultListModel<MathLibrary.Material> listModel = new DefaultListModel<>();
     private final JList<MathLibrary.Material> shelf = new JList<>(listModel);
@@ -33,9 +34,16 @@ public final class PdfEditorFrame extends JFrame {
     private int previewPage = 0;
     private java.util.List<BufferedImage> previewImages = new java.util.ArrayList<>();
 
-    public PdfEditorFrame(MathLibrary library) {
+    public PdfEditorFrame(MathLibrary library) { this(library, null, java.util.List.of()); }
+
+    public PdfEditorFrame(MathLibrary library, BufferedImage sourceSnapshot) {
+        this(library, sourceSnapshot, java.util.List.of());
+    }
+
+    public PdfEditorFrame(MathLibrary library, BufferedImage sourceSnapshot, java.util.List<BufferedImage> regions) {
         super("Math Lab - PDF Editor");
         this.library = library;
+        this.inkRegions = java.util.List.copyOf(regions);
         setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
         setSize(1120, 850); setMinimumSize(new Dimension(830, 650));
         setLocationRelativeTo(null);
@@ -57,7 +65,56 @@ public final class PdfEditorFrame extends JFrame {
         left.add(heading, BorderLayout.NORTH);
         JScrollPane shelfScroll = glassScroll(shelf);
         shelfScroll.getViewport().setOpaque(false);
-        left.add(shelfScroll, BorderLayout.CENTER);
+        if (sourceSnapshot == null) {
+            left.add(shelfScroll, BorderLayout.CENTER);
+        } else {
+            JTabbedPane sources = new JTabbedPane();
+            sources.addTab("Library", shelfScroll);
+            CanvasRegionSelector selector = new CanvasRegionSelector(sourceSnapshot, region -> {
+                MathLibrary.Material item = MathLibrary.region("Canvas Region", region);
+                float ratio = (float) region.getHeight() / Math.max(1, region.getWidth());
+                float w = Math.min(460, region.getWidth());
+                float h = Math.min(650, w * ratio);
+                canvas.selected = useCase.place(currentPage, item, 55, 65, w, h);
+                canvas.repaint();
+                status.setText("Region added. Drag, resize, or arrange it on the A4 page.");
+            });
+            JPanel sourceTab = new JPanel(new BorderLayout(0, 8));
+            JPanel selectionBar = new JPanel(new FlowLayout(FlowLayout.CENTER, 5, 4));
+            JToggleButton rectangle = new JToggleButton("Rectangle", true);
+            JToggleButton lasso = new JToggleButton("Lasso");
+            ButtonGroup group = new ButtonGroup(); group.add(rectangle); group.add(lasso);
+            rectangle.addActionListener(e -> selector.setFreehand(false));
+            lasso.addActionListener(e -> selector.setFreehand(true));
+            JButton add = button("Add Selection to Page", () -> {
+                BufferedImage region = selector.selectedRegion();
+                if (region == null) { status.setText("Select a region on Canvas first."); return; }
+                MathLibrary.Material item = MathLibrary.region("Canvas Region", region);
+                float ratio = (float) region.getHeight() / Math.max(1, region.getWidth());
+                float w = Math.min(460, region.getWidth());
+                float h = Math.min(650, w * ratio);
+                canvas.selected = useCase.place(currentPage, item, 55, 65, w, h);
+                canvas.repaint();
+                status.setText("Region added to Page " + (currentPage+1) + ".");
+            });
+            JButton clear = button("Clear", selector::clearSelection);
+            JButton fit = button("Fit", selector::fitToView);
+            JButton zoomIn = button("+", () -> selector.setZoom(selector.zoom() * 1.25));
+            JButton zoomOut = button("-", () -> selector.setZoom(selector.zoom() / 1.25));
+            selectionBar.add(rectangle); selectionBar.add(lasso);
+            selectionBar.add(zoomOut); selectionBar.add(zoomIn); selectionBar.add(fit);
+            JPanel actionBar = new JPanel(new FlowLayout(FlowLayout.CENTER, 8, 4));
+            actionBar.add(add); actionBar.add(clear);
+            JPanel controls = new JPanel(new BorderLayout());
+            controls.add(selectionBar, BorderLayout.NORTH);
+            controls.add(actionBar, BorderLayout.SOUTH);
+            sourceTab.add(controls, BorderLayout.NORTH);
+            JScrollPane sourceScroll = new JScrollPane(selector);
+            selector.attachScrollPane(sourceScroll);
+            sourceTab.add(sourceScroll, BorderLayout.CENTER);
+            sources.addTab("Canvas", sourceTab);
+            left.add(sources, BorderLayout.CENTER);
+        }
         left.setPreferredSize(new Dimension(320, 600));
         editor.add(left, BorderLayout.WEST);
         RoundedPanel stage = new RoundedPanel(new BorderLayout(), new Color(233, 240, 250), 24);
@@ -83,6 +140,7 @@ public final class PdfEditorFrame extends JFrame {
         setContentPane(center);
         library.onChange(() -> SwingUtilities.invokeLater(this::refreshShelf));
         refreshShelf(); updatePageLabel();
+
     }
     private void setupShelf() {
         shelf.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
@@ -190,9 +248,40 @@ public final class PdfEditorFrame extends JFrame {
         tools.add(button("Undo", this::undo)); tools.add(button("Redo", this::redo));
         tools.add(menuButton("Arrange", arrangeMenu()));
         tools.add(button("+ Note", this::addNote));
+        tools.add(button("Auto Layout", this::autoLayout));
+        
         tools.add(button("Done / Preview", this::showPreview));
         return tools;
     }
+    private void autoLayout() {
+        importOrdered(new java.util.ArrayList<>(library.items()), "library materials");
+    }
+
+    /** Import into the current A4 page, continuing onto newly created pages when necessary. */
+    private void importOrdered(java.util.List<MathLibrary.Material> items, String description) {
+        if (items.isEmpty()) { status.setText("No " + description + " available to import."); return; }
+        int page = currentPage;
+        float y = 36;
+        for (PdfDocument.Placement placement : useCase.placements(page))
+            y = Math.max(y, placement.y + placement.height + 14);
+        for (MathLibrary.Material item : items) {
+            float width = item.isGraph() ? 495 : 340;
+            float height = 85;
+            if (item.isGraph() && item.graph != null) {
+                height = Math.min(380, Math.max(100,
+                        width * item.graph.getHeight() / Math.max(1f, item.graph.getWidth())));
+            }
+            if (y + height > PdfDocument.PAGE_HEIGHT - 36) {
+                page = useCase.addPage();
+                y = 36;
+            }
+            useCase.place(page, item, 45, y, width, height);
+            y += height + 18;
+        }
+        switchPage(page);
+        status.setText("Imported " + items.size() + " " + description + ". Undo reverses one step at a time.");
+    }
+
     private JButton menuButton(String title, JPopupMenu menu) {
         JButton button = new GlassButton(title, 34);
         button.addActionListener(e -> menu.show(button, 0, button.getHeight()));
@@ -250,11 +339,31 @@ public final class PdfEditorFrame extends JFrame {
         menuItem(menu, "Bring Forward", () -> arrange(1));
         menuItem(menu, "Send Backward", () -> arrange(-1));
         menuItem(menu, "Send to Back", () -> arrange(-2));
+        JMenu moveMenu = new JMenu("Move to Page");
+        for (int target = 0; target < useCase.pageCount(); target++) {
+            final int pageIndex = target;
+            if (pageIndex != currentPage)
+                menuItem(moveMenu.getPopupMenu(), "Page " + (pageIndex + 1),
+                    () -> moveSelectedToPage(selected, pageIndex));
+        }
+        menuItem(moveMenu.getPopupMenu(), "New Page", () -> {
+            int target = useCase.addPage();
+            moveSelectedToPage(selected, target);
+        });
+        menu.add(moveMenu);
         menu.addSeparator();
         menuItem(menu, "Delete Item", () -> {
             useCase.delete(currentPage, canvas.selected); canvas.selected = null; canvas.repaint();
         });
         menu.show(canvas, e.getX(), e.getY());
+    }
+    private void moveSelectedToPage(PdfDocument.Placement selected, int target) {
+        if (useCase.moveToPage(currentPage, target, selected)) {
+            switchPage(target);
+            canvas.selected = selected;
+            canvas.repaint();
+            status.setText("Moved item to Page " + (target + 1) + ".");
+        }
     }
     private JButton button(String title, Runnable action) {
         JButton b = new GlassButton(title, 34); b.addActionListener(e -> action.run()); return b;

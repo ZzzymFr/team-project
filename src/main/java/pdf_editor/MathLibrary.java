@@ -23,10 +23,19 @@ public final class MathLibrary {
         public boolean isGraph() { return graph != null; }
     }
     public static Material detachedFormula(Material source) {
-        return new Material(source.title + " - Formula", source.formula, "", null);
+        return new Material(source.title + " - Formula", stripTrailingEquals(source.formula), "", null);
     }
     public static Material detachedResult(Material source) {
-        return new Material(source.title + " - Result", source.result, "", null);
+        return new Material(source.title + " - Result", "", "=" + stripLeadingEquals(source.result), null);
+    }
+    static String stripTrailingEquals(String value) {
+        return value == null ? "" : value.trim().replaceFirst("\\s*=+\\s*$", "");
+    }
+    static String stripLeadingEquals(String value) {
+        return value == null ? "" : value.trim().replaceFirst("^\\s*=+\\s*", "");
+    }
+    public static Material region(String title, BufferedImage image) {
+        return new Material(title, "", "", image);
     }
     private final List<Material> items = new ArrayList<>();
     private final List<Runnable> listeners = new ArrayList<>();
@@ -47,7 +56,9 @@ public final class MathLibrary {
     public Material addGraph(String latex, BufferedImage image) {
         if (image == null) throw new IllegalArgumentException("Image is required");
         Material item = new Material("Graph " + (items.size() + 1), latex, "", image);
-        items.add(item); changed(); return item;
+        items.add(item); changed();
+        if (latex != null && !latex.isBlank()) addFormula(latex);
+        return item;
     }
     private void changed() { for (Runnable listener : new ArrayList<>(listeners)) listener.run(); }
 }
