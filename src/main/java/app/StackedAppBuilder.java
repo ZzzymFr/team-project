@@ -39,6 +39,8 @@ public class StackedAppBuilder {
     private final StackedPages pages = new StackedPages();
     private final PdfStudioLauncher pdfStudio = new PdfStudioLauncher();
 
+    { pdfStudio.setSourceCanvas(sharedCanvas); }
+
     /** The Graph page, wired to the graph use case: LaTeX -> parse and sample -> QuickChart -> graph card. */
     public StackedAppBuilder addGraphPage() {
         GraphViewModel viewModel = new GraphViewModel();

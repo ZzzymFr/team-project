@@ -77,14 +77,26 @@ public final class DocumentEditor {
         int index = items.indexOf(original);
         if (index < 0) return null;
         checkpoint();
-        float half = Math.max(35, original.height / 2);
+        float leftWidth = Math.max(45, original.width * .52f);
+        float rightWidth = Math.max(45, original.width - leftWidth);
         PdfDocument.Placement formula = new PdfDocument.Placement(
-                MathLibrary.detachedFormula(original.material), original.x, original.y, original.width, half);
+                MathLibrary.detachedFormula(original.material), original.x, original.y,
+                leftWidth, original.height);
         PdfDocument.Placement result = new PdfDocument.Placement(
-                MathLibrary.detachedResult(original.material), original.x,
-                Math.min(PdfDocument.PAGE_HEIGHT - half, original.y + half + 12), original.width, half);
+                MathLibrary.detachedResult(original.material), original.x + leftWidth,
+                original.y, rightWidth, original.height);
         items.remove(index); items.add(index, formula); items.add(index + 1, result);
         return new PdfDocument.Placement[] { formula, result };
+    }
+    public boolean moveToPage(int from, int to, PdfDocument.Placement placement) {
+        checkPage(from); checkPage(to);
+        if (from == to || !document.pages.get(from).contains(placement)) return false;
+        checkpoint();
+        document.pages.get(from).remove(placement);
+        placement.x = Math.max(0, Math.min(placement.x, PdfDocument.PAGE_WIDTH - placement.width));
+        placement.y = Math.max(0, Math.min(placement.y, PdfDocument.PAGE_HEIGHT - placement.height));
+        document.pages.get(to).add(placement);
+        return true;
     }
     public void delete(int page, PdfDocument.Placement placement) {
         checkPage(page);

@@ -4,6 +4,8 @@ import javax.swing.SwingUtilities;
 import java.awt.image.BufferedImage;
 
 public final class PdfStudioLauncher implements Us4InputBoundary {
+    private view.canvas.SharedCanvas sourceCanvas;
+    public void setSourceCanvas(view.canvas.SharedCanvas canvas) { this.sourceCanvas = canvas; }
     private final MathLibrary library = new MathLibrary();
     private final MathLabCollector collector = new MathLabCollector(library);
     public MathLibrary getLibrary() { return library; }
@@ -24,7 +26,13 @@ public final class PdfStudioLauncher implements Us4InputBoundary {
         addGraph(title, image);
     }
     public void openEditor() {
-        Runnable open = () -> new PdfEditorFrame(library).setVisible(true);
+        Runnable open = () -> {
+            CanvasCapture capture = sourceCanvas == null ? null
+                    : new CanvasCapture(sourceCanvas.getDrawingCanvas());
+            BufferedImage snapshot = capture == null ? null : capture.overview();
+            java.util.List<BufferedImage> regions = capture == null ? java.util.List.of() : capture.inkRegions();
+            new PdfEditorFrame(library, snapshot, regions).setVisible(true);
+        };
         if (SwingUtilities.isEventDispatchThread()) open.run();
         else SwingUtilities.invokeLater(open);
     }
