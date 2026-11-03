@@ -116,8 +116,13 @@ final class CanvasRegionSelector extends JPanel {
     private BufferedImage copyRegion(Rectangle bounds, Shape mask) {
         BufferedImage out = new BufferedImage(bounds.width, bounds.height, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = out.createGraphics();
-        if (mask != null) { g.translate(-bounds.x, -bounds.y); g.setClip(mask); g.scale(zoom, zoom);
-        g.drawImage(source, 0, 0, null); }
+        if (mask != null) {
+            // Both bounds and mask are already expressed in source-image pixels.
+            // Applying zoom here a second time shifts the extracted content.
+            g.translate(-bounds.x, -bounds.y);
+            g.setClip(mask);
+            g.drawImage(source, 0, 0, null);
+        }
         else g.drawImage(source, 0, 0, bounds.width, bounds.height, bounds.x, bounds.y,
                 bounds.x + bounds.width, bounds.y + bounds.height, null);
         g.dispose(); return out;
