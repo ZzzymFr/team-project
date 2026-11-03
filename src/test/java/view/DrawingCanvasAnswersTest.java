@@ -1,7 +1,7 @@
 package view;
 
-import entity.AnswerKind;
-import entity.CanvasAnswer;
+import interface_adapter.AnswerKind;
+import view.answer.CanvasAnswer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 

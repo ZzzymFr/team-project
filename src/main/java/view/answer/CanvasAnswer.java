@@ -1,7 +1,6 @@
-package entity;
+package view.answer;
 
-import entity.symbolic.ExprWriter;
-import entity.symbolic.TextRun;
+import interface_adapter.TextRun;
 
 import java.awt.geom.Rectangle2D;
 import java.util.List;
@@ -24,7 +23,7 @@ public final class CanvasAnswer {
     // text w/ raised exponent runs, e.g. 3x²
     public CanvasAnswer(List<TextRun> runs, boolean error, double x, double y, double width, double height,
                         float fontSize) {
-        this(ExprWriter.plain(runs), List.copyOf(runs), error, x, y, width, height, fontSize);
+        this(TextRun.plain(runs), List.copyOf(runs), error, x, y, width, height, fontSize);
     }
 
     private CanvasAnswer(String text, List<TextRun> runs, boolean error, double x, double y, double width,

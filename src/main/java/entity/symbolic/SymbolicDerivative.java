@@ -3,6 +3,7 @@ package entity.symbolic;
 import entity.Context;
 import entity.MathSyntaxException;
 import entity.UncalculableException;
+import entity.UncalculableReason;
 import entity.UndefinedException;
 import entity.UserFunction;
 import entity.calculus.DerivativeCalculator;
@@ -10,12 +11,19 @@ import entity.node.BinaryNode;
 import entity.node.CallNode;
 import entity.node.DerivativeNode;
 import entity.node.FunctionNode;
+import entity.node.LimitNode;
 import entity.node.LiteralNode;
 import entity.node.Node;
+import entity.node.NodeVisitor;
 import entity.node.NumberNode;
 import entity.node.PlusMinusNode;
+import entity.node.QuantifierNode;
+import entity.node.RelationNode;
+import entity.node.SeriesNode;
+import entity.node.SetLiteralNode;
 import entity.node.UnaryNode;
 import entity.node.VariableNode;
+import entity.node.VectorNode;
 import entity.value.NumberValue;
 import entity.value.Value;
 
@@ -33,85 +41,128 @@ public final class SymbolicDerivative {
     private static final long DECIMAL_SCALE = 1_000_000_000L;
 
     private final Map<String, UserFunction> functions;
+    private final NodeVisitor<Expr> outsideDerivative = new Converter(false);
+    private final NodeVisitor<Expr> insideDerivative = new Converter(true);
     private int callDepth;
 
     private SymbolicDerivative(Map<String, UserFunction> functions) {
         this.functions = functions;
     }
 
-    // any d/dx or f' in there
-    public static boolean containsDerivative(Node node) {
-        if (node instanceof DerivativeNode) {
-            return true;
-        }
-        if (node instanceof CallNode && ((CallNode) node).getDerivativeOrder() > 0) {
-            return true;
-        }
-        for (Node child : node.children()) {
-            if (containsDerivative(child)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     public static Expr differentiate(Node node, Map<String, UserFunction> functions) {
         try {
             return Simplifier.simplify(new SymbolicDerivative(functions).convert(node, false));
         } catch (ArithmeticException e) {
-            throw new UncalculableException(UncalculableException.TOO_MUCH_WORK);  // rational overflowed
+            throw new UncalculableException(UncalculableReason.TOO_MUCH_WORK);  // rational overflowed
         }
     }
 
     // ---- nodes -> Expr
 
     private Expr convert(Node node, boolean inDerivative) {
-        if (node instanceof NumberNode) {
-            NumberNode n = (NumberNode) node;
-            return number(n.getValue(), n.getDecimals());
+        return node.accept(inDerivative ? insideDerivative : outsideDerivative);
+    }
+
+    private final class Converter implements NodeVisitor<Expr> {
+        private final boolean inDerivative;
+
+        private Converter(boolean inDerivative) {
+            this.inDerivative = inDerivative;
         }
-        if (node instanceof VariableNode) {
-            return Expr.var(((VariableNode) node).getName());
+
+        @Override
+        public Expr visitNumber(NumberNode node) {
+            return number(node.getValue(), node.getDecimals());
         }
-        if (node instanceof LiteralNode && ((LiteralNode) node).getValue() instanceof NumberValue) {
-            double v = ((NumberValue) ((LiteralNode) node).getValue()).getValue();
-            if (v == Math.E) {
-                return Expr.constE();
+
+        @Override
+        public Expr visitVariable(VariableNode node) {
+            return Expr.var(node.getName());
+        }
+
+        @Override
+        public Expr visitLiteral(LiteralNode node) {
+            if (node.getValue() instanceof NumberValue) {
+                double v = ((NumberValue) node.getValue()).getValue();
+                if (v == Math.E) {
+                    return Expr.constE();
+                }
+                if (v == Math.PI) {
+                    return Expr.constPi();
+                }
             }
-            if (v == Math.PI) {
-                return Expr.constPi();
+            return opaque(node, inDerivative);
+        }
+
+        @Override
+        public Expr visitBinary(BinaryNode node) {
+            Expr e = binary(node, inDerivative);
+            return e != null ? e : opaque(node, inDerivative);
+        }
+
+        @Override
+        public Expr visitUnary(UnaryNode node) {
+            if (node.getOp() == UnaryNode.Op.NEGATE) {
+                return Expr.mul(Expr.num(-1), convert(node.getOperand(), inDerivative));
             }
+            return opaque(node, inDerivative);
         }
-        if (node instanceof BinaryNode) {
-            Expr e = binary((BinaryNode) node, inDerivative);
-            if (e != null) {
-                return e;
-            }
+
+        @Override
+        public Expr visitFunction(FunctionNode node) {
+            Expr e = function(node, inDerivative);
+            return e != null ? e : opaque(node, inDerivative);
         }
-        if (node instanceof UnaryNode && ((UnaryNode) node).getOp() == UnaryNode.Op.NEGATE) {
-            return Expr.mul(Expr.num(-1), convert(((UnaryNode) node).getOperand(), inDerivative));
+
+        @Override
+        public Expr visitCall(CallNode node) {
+            return call(node, inDerivative);
         }
-        if (node instanceof FunctionNode) {
-            Expr e = function((FunctionNode) node, inDerivative);
-            if (e != null) {
-                return e;
-            }
+
+        @Override
+        public Expr visitDerivative(DerivativeNode node) {
+            return derivative(node);
         }
-        if (node instanceof CallNode) {
-            return call((CallNode) node, inDerivative);
+
+        @Override
+        public Expr visitPlusMinus(PlusMinusNode node) {
+            throw new UncalculableException(UncalculableReason.NOT_DIFFERENTIABLE);
         }
-        if (node instanceof DerivativeNode) {
-            return derivative((DerivativeNode) node);
+
+        @Override
+        public Expr visitLimit(LimitNode node) {
+            return opaque(node, inDerivative);
         }
-        if (node instanceof PlusMinusNode) {
-            throw new UncalculableException(UncalculableException.NOT_DIFFERENTIABLE);
+
+        @Override
+        public Expr visitQuantifier(QuantifierNode node) {
+            return opaque(node, inDerivative);
         }
-        return opaque(node, inDerivative);
+
+        @Override
+        public Expr visitRelation(RelationNode node) {
+            return opaque(node, inDerivative);
+        }
+
+        @Override
+        public Expr visitSeries(SeriesNode node) {
+            return opaque(node, inDerivative);
+        }
+
+        @Override
+        public Expr visitSetLiteral(SetLiteralNode node) {
+            return opaque(node, inDerivative);
+        }
+
+        @Override
+        public Expr visitVector(VectorNode node) {
+            return opaque(node, inDerivative);
+        }
     }
 
     private static Expr number(double value, int decimals) {
         if (Double.isNaN(value) || Double.isInfinite(value) || Math.abs(value) > MAX_EXACT) {
-            throw new UncalculableException(UncalculableException.TOO_BIG);
+            throw new UncalculableException(UncalculableReason.TOO_BIG);
         }
         if (decimals > 0) {
             long scale = 1;
@@ -177,13 +228,13 @@ public final class SymbolicDerivative {
         }
         int order = c.getDerivativeOrder();
         if (order > DerivativeCalculator.MAX_ORDER) {
-            throw new UncalculableException(UncalculableException.MAX_DERIVATIVE);
+            throw new UncalculableException(UncalculableReason.MAX_DERIVATIVE);
         }
         if (c.getDerivativeParameter() < 0 || c.getDerivativeParameter() >= parameters.size()) {
-            throw new UncalculableException(UncalculableException.NOT_AN_INPUT);
+            throw new UncalculableException(UncalculableReason.NOT_AN_INPUT);
         }
         if (++callDepth > MAX_CALL_DEPTH) {
-            throw new UncalculableException(UncalculableException.TOO_MUCH_WORK);
+            throw new UncalculableException(UncalculableReason.TOO_MUCH_WORK);
         }
         try {
             Expr body = convert(f.getBody(), inDerivative || order > 0);
@@ -238,7 +289,7 @@ public final class SymbolicDerivative {
         if (free.isEmpty()) {
             Value v = node.evaluate(new Context(functions));
             if (!(v instanceof NumberValue)) {
-                throw new UncalculableException(UncalculableException.NOT_DIFFERENTIABLE);
+                throw new UncalculableException(UncalculableReason.NOT_DIFFERENTIABLE);
             }
             double value = ((NumberValue) v).getValue();
             if (Double.isNaN(value)) {
@@ -249,20 +300,20 @@ public final class SymbolicDerivative {
         if (inDerivative && node instanceof UnaryNode) {
             UnaryNode.Op op = ((UnaryNode) node).getOp();
             if (op == UnaryNode.Op.ABSOLUTE || op == UnaryNode.Op.NORM) {
-                throw new UncalculableException(UncalculableException.ABS_DERIVATIVE);
+                throw new UncalculableException(UncalculableReason.ABS_DERIVATIVE);
             }
             if (op == UnaryNode.Op.FACTORIAL) {
-                throw new UncalculableException(UncalculableException.FACTORIAL_DERIVATIVE);
+                throw new UncalculableException(UncalculableReason.FACTORIAL_DERIVATIVE);
             }
         }
-        throw new UncalculableException(UncalculableException.NOT_DIFFERENTIABLE);
+        throw new UncalculableException(UncalculableReason.NOT_DIFFERENTIABLE);
     }
 
     // ---- the rules
 
     private static Expr nth(Expr u, String x, int order, boolean implicit) {
         if (order > DerivativeCalculator.MAX_ORDER) {
-            throw new UncalculableException(UncalculableException.MAX_DERIVATIVE);
+            throw new UncalculableException(UncalculableReason.MAX_DERIVATIVE);
         }
         Expr result = Simplifier.simplify(u);
         for (int i = 0; i < order; i++) {
@@ -298,7 +349,7 @@ public final class SymbolicDerivative {
             case LOG:
                 return logRule(u.arg(), u.logBase(), x, implicit);
             default:
-                throw new UncalculableException(UncalculableException.NOT_DIFFERENTIABLE);  // dy/dx again
+                throw new UncalculableException(UncalculableReason.NOT_DIFFERENTIABLE);  // dy/dx again
         }
     }
 
@@ -343,7 +394,7 @@ public final class SymbolicDerivative {
             case "ln":
                 return Expr.mul(inner, Expr.pow(arg, Expr.num(-1)));
             default:
-                throw new UncalculableException(UncalculableException.NOT_DIFFERENTIABLE);
+                throw new UncalculableException(UncalculableReason.NOT_DIFFERENTIABLE);
         }
     }
 

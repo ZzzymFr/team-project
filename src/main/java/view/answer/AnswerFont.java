@@ -1,11 +1,13 @@
-package view;
+package view.answer;
 
-import entity.symbolic.TextRun;
+import interface_adapter.TextRun;
 import view.stack.Fonts;
 
+import java.awt.Color;
 import java.awt.Font;
 import java.awt.FontFormatException;
 import java.awt.Graphics2D;
+import java.awt.RenderingHints;
 import java.awt.font.FontRenderContext;
 import java.awt.font.TextAttribute;
 import java.awt.font.TextLayout;
@@ -95,6 +97,19 @@ public final class AnswerFont {
             layout.draw(g, (float) pen, (float) (top - ink.getY() - lift(run, size)));
             pen += layout.getAdvance();
         }
+    }
+
+    public static void paint(Graphics2D world, CanvasAnswer a, Color color) {
+        Graphics2D g = (Graphics2D) world.create();
+        g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.setColor(color);
+        if (a.getRuns() == null) {
+            draw(g, a.getText(), a.getFontSize(), a.getX(), a.getY());
+        } else {
+            draw(g, a.getRuns(), a.getFontSize(), a.getX(), a.getY());
+        }
+        g.dispose();
     }
 
     private static float sizeOf(TextRun run, float size) {

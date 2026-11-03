@@ -1,6 +1,7 @@
 package entity.value;
 
 import entity.UncalculableException;
+import entity.UncalculableReason;
 
 public final class NumberSetValue extends Value {
     public enum Kind { NATURAL, INTEGER, RATIONAL, REAL, COMPLEX }
@@ -33,7 +34,7 @@ public final class NumberSetValue extends Value {
                 return integer;
             case RATIONAL:
                 if (!integer) {
-                    throw new UncalculableException(UncalculableException.RATIONAL);
+                    throw new UncalculableException(UncalculableReason.RATIONAL);
                 }
                 return true;
             default:
@@ -56,5 +57,10 @@ public final class NumberSetValue extends Value {
 
     public boolean isSubsetOf(NumberSetValue other) {
         return dimension == other.dimension && kind.ordinal() <= other.kind.ordinal();
+    }
+
+    @Override
+    public <R> R accept(ValueVisitor<R> visitor) {
+        return visitor.visitNumberSet(this);
     }
 }

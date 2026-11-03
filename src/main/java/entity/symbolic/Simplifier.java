@@ -1,6 +1,7 @@
 package entity.symbolic;
 
 import entity.UncalculableException;
+import entity.UncalculableReason;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -113,7 +114,7 @@ public final class Simplifier {
 
     private void spend() {
         if (++steps > MAX_STEPS) {
-            throw new UncalculableException(UncalculableException.TOO_MUCH_WORK);
+            throw new UncalculableException(UncalculableReason.TOO_MUCH_WORK);
         }
     }
 

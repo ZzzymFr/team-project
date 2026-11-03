@@ -2,6 +2,7 @@ package entity.node;
 
 import entity.Context;
 import entity.UncalculableException;
+import entity.UncalculableReason;
 import entity.UndefinedException;
 import entity.value.FiniteSetValue;
 import entity.value.Value;
@@ -37,10 +38,15 @@ public class SetLiteralNode extends Node {
                 throw new UndefinedException();
             }
             if (Double.isInfinite(number)) {
-                throw new UncalculableException(UncalculableException.TOO_BIG);
+                throw new UncalculableException(UncalculableReason.TOO_BIG);
             }
             numbers.add(number);
         }
         return new FiniteSetValue(numbers);
+    }
+
+    @Override
+    public <R> R accept(NodeVisitor<R> visitor) {
+        return visitor.visitSetLiteral(this);
     }
 }

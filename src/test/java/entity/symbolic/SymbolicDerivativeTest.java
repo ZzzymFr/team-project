@@ -1,9 +1,12 @@
 package entity.symbolic;
 
+import interface_adapter.evaluate.ExprWriter;
+import use_case.evaluate.OutputDataMapper;
 import entity.Context;
 import entity.MathLexer;
 import entity.MathParser;
-import entity.MathSyntaxException;
+import entity.UncalculableException;
+import entity.UncalculableReason;
 import entity.UserFunction;
 import entity.node.Node;
 import entity.value.NumberValue;
@@ -26,7 +29,7 @@ class SymbolicDerivativeTest {
     }
 
     private String d(String latex) {
-        String out = ExprWriter.latex(SymbolicDerivative.differentiate(parse(latex), functions));
+        String out = ExprWriter.latex(OutputDataMapper.of(SymbolicDerivative.differentiate(parse(latex), functions)));
         SimplifierTest.clean(out);
         return out;
     }
@@ -48,9 +51,9 @@ class SymbolicDerivativeTest {
         }
     }
 
-    private void fails(String latex, String reason) {
-        MathSyntaxException e = assertThrows(MathSyntaxException.class, () -> d(latex));
-        assertTrue(e.getMessage().contains(reason), e.getMessage());
+    private void fails(String latex, UncalculableReason reason) {
+        UncalculableException e = assertThrows(UncalculableException.class, () -> d(latex));
+        assertEquals(reason, e.getReason());
     }
 
     @Test
@@ -112,9 +115,9 @@ class SymbolicDerivativeTest {
 
     @Test
     void failures() {
-        fails("\\frac{d}{dx}|x|", "Can't differentiate |x|");
-        fails("\\frac{d}{dx}(x!)", "Can't differentiate n!");
-        fails("\\frac{d^5}{dx^5}x", "Max 4th derivative");
+        fails("\\frac{d}{dx}|x|", UncalculableReason.ABS_DERIVATIVE);
+        fails("\\frac{d}{dx}(x!)", UncalculableReason.FACTORIAL_DERIVATIVE);
+        fails("\\frac{d^5}{dx^5}x", UncalculableReason.MAX_DERIVATIVE);
     }
 
     @Test
@@ -126,11 +129,11 @@ class SymbolicDerivativeTest {
     @Test
     void containsDerivative() {
         define("f", "y", "3y^{2}");
-        assertTrue(SymbolicDerivative.containsDerivative(parse("\\frac{d}{dx}x")));
-        assertTrue(SymbolicDerivative.containsDerivative(parse("f'(x)")));
-        assertTrue(SymbolicDerivative.containsDerivative(parse("1+\\frac{d}{dx}x")));
-        assertFalse(SymbolicDerivative.containsDerivative(parse("x+1")));
-        assertFalse(SymbolicDerivative.containsDerivative(parse("f(x)")));
+        assertTrue(parse("\\frac{d}{dx}x").containsDerivative());
+        assertTrue(parse("f'(x)").containsDerivative());
+        assertTrue(parse("1+\\frac{d}{dx}x").containsDerivative());
+        assertFalse(parse("x+1").containsDerivative());
+        assertFalse(parse("f(x)").containsDerivative());
     }
 
     @Test

@@ -1,5 +1,6 @@
-package entity.symbolic;
+package interface_adapter;
 
+import java.util.List;
 import java.util.Objects;
 
 // bit of answer text, raised = drawn small and up like an exponent
@@ -10,6 +11,15 @@ public final class TextRun {
     public TextRun(String text, boolean raised) {
         this.text = text;
         this.raised = raised;
+    }
+
+    // just the characters
+    public static String plain(List<TextRun> runs) {
+        StringBuilder text = new StringBuilder();
+        for (TextRun run : runs) {
+            text.append(run.getText());
+        }
+        return text.toString();
     }
 
     public String getText() {

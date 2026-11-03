@@ -20,4 +20,9 @@ public final class BooleanValue extends Value {
     public boolean getValue() {
         return value;
     }
+
+    @Override
+    public <R> R accept(ValueVisitor<R> visitor) {
+        return visitor.visitBoolean(this);
+    }
 }

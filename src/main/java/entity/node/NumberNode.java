@@ -25,4 +25,9 @@ public class NumberNode extends Node {
     public Value evaluate(Context context) {
         return value;
     }
+
+    @Override
+    public <R> R accept(NodeVisitor<R> visitor) {
+        return visitor.visitNumber(this);
+    }
 }

@@ -1,5 +1,7 @@
 package entity.symbolic;
 
+import interface_adapter.evaluate.ExprWriter;
+import use_case.evaluate.OutputDataMapper;
 import org.junit.jupiter.api.Test;
 
 import static entity.symbolic.Expr.add;
@@ -21,7 +23,7 @@ class SimplifierTest {
     private static String s(Expr e) {
         Expr once = Simplifier.simplify(e);
         assertEquals(once, Simplifier.simplify(once), "not idempotent");
-        String latex = ExprWriter.latex(once);
+        String latex = ExprWriter.latex(OutputDataMapper.of(once));
         clean(latex);
         return latex;
     }
@@ -119,7 +121,7 @@ class SimplifierTest {
         Expr v = add(X, n(1));
         Expr split = add(pow(v, n(-1)), mul(n(-1), X, pow(v, n(-2))));
         Expr one = Simplifier.together(Simplifier.simplify(split));
-        assertEquals("\\frac{1}{(x+1)^{2}}", ExprWriter.latex(one));
+        assertEquals("\\frac{1}{(x+1)^{2}}", ExprWriter.latex(OutputDataMapper.of(one)));
         assertEquals(one, Simplifier.simplify(one));
         // only one fraction: left alone
         Expr lone = Simplifier.simplify(add(n(1), pow(X, n(-1))));

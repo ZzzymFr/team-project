@@ -1,12 +1,13 @@
 package view;
 
-import entity.AnswerKind;
-import entity.AnswerLayout;
-import entity.CanvasAnswer;
-import entity.symbolic.ExprWriter;
-import entity.symbolic.TextRun;
-import entity.Formula;
-import entity.FormulaBook;
+import interface_adapter.AnswerKind;
+import view.answer.AnswerFont;
+import view.answer.AnswerLayout;
+import view.answer.AnswerPlacer;
+import view.answer.CanvasAnswer;
+import interface_adapter.TextRun;
+import view.answer.Formula;
+import view.answer.FormulaBook;
 import entity.InkEditor;
 import entity.InkPoint;
 import entity.Stroke;
@@ -1057,7 +1058,7 @@ public class DrawingCanvas extends JPanel {
 
     // same spot rules, text w/ raised exponents
     public boolean showAnswer(long id, long revision, AnswerKind kind, List<TextRun> runs, boolean error) {
-        return placeAnswer(id, revision, kind, ExprWriter.plain(runs), runs, error);
+        return placeAnswer(id, revision, kind, TextRun.plain(runs), runs, error);
     }
 
     private boolean placeAnswer(long id, long revision, AnswerKind kind, String text, List<TextRun> runs,
@@ -1066,18 +1067,8 @@ public class DrawingCanvas extends JPanel {
         if (f == null || f.getRevision() != revision) {
             return false;
         }
-        List<Stroke> ink = inDrawingOrder(f);
-        double h = AnswerLayout.charHeight(ink);
-        float size = AnswerFont.sizeFor(h);
-        Rectangle2D text2d = runs == null ? AnswerFont.visualBounds(text, size) : AnswerFont.visualBounds(runs, size);
-        double w = text2d.getWidth();
-        double ht = text2d.getHeight();
-        Point2D at = kind.isBelow() ? AnswerLayout.below(ink, h) : AnswerLayout.rightOf(ink, h, ht);
-        if (kind.isBelow() && hitsOtherInk(new Rectangle2D.Double(at.getX(), at.getY(), w, ht), f)) {
-            at = AnswerLayout.rightOf(ink, h, ht);
-        }
-        CanvasAnswer answer = runs == null ? new CanvasAnswer(text, error, at.getX(), at.getY(), w, ht, size)
-                : new CanvasAnswer(runs, error, at.getX(), at.getY(), w, ht, size);
+        CanvasAnswer answer = AnswerPlacer.place(inDrawingOrder(f), kind, text, runs, error,
+                box -> hitsOtherInk(box, f));
         book.put(f.withAnswer(answer));
         if (!busy()) {
             bringIntoView(answer.getBox(), answer.getBox());
@@ -1431,16 +1422,7 @@ public class DrawingCanvas extends JPanel {
     }
 
     private static void drawAnswer(Graphics2D world, CanvasAnswer a) {
-        Graphics2D g = (Graphics2D) world.create();
-        g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        g.setColor(a.isError() ? ANSWER_ERROR : INK_COLOR);
-        if (a.getRuns() == null) {
-            AnswerFont.draw(g, a.getText(), a.getFontSize(), a.getX(), a.getY());
-        } else {
-            AnswerFont.draw(g, a.getRuns(), a.getFontSize(), a.getX(), a.getY());
-        }
-        g.dispose();
+        AnswerFont.paint(world, a, a.isError() ? ANSWER_ERROR : INK_COLOR);
     }
 
     private void drawStrokes(Graphics2D g2) {

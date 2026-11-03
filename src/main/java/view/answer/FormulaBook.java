@@ -1,4 +1,6 @@
-package entity;
+package view.answer;
+
+import entity.Stroke;
 
 import java.awt.Rectangle;
 import java.util.ArrayList;

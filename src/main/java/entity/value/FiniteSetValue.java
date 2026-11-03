@@ -57,4 +57,9 @@ public final class FiniteSetValue extends Value {
         }
         return true;
     }
+
+    @Override
+    public <R> R accept(ValueVisitor<R> visitor) {
+        return visitor.visitFiniteSet(this);
+    }
 }

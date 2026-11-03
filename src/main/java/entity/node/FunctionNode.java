@@ -97,4 +97,9 @@ public class FunctionNode extends Node {
         }
         return Math.pow(x, 1 / degree);
     }
+
+    @Override
+    public <R> R accept(NodeVisitor<R> visitor) {
+        return visitor.visitFunction(this);
+    }
 }

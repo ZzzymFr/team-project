@@ -47,7 +47,15 @@ class MathLexerTest {
     void textLikeCommandsAreUncalculable() {
         for (String s : new String[] {"\\text{Let }A", "\\begin{pmatrix}1\\end{pmatrix}", "\\square"}) {
             UncalculableException e = assertThrows(UncalculableException.class, () -> MathLexer.tokenize(s));
-            assertEquals("Uncalculable — Contains text", e.getMessage());
+            assertEquals(UncalculableReason.TEXT, e.getReason());
+        }
+    }
+
+    @Test
+    void lineBreakIsNotACalculation() {
+        for (String s : new String[] {"\\\\", "1\\\\2", "\\\\{1}", "x+1=3\\\\x=2"}) {
+            UncalculableException e = assertThrows(UncalculableException.class, () -> MathLexer.tokenize(s), s);
+            assertEquals(UncalculableReason.NOT_CALCULATION, e.getReason());
         }
     }
 

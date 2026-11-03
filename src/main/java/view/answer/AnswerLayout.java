@@ -1,4 +1,7 @@
-package entity;
+package view.answer;
+
+import entity.InkPoint;
+import entity.Stroke;
 
 import java.awt.Rectangle;
 import java.awt.geom.Point2D;
@@ -15,6 +18,8 @@ public final class AnswerLayout {
     public static final double JOIN_MARGIN_Y = 0.15;
     public static final double MIN_CHAR_HEIGHT = 12;
     public static final double MAX_CHAR_HEIGHT = 400;
+    public static final double NEW_INK_GAP_X = 1.5;
+    public static final double NEW_INK_GAP_Y = 0.35;
     private static final double DOT = 6;
 
     private AnswerLayout() {
@@ -45,22 +50,12 @@ public final class AnswerLayout {
 
     // median height of the tall glyphs, skips "-", "=", dots
     public static double charHeight(Collection<Stroke> strokes) {
-        List<Integer> heights = new ArrayList<>();
-        for (Rectangle g : glyphs(strokes)) {
-            if (g.height >= DOT && g.height >= 0.5 * g.width) {
-                heights.add(g.height);
-            }
-        }
-        double h;
+        List<Integer> heights = tallHeights(glyphs(strokes));
         if (heights.isEmpty()) {
             Rectangle all = bounds(strokes);
-            h = all == null ? 0 : all.height;
-        } else {
-            heights.sort(null);
-            int n = heights.size();
-            h = n % 2 == 1 ? heights.get(n / 2) : (heights.get(n / 2 - 1) + heights.get(n / 2)) / 2.0;
+            return clamped(all == null ? 0 : all.height);
         }
-        return Math.max(MIN_CHAR_HEIGHT, Math.min(MAX_CHAR_HEIGHT, h));
+        return clamped(median(heights));
     }
 
     // top-left of an answer right of the formula, centred on its last glyph
@@ -79,44 +74,57 @@ public final class AnswerLayout {
 
     // does a new stroke land on the formula
     public static boolean joins(Rectangle formulaBounds, double charHeight, Rectangle strokeBounds) {
-        double mx = JOIN_MARGIN_X * charHeight;
-        double my = JOIN_MARGIN_Y * charHeight;
-        // inclusive, so 0-wide lines count
-        return strokeBounds.getMinX() <= formulaBounds.getMaxX() + mx
-                && strokeBounds.getMaxX() >= formulaBounds.getMinX() - mx
-                && strokeBounds.getMinY() <= formulaBounds.getMaxY() + my
-                && strokeBounds.getMaxY() >= formulaBounds.getMinY() - my;
+        return near(formulaBounds, strokeBounds, JOIN_MARGIN_X * charHeight, JOIN_MARGIN_Y * charHeight);
     }
 
     // median height of tall single strokes; lines stacked above each other don't add up
     public static double strokeHeight(Collection<Stroke> strokes) {
-        List<Integer> heights = new ArrayList<>();
+        List<Rectangle> boxes = new ArrayList<>();
         for (Stroke s : strokes) {
             Rectangle b = bounds(List.of(s));
-            if (b != null && b.height >= DOT && b.height >= 0.5 * b.width) {
-                heights.add(b.height);
+            if (b != null) {
+                boxes.add(b);
             }
         }
+        List<Integer> heights = tallHeights(boxes);
         if (heights.isEmpty()) {
             return charHeight(strokes);
         }
-        heights.sort(null);
-        int n = heights.size();
-        double h = n % 2 == 1 ? heights.get(n / 2) : (heights.get(n / 2 - 1) + heights.get(n / 2)) / 2.0;
-        return Math.max(MIN_CHAR_HEIGHT, Math.min(MAX_CHAR_HEIGHT, h));
+        return clamped(median(heights));
     }
-
-    public static final double NEW_INK_GAP_X = 1.5;
-    public static final double NEW_INK_GAP_Y = 0.35;
 
     // fresh loose ink: same formula if on the same line, gaps up to 1.5 chars
     public static boolean sameNewFormula(Rectangle group, double charHeight, Rectangle stroke) {
-        double mx = NEW_INK_GAP_X * charHeight;
-        double my = NEW_INK_GAP_Y * charHeight;
-        return stroke.getMinX() <= group.getMaxX() + mx
-                && stroke.getMaxX() >= group.getMinX() - mx
-                && stroke.getMinY() <= group.getMaxY() + my
-                && stroke.getMaxY() >= group.getMinY() - my;
+        return near(group, stroke, NEW_INK_GAP_X * charHeight, NEW_INK_GAP_Y * charHeight);
+    }
+
+    // b within mx/my of a, inclusive so 0-wide lines count
+    private static boolean near(Rectangle a, Rectangle b, double mx, double my) {
+        return b.getMinX() <= a.getMaxX() + mx
+                && b.getMaxX() >= a.getMinX() - mx
+                && b.getMinY() <= a.getMaxY() + my
+                && b.getMaxY() >= a.getMinY() - my;
+    }
+
+    // heights of boxes that look like real chars, not "-" or dots
+    private static List<Integer> tallHeights(List<Rectangle> boxes) {
+        List<Integer> heights = new ArrayList<>();
+        for (Rectangle b : boxes) {
+            if (b.height >= DOT && b.height >= 0.5 * b.width) {
+                heights.add(b.height);
+            }
+        }
+        return heights;
+    }
+
+    private static double median(List<Integer> values) {
+        values.sort(null);
+        int n = values.size();
+        return n % 2 == 1 ? values.get(n / 2) : (values.get(n / 2 - 1) + values.get(n / 2)) / 2.0;
+    }
+
+    private static double clamped(double height) {
+        return Math.max(MIN_CHAR_HEIGHT, Math.min(MAX_CHAR_HEIGHT, height));
     }
 
     // box around every point, null if none

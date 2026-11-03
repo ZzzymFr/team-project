@@ -1,7 +1,7 @@
 package view.canvas;
 
 import data_access.InMemoryFunctionDataAccessObject;
-import entity.CanvasAnswer;
+import view.answer.CanvasAnswer;
 import interface_adapter.MathLabViewModel;
 import interface_adapter.evaluate.EvaluateController;
 import interface_adapter.evaluate.EvaluatePresenter;
@@ -281,6 +281,17 @@ class AnswerCanvasPageTest {
 
         waitFor(() -> errorShown("Uncalculable — Integrals not supported"), "the reason");
         assertTrue(answers().isEmpty(), "no red ?");
+    }
+
+    @Test
+    void lineBreakGivesAWarningAndNoAnswer() throws Exception {
+        shared.setFormulaRecognizer(image -> "x+1=3\\\\x=2");
+        openPage();
+        write();
+        waitPopup("x+1=3\\\\x=2");
+        clickCalculate();
+        waitFor(() -> errorShown("Uncalculable — Not a calculation"), "the warning");
+        assertTrue(answers().isEmpty());
     }
 
     @Test

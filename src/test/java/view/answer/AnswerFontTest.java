@@ -1,4 +1,4 @@
-package view;
+package view.answer;
 
 import org.junit.jupiter.api.Test;
 

@@ -68,7 +68,7 @@ public final class MathParser {
         } catch (MathSyntaxException e) {
             // leftover : or ; is just prose
             if (tokens.contains(":") || tokens.contains(";")) {
-                throw new UncalculableException(UncalculableException.NOT_CALCULATION);
+                throw new UncalculableException(UncalculableReason.NOT_CALCULATION);
             }
             throw e;
         }
@@ -154,13 +154,13 @@ public final class MathParser {
             next();
         }
         if (peek() == null || peekIs(")") || peekIs("}") || peekIs("]") || peekIs("\\}")) {
-            throw new UncalculableException(UncalculableException.NOTHING_TO_CHECK);
+            throw new UncalculableException(UncalculableReason.NOTHING_TO_CHECK);
         }
         boundNames.add(variable);
         Node body = parseStatement();
         boundNames.remove(boundNames.size() - 1);
         if (plusMinusCount > plusMinusBefore) {
-            throw new UncalculableException(UncalculableException.PLUS_MINUS_HERE);
+            throw new UncalculableException(UncalculableReason.PLUS_MINUS_HERE);
         }
         return new QuantifierNode(isForAll, variable, domain, body);
     }
@@ -383,7 +383,7 @@ public final class MathParser {
             }
             String name = parseName(token);
             if (peekIs("'")) {
-                throw new UncalculableException(UncalculableException.NOT_DEFINED);
+                throw new UncalculableException(UncalculableReason.NOT_DEFINED);
             }
             return new VariableNode(name);
         }
@@ -469,7 +469,7 @@ public final class MathParser {
                 kind = NumberSetValue.Kind.COMPLEX;
                 break;
             default:
-                throw new UncalculableException(UncalculableException.UNKNOWN_SET);
+                throw new UncalculableException(UncalculableReason.UNKNOWN_SET);
         }
         int dimension = 1;
         if (peekIs("^")) {
@@ -488,7 +488,7 @@ public final class MathParser {
 
     private int parseDimension(String token) {
         if (MathLexer.isLetter(token)) {
-            throw new UncalculableException(UncalculableException.UNKNOWN_SET);
+            throw new UncalculableException(UncalculableReason.UNKNOWN_SET);
         }
         try {
             int dimension = Integer.parseInt(token);
@@ -552,7 +552,7 @@ public final class MathParser {
         if (command.equals("\\hat")) {
             return new UnaryNode(UnaryNode.Op.UNIT, argument);
         }
-        throw new UncalculableException(UncalculableException.WRONG_KIND);
+        throw new UncalculableException(UncalculableReason.WRONG_KIND);
     }
 
     private Node parseFunctionUse(String name) {
@@ -568,7 +568,7 @@ public final class MathParser {
             position = position + 6;
         }
         if (order > DerivativeCalculator.MAX_ORDER) {
-            throw new UncalculableException(UncalculableException.MAX_DERIVATIVE);
+            throw new UncalculableException(UncalculableReason.MAX_DERIVATIVE);
         }
         return parseCall(name, order, 0);
     }
@@ -614,7 +614,7 @@ public final class MathParser {
         }
         next();
         if (order < 1 || order > DerivativeCalculator.MAX_ORDER) {
-            throw new UncalculableException(UncalculableException.MAX_DERIVATIVE);
+            throw new UncalculableException(UncalculableReason.MAX_DERIVATIVE);
         }
         if (function == null) {
             int bodyStart = position;
@@ -624,7 +624,7 @@ public final class MathParser {
         }
         int parameter = functions.get(function).getParameters().indexOf(variable);
         if (parameter < 0) {
-            throw new UncalculableException(UncalculableException.NOT_AN_INPUT);
+            throw new UncalculableException(UncalculableReason.NOT_AN_INPUT);
         }
         return parseCall(function, order, parameter);
     }
@@ -663,22 +663,22 @@ public final class MathParser {
     // \sum / \prod w/ range, no range -> uncalc
     private Node parseSeries(boolean isProduct) {
         if (!peekIs("_") || !"{".equals(tokenAt(position + 1))) {
-            throw new UncalculableException(UncalculableException.SUM_RANGE);
+            throw new UncalculableException(UncalculableReason.SUM_RANGE);
         }
         int start = position + 2;
         int end = closingBrace(start);
         if (start == end || !MathLexer.isLetter(tokens.get(start))) {
-            throw new UncalculableException(UncalculableException.SUM_RANGE);
+            throw new UncalculableException(UncalculableReason.SUM_RANGE);
         }
         position = start + 1;
         String variable = parseName(tokens.get(start));
         if (position >= end || !tokens.get(position).equals("=")) {
-            throw new UncalculableException(UncalculableException.SUM_RANGE);
+            throw new UncalculableException(UncalculableReason.SUM_RANGE);
         }
         Node lower = parseBound(position + 1, end);
         position = end + 1;
         if (!peekIs("^")) {
-            throw new UncalculableException(UncalculableException.SUM_RANGE);
+            throw new UncalculableException(UncalculableReason.SUM_RANGE);
         }
         next();
         Node upper;
@@ -718,7 +718,7 @@ public final class MathParser {
         boundParser.boundNames.addAll(boundNames);
         Node bound = boundParser.parse();
         if (boundParser.getPlusMinusCount() > 0) {
-            throw new UncalculableException(UncalculableException.PLUS_MINUS_HERE);
+            throw new UncalculableException(UncalculableReason.PLUS_MINUS_HERE);
         }
         return bound;
     }
@@ -800,7 +800,7 @@ public final class MathParser {
         }
         next();
         if (peekIs("-") || (peekIs("{") && "-".equals(tokenAt(position + 1)))) {
-            throw new UncalculableException(UncalculableException.inverseOf(function));
+            throw new UncalculableException(UncalculableReason.INVERSE_AMBIGUOUS, function);
         }
         return parsePrimary();
     }
@@ -829,16 +829,16 @@ public final class MathParser {
         return argument;
     }
 
-    private static String meaninglessReason(String token) {
+    private static UncalculableReason meaninglessReason(String token) {
         switch (token) {
             case "\\int":
-                return UncalculableException.INTEGRAL;
+                return UncalculableReason.INTEGRAL;
             case "\\ldots":
-                return UncalculableException.ELLIPSIS;
+                return UncalculableReason.ELLIPSIS;
             case "\\partial":
-                return UncalculableException.PARTIAL;
+                return UncalculableReason.PARTIAL;
             default:
-                return UncalculableException.NOT_CALCULATION;
+                return UncalculableReason.NOT_CALCULATION;
         }
     }
 

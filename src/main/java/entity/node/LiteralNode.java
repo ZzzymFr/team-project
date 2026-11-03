@@ -31,4 +31,9 @@ public class LiteralNode extends Node {
     public boolean isCondition() {
         return value instanceof BooleanValue;
     }
+
+    @Override
+    public <R> R accept(NodeVisitor<R> visitor) {
+        return visitor.visitLiteral(this);
+    }
 }

@@ -45,4 +45,9 @@ public class PlusMinusNode extends Node {
         }
         return new NumberValue(a - b);
     }
+
+    @Override
+    public <R> R accept(NodeVisitor<R> visitor) {
+        return visitor.visitPlusMinus(this);
+    }
 }

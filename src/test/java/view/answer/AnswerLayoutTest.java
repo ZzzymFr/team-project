@@ -1,5 +1,7 @@
-package entity;
+package view.answer;
 
+import entity.InkPoint;
+import entity.Stroke;
 import org.junit.jupiter.api.Test;
 
 import java.awt.Rectangle;

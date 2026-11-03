@@ -2,6 +2,7 @@ package entity.node;
 
 import entity.Context;
 import entity.UncalculableException;
+import entity.UncalculableReason;
 import entity.UndefinedException;
 import entity.calculus.LimitCalculator;
 import entity.value.NumberValue;
@@ -74,7 +75,7 @@ public class LimitNode extends Node {
                 t -> NoiseScale.noiseOf(body, context.withVariable(variable, t)), point, side);
         if (Double.isNaN(limit) && lost[0]) {
             // inf-inf in the samples, not a real "no limit"
-            throw new UncalculableException(UncalculableException.TOO_BIG);
+            throw new UncalculableException(UncalculableReason.TOO_BIG);
         }
         return new NumberValue(limit);
     }
@@ -93,5 +94,10 @@ public class LimitNode extends Node {
         } finally {
             context.setAbsorbed(outer || context.isAbsorbed());
         }
+    }
+
+    @Override
+    public <R> R accept(NodeVisitor<R> visitor) {
+        return visitor.visitLimit(this);
     }
 }

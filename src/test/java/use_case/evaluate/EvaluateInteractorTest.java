@@ -19,12 +19,16 @@ class EvaluateInteractorTest {
 
     private static class FakePresenter implements EvaluateOutputBoundary {
         String kind = "";
-        List<Value> values;
+        List<ValueOutputData> values;
         List<Double> solutions;
         String text;
 
         @Override
-        public void prepareValuesView(List<Value> values) {
+        public void prepareFormulaShape(FormulaShape shape) {
+        }
+
+        @Override
+        public void prepareValuesView(List<ValueOutputData> values) {
             kind = "values";
             this.values = values;
         }
@@ -36,7 +40,7 @@ class EvaluateInteractorTest {
         }
 
         @Override
-        public void prepareIntervalsView(String variable, List<Interval> intervals) {
+        public void prepareIntervalsView(String variable, List<IntervalOutputData> intervals) {
             kind = "intervals";
         }
 
@@ -54,6 +58,17 @@ class EvaluateInteractorTest {
         public void prepareFunctionDefinedView(String definition) {
             kind = "defined";
             text = definition;
+        }
+
+        @Override
+        public void prepareExpressionView(ExprOutputData expression) {
+            kind = "expression";
+        }
+
+        @Override
+        public void prepareUncalculableView(UncalculableOutputData why) {
+            kind = "fail";
+            text = String.valueOf(why.getReason());
         }
 
         @Override
@@ -80,27 +95,27 @@ class EvaluateInteractorTest {
     void calculatesExpression() {
         run("1+1=");
         assertEquals("values", presenter.kind);
-        assertEquals(2, Values.toNumber(presenter.values.get(0)), DELTA);
+        assertEquals(2, presenter.values.get(0).getNumbers().get(0), DELTA);
     }
 
     @Test
     void checksCorrectEquation() {
         run("5+7=12");
         assertEquals("values", presenter.kind);
-        assertTrue(Values.toBoolean(presenter.values.get(0)));
+        assertTrue(presenter.values.get(0).isTrue());
     }
 
     @Test
     void checksWrongEquation() {
         run("5+7=13");
         assertEquals("values", presenter.kind);
-        assertFalse(Values.toBoolean(presenter.values.get(0)));
+        assertFalse(presenter.values.get(0).isTrue());
     }
 
     @Test
     void roundingErrorsStillCountAsEqual() {
         run("0.1+0.2=0.3");
-        assertTrue(Values.toBoolean(presenter.values.get(0)));
+        assertTrue(presenter.values.get(0).isTrue());
     }
 
     @Test
@@ -167,12 +182,12 @@ class EvaluateInteractorTest {
 
         run("f(3)");
         assertEquals("values", presenter.kind);
-        assertEquals(10, Values.toNumber(presenter.values.get(0)), DELTA);
+        assertEquals(10, presenter.values.get(0).getNumbers().get(0), DELTA);
 
         run("f(x)=10");
         assertEquals("defined", presenter.kind);
         run("f(5)=10");
-        assertTrue(Values.toBoolean(presenter.values.get(0)));
+        assertTrue(presenter.values.get(0).isTrue());
     }
 
     @Test

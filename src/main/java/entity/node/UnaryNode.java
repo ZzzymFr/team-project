@@ -2,6 +2,7 @@ package entity.node;
 
 import entity.Context;
 import entity.UncalculableException;
+import entity.UncalculableReason;
 import entity.UndefinedException;
 import entity.value.BooleanValue;
 import entity.value.FiniteSetValue;
@@ -61,7 +62,7 @@ public class UnaryNode extends Node {
             return vectorOperate((VectorValue) operandValue);
         }
         if (op == Op.UNIT) {
-            throw new UncalculableException(UncalculableException.WRONG_KIND);
+            throw new UncalculableException(UncalculableReason.WRONG_KIND);
         }
         double value = Values.toNumber(operandValue);
         switch (op) {
@@ -99,10 +100,10 @@ public class UnaryNode extends Node {
                 return BinaryNode.finiteVector(scaled);
             case UNIT:
                 if (norm == 0) {
-                    throw new UndefinedException(UncalculableException.ZERO_VECTOR);
+                    throw new UndefinedException(UncalculableReason.ZERO_VECTOR);
                 }
                 if (Double.isInfinite(norm)) {
-                    throw new UncalculableException(UncalculableException.TOO_BIG);
+                    throw new UncalculableException(UncalculableReason.TOO_BIG);
                 }
                 for (double component : vector.getComponents()) {
                     scaled.add(component / norm);
@@ -151,5 +152,10 @@ public class UnaryNode extends Node {
         double t = shifted + LANCZOS_G + 0.5;
         // exp of the log so big x only overflows when the answer does
         return Math.sqrt(2 * Math.PI) * sum * Math.exp((shifted + 0.5) * Math.log(t) - t);
+    }
+
+    @Override
+    public <R> R accept(NodeVisitor<R> visitor) {
+        return visitor.visitUnary(this);
     }
 }

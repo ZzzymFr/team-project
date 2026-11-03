@@ -87,4 +87,14 @@ public class DerivativeNode extends Node {
         }
         return Double.NaN;
     }
+
+    @Override
+    public <R> R accept(NodeVisitor<R> visitor) {
+        return visitor.visitDerivative(this);
+    }
+
+    @Override
+    public boolean containsDerivative() {
+        return true;
+    }
 }

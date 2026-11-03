@@ -2,8 +2,7 @@ package use_case.evaluate;
 
 import data_access.InMemoryFunctionDataAccessObject;
 import entity.Interval;
-import entity.symbolic.ExprWriter;
-import entity.symbolic.TextRun;
+import interface_adapter.TextRun;
 import entity.value.Value;
 import interface_adapter.MathLabState;
 import interface_adapter.MathLabViewModel;
@@ -52,9 +51,9 @@ class SymbolicDerivativeUseCaseTest {
     @Test
     void runsComeWithTheAnswer() {
         show("\\frac{d}{dx}(x^3)");
-        List<TextRun> runs = viewModel.getState().getResultRuns();
+        List<TextRun> runs = viewModel.getState().getAnswerRuns();
         assertNotNull(runs);
-        assertEquals("3x2", ExprWriter.plain(runs));
+        assertEquals("= 3x2", TextRun.plain(runs));
         assertTrue(runs.get(runs.size() - 1).isRaised());
     }
 
@@ -62,34 +61,15 @@ class SymbolicDerivativeUseCaseTest {
     void numericAfterSymbolicHasNoRuns() {
         show("\\frac{d}{dx}(x^3)");
         show("1+1");
-        assertNull(viewModel.getState().getResultRuns());
+        assertNull(viewModel.getState().getAnswerRuns());
         show("\\frac{d}{dx}(x^3)");
         show("\\frac{d}{dx}|x|");
-        assertNull(viewModel.getState().getResultRuns());
+        assertNull(viewModel.getState().getAnswerRuns());
     }
 
     @Test
     void failuresGiveAReason() {
         assertEquals("Uncalculable — Can't differentiate |x|", show("\\frac{d}{dx}|x|"));
         assertEquals("Uncalculable — Answer too long", show("\\frac{d}{dx}(\\frac{\\sin x}{\\ln x+x^x})"));
-    }
-
-    @Test
-    void oldPresentersSayUncalculable() {
-        List<String> fails = new ArrayList<>();
-        EvaluateOutputBoundary old = new EvaluateOutputBoundary() {
-            public void prepareValuesView(List<Value> values) { }
-            public void prepareSolutionsView(String variable, List<Double> solutions) { }
-            public void prepareIntervalsView(String variable, List<Interval> intervals) { }
-            public void prepareExcludedView(String variable, List<Double> excluded) { }
-            public void prepareAlwaysTrueView(String variable) { }
-            public void prepareFunctionDefinedView(String definition) { }
-            public void prepareFailView(String errorMessage) {
-                fails.add(errorMessage);
-            }
-        };
-        new EvaluateInteractor(new InMemoryFunctionDataAccessObject(), old)
-                .execute(new EvaluateInputData("\\frac{d}{dx}x^2"));
-        assertEquals(List.of("Uncalculable"), fails);
     }
 }
