@@ -1,4 +1,6 @@
-package pdf_editor;
+package pdf_editor.data_access;
+
+import pdf_editor.domain.PdfMaterial;
 
 import org.scilab.forge.jlatexmath.TeXConstants;
 import org.scilab.forge.jlatexmath.TeXFormula;
@@ -10,10 +12,16 @@ import java.awt.Font;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
+import java.util.Collections;
+import java.util.Map;
+import java.util.WeakHashMap;
 
 public final class MaterialRenderer {
     private MaterialRenderer() { }
-    public static BufferedImage render(MathLibrary.Material material, int width, int height) {
+    // Graph PNGs are immutable; cache decoding across repaints and PDF preview generation.
+    private static final Map<PdfMaterial, BufferedImage> GRAPH_CACHE =
+            Collections.synchronizedMap(new WeakHashMap<>());
+    public static BufferedImage render(PdfMaterial material, int width, int height) {
         width = Math.max(8, width); height = Math.max(8, height);
         BufferedImage out = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = out.createGraphics();
@@ -21,13 +29,13 @@ public final class MaterialRenderer {
             if (!material.isGraph()) { g.setColor(Color.WHITE); g.fillRect(0, 0, width, height); }
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             if (material.isGraph()) {
-                double scale = Math.min((double) width / material.graph.getWidth(), (double) height / material.graph.getHeight());
-                int w = (int) (material.graph.getWidth() * scale);
-                int h = (int) (material.graph.getHeight() * scale);
-                g.drawImage(material.graph, (width - w) / 2, (height - h) / 2, w, h, null);
+                double scale = Math.min((double) width / material.imageWidth(), (double) height / material.imageHeight());
+                int w = (int) (material.imageWidth() * scale);
+                int h = (int) (material.imageHeight() * scale);
+                g.drawImage(graphImage(material), (width - w) / 2, (height - h) / 2, w, h, null);
             } else {
-                String formula = material.formula == null ? "" : material.formula.trim();
-                String result = material.result == null ? "" : material.result.trim();
+                String formula = material.formula() == null ? "" : material.formula().trim();
+                String result = material.result() == null ? "" : material.result().trim();
                 if (result.isEmpty()) {
                     drawFormula(g, formula, width, height, 0);
                 } else if (formula.isEmpty()) {
@@ -60,6 +68,20 @@ public final class MaterialRenderer {
             }
         } finally { g.dispose(); }
         return out;
+    }
+    private static BufferedImage graphImage(PdfMaterial material) {
+        synchronized (GRAPH_CACHE) {
+            return GRAPH_CACHE.computeIfAbsent(material, source -> {
+                try {
+                    BufferedImage image = javax.imageio.ImageIO.read(
+                            new java.io.ByteArrayInputStream(source.imagePng()));
+                    if (image == null) throw new java.io.IOException("Unsupported image");
+                    return image;
+                } catch (java.io.IOException ex) {
+                    throw new IllegalStateException("Could not decode graph image", ex);
+                }
+            });
+        }
     }
     private static TeXIcon latexIcon(String text) {
         try { return new TeXFormula(text).createTeXIcon(TeXConstants.STYLE_DISPLAY, 20); }

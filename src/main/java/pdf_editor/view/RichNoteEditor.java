@@ -1,4 +1,7 @@
-package pdf_editor;
+package pdf_editor.view;
+
+import pdf_editor.domain.PdfDocument;
+import pdf_editor.adapter.NoteTextDocumentFactory;
 
 import javax.swing.*;
 import javax.swing.text.*;
@@ -11,7 +14,7 @@ public final class RichNoteEditor {
     private RichNoteEditor() { }
 
     public static List<PdfDocument.NoteSpan> edit(Component parent, PdfDocument.Placement note) {
-        JTextPane pane = createPane(note);
+        JTextPane pane = NoteTextDocumentFactory.createPane(note);
         pane.setPreferredSize(new Dimension(540, 270));
         JPanel panel = new JPanel(new BorderLayout(8, 8));
         JToolBar bar = new JToolBar(); bar.setFloatable(false);
@@ -20,7 +23,7 @@ public final class RichNoteEditor {
         addToggle(bar, pane, "U", StyleConstants.Underline);
         bar.addSeparator();
         JComboBox<Integer> sizes = new JComboBox<>(new Integer[]{8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 48, 60, 72});
-        sizes.setSelectedItem(note.noteSize);
+        sizes.setSelectedItem(note.noteSize());
         sizes.addActionListener(e -> {
             Integer size = (Integer) sizes.getSelectedItem();
             if (size == null) return;
@@ -39,36 +42,6 @@ public final class RichNoteEditor {
                 JOptionPane.PLAIN_MESSAGE);
         if (choice != JOptionPane.OK_OPTION) return null;
         return readSpans(pane.getStyledDocument());
-    }
-
-    static JTextPane createPane(PdfDocument.Placement note) {
-        JTextPane pane = new JTextPane();
-        pane.setFont(new Font("Segoe UI", Font.PLAIN, 16));
-        StyledDocument doc = pane.getStyledDocument();
-        try {
-            if (note.noteSpans.isEmpty()) {
-                SimpleAttributeSet attrs = new SimpleAttributeSet();
-                StyleConstants.setFontSize(attrs, note.noteSize);
-                StyleConstants.setBold(attrs, (note.noteStyle & Font.BOLD) != 0);
-                StyleConstants.setItalic(attrs, (note.noteStyle & Font.ITALIC) != 0);
-                doc.insertString(0, note.noteText == null ? "" : note.noteText, attrs);
-            } else {
-                for (PdfDocument.NoteSpan span : note.noteSpans)
-                    doc.insertString(doc.getLength(), span.text, attributes(span));
-            }
-        } catch (BadLocationException ex) { throw new IllegalStateException(ex); }
-        return pane;
-    }
-
-    private static AttributeSet attributes(PdfDocument.NoteSpan span) {
-        SimpleAttributeSet attrs = new SimpleAttributeSet();
-        StyleConstants.setFontFamily(attrs, "Segoe UI");
-        StyleConstants.setFontSize(attrs, span.size);
-        StyleConstants.setBold(attrs, span.bold);
-        StyleConstants.setItalic(attrs, span.italic);
-        StyleConstants.setUnderline(attrs, span.underline);
-        StyleConstants.setForeground(attrs, new Color(31, 48, 72));
-        return attrs;
     }
 
     private static void addToggle(JToolBar bar, JTextPane pane, String label, Object attribute) {

@@ -60,7 +60,7 @@ public class StackedAppBuilder {
     }
 
     public StackedAppBuilder addPdfPage() {
-        pages.addPage("PDF", PDF_ORANGE, new PdfCanvasPage(sharedCanvas, pdfStudio));
+        pages.addPage("PDF", PDF_ORANGE, new PdfCanvasPage(sharedCanvas, pdfStudio::openEditor));
         return this;
     }
 

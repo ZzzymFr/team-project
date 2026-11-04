@@ -1199,33 +1199,6 @@ public class DrawingCanvas extends JPanel {
         return boundsOf(strokes);
     }
 
-    public java.util.List<Rectangle> getInkRegionBounds() {
-        java.util.List<Rectangle> regions = new java.util.ArrayList<>();
-        for (Stroke stroke : strokes) {
-            Rectangle bounds = boundsOf(java.util.List.of(stroke));
-            if (bounds == null || bounds.isEmpty()) continue;
-            regions.add(new Rectangle(bounds));
-        }
-        boolean changed;
-        do {
-            changed = false;
-            outer: for (int i = 0; i < regions.size(); i++) {
-                for (int j = i + 1; j < regions.size(); j++) {
-                    Rectangle expanded = new Rectangle(regions.get(i));
-                    expanded.grow(32, 24);
-                    if (expanded.intersects(regions.get(j))) {
-                        regions.get(i).add(regions.get(j));
-                        regions.remove(j);
-                        changed = true;
-                        break outer;
-                    }
-                }
-            }
-        } while (changed);
-        regions.sort(java.util.Comparator.comparingInt((Rectangle r) -> r.y).thenComparingInt(r -> r.x));
-        return java.util.Collections.unmodifiableList(regions);
-    }
-
     /** Draws the graph card and the ink (no background) as they appear on screen. */
     public void paintContent(Graphics2D g2) {
         Graphics2D world = (Graphics2D) g2.create();
