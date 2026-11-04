@@ -1,4 +1,6 @@
-package pdf_editor;
+package pdf_editor.adapter;
+
+import pdf_editor.MathLibrary;
 
 import javax.swing.SwingUtilities;
 import java.awt.image.BufferedImage;

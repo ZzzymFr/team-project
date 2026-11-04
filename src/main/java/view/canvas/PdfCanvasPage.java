@@ -1,6 +1,5 @@
 package view.canvas;
 
-import pdf_editor.PdfStudioLauncher;
 import view.glass.GlassButton;
 import view.stack.Fonts;
 
@@ -13,10 +12,10 @@ public class PdfCanvasPage extends CanvasPage {
         setFunctionArea(placeholder("PDF Studio is not connected."));
     }
 
-    public PdfCanvasPage(SharedCanvas sharedCanvas, PdfStudioLauncher studio) {
+    public PdfCanvasPage(SharedCanvas sharedCanvas, Runnable openStudio) {
         super(sharedCanvas);
         GlassButton open = new GlassButton("Open PDF Studio", 40);
-        open.addActionListener(e -> studio.openEditor());
+        open.addActionListener(e -> openStudio.run());
         JLabel note = new JLabel("Your calculated formulas and graphs are collected automatically.");
         note.setFont(Fonts.ui(Font.PLAIN, 13f));
         note.setForeground(new Color(100, 116, 139));

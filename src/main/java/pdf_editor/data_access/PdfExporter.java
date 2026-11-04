@@ -1,4 +1,7 @@
-package pdf_editor;
+package pdf_editor.data_access;
+
+import pdf_editor.domain.PdfDocument;
+import pdf_editor.domain.PdfMaterial;
 
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
@@ -21,16 +24,16 @@ public final class PdfExporter {
     public PDDocument build(PdfDocument document) throws IOException {
         PDDocument pdf = new PDDocument();
         try {
-            for (java.util.List<PdfDocument.Placement> pageItems : document.pages) {
+            for (java.util.List<PdfDocument.Placement> pageItems : document.pages()) {
                 PDPage page = new PDPage(PDRectangle.A4); pdf.addPage(page);
                 try (PDPageContentStream stream = new PDPageContentStream(pdf, page)) {
                     for (PdfDocument.Placement p : pageItems) {
-                        if (p.width < 1 || p.height < 1) continue;
-                        int w = Math.min(2000, Math.max(1, Math.round(p.width * 2)));
-                        int h = Math.min(2000, Math.max(1, Math.round(p.height * 2)));
-                        BufferedImage image = p.isNote() ? NoteRenderer.render(p, w, h) : MaterialRenderer.render(p.material, w, h);
+                        if (p.width() < 1 || p.height() < 1) continue;
+                        int w = Math.min(2000, Math.max(1, Math.round(p.width() * 2)));
+                        int h = Math.min(2000, Math.max(1, Math.round(p.height() * 2)));
+                        BufferedImage image = p.isNote() ? NoteRenderer.render(p, w, h) : MaterialRenderer.render(p.material(), w, h);
                         PDImageXObject xobj = LosslessFactory.createFromImage(pdf, image);
-                        stream.drawImage(xobj, p.x, PdfDocument.PAGE_HEIGHT - p.y - p.height, p.width, p.height);
+                        stream.drawImage(xobj, p.x(), PdfDocument.PAGE_HEIGHT - p.y() - p.height(), p.width(), p.height());
                     }
                 }
             }
@@ -39,16 +42,16 @@ public final class PdfExporter {
         } catch (IOException | RuntimeException ex) { pdf.close(); throw ex; }
     }
     private void addAppendix(PDDocument pdf, PdfDocument document) throws IOException {
-        Map<String, MathLibrary.Material> used = new LinkedHashMap<>();
-        for (java.util.List<PdfDocument.Placement> page : document.pages)
+        Map<String, PdfMaterial> used = new LinkedHashMap<>();
+        for (java.util.List<PdfDocument.Placement> page : document.pages())
             for (PdfDocument.Placement placement : page)
-                if (!placement.isNote() && !placement.material.isGraph()) used.put(placement.material.id, placement.material);
+                if (!placement.isNote() && !placement.material().isGraph()) used.put(placement.material().id(), placement.material());
         if (used.isEmpty()) return;
         PDPage page = null;
         PDPageContentStream stream = null;
         float y = 0;
         try {
-            for (MathLibrary.Material item : used.values()) {
+            for (PdfMaterial item : used.values()) {
                 if (stream == null || y < 110) {
                     if (stream != null) stream.close();
                     page = new PDPage(PDRectangle.A4); pdf.addPage(page);
@@ -56,10 +59,10 @@ public final class PdfExporter {
                     y = 795;
                     text(stream, 16, 45, y, "Appendix - Copyable LaTeX Source"); y -= 40;
                 }
-                text(stream, 12, 45, y, item.title); y -= 20;
-                y = writeWrapped(stream, item.formula, y, "Formula: ");
-                if (item.result != null && !item.result.isEmpty())
-                    y = writeWrapped(stream, item.result, y, "Result: ");
+                text(stream, 12, 45, y, item.title()); y -= 20;
+                y = writeWrapped(stream, item.formula(), y, "Formula: ");
+                if (item.result() != null && !item.result().isEmpty())
+                    y = writeWrapped(stream, item.result(), y, "Result: ");
                 y -= 15;
             }
         } finally { if (stream != null) stream.close(); }

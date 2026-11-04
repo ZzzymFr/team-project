@@ -1,64 +1,77 @@
 package pdf_editor;
 
+import pdf_editor.domain.PdfMaterial;
+import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.UUID;
+import java.util.Objects;
 
+/** In-memory material repository. Listeners and image encoding stay outside the domain. */
 public final class MathLibrary {
-    public static final class Material {
-        public final String id;
-        public final String title;
-        public final String formula;
-        public final String result;
-        public final BufferedImage graph;
-        private Material(String title, String formula, String result, BufferedImage graph) {
-            this.id = UUID.randomUUID().toString();
-            this.title = title;
-            this.formula = formula;
-            this.result = result;
-            this.graph = graph;
+    public static final class Material extends PdfMaterial {
+        private Material(String title, String formula, String result,
+                         byte[] image, int width, int height) {
+            super(title, formula, result, image, width, height);
         }
-        public boolean isGraph() { return graph != null; }
     }
-    public static Material detachedFormula(Material source) {
-        return new Material(source.title + " - Formula", stripTrailingEquals(source.formula), "", null);
-    }
-    public static Material detachedResult(Material source) {
-        return new Material(source.title + " - Result", "", "=" + stripLeadingEquals(source.result), null);
-    }
-    static String stripTrailingEquals(String value) {
-        return value == null ? "" : value.trim().replaceFirst("\\s*=+\\s*$", "");
-    }
-    static String stripLeadingEquals(String value) {
-        return value == null ? "" : value.trim().replaceFirst("^\\s*=+\\s*", "");
-    }
-    public static Material region(String title, BufferedImage image) {
-        return new Material(title, "", "", image);
-    }
+
     private final List<Material> items = new ArrayList<>();
     private final List<Runnable> listeners = new ArrayList<>();
-    public void onChange(Runnable listener) { listeners.add(listener); }
-    public List<Material> items() { return Collections.unmodifiableList(items); }
+    /** Subscribe to changes. The returned handle releases the listener when a window closes. */
+    public Runnable onChange(Runnable listener) {
+        listeners.add(Objects.requireNonNull(listener));
+        return () -> listeners.remove(listener);
+    }
+    public List<Material> items() { return List.copyOf(items); }
+    public Material find(String id) {
+        for (Material m : items) if (m.id().equals(id)) return m;
+        return null;
+    }
     public Material addCalculation(String formula, String result) {
-        Material item = new Material("Calculation " + (items.size() + 1), formula, result, null);
-        items.add(item); changed(); return item;
+        Material item = new Material("Calculation " + (items.size() + 1),
+                formula, result, null, 0, 0);
+        return publish(item);
     }
-
-    public Material addFormulaResult(String formula, String result) {
-        return addCalculation(formula, result);
-    }
+    public Material addFormulaResult(String formula, String result) { return addCalculation(formula, result); }
     public Material addFormula(String formula) {
-        Material item = new Material("Formula " + (items.size() + 1), formula, "", null);
-        items.add(item); changed(); return item;
+        return publish(new Material("Formula " + (items.size() + 1), formula, "", null, 0, 0));
     }
     public Material addGraph(String latex, BufferedImage image) {
-        if (image == null) throw new IllegalArgumentException("Image is required");
-        Material item = new Material("Graph " + (items.size() + 1), latex, "", image);
-        items.add(item); changed();
+        Objects.requireNonNull(image, "image");
+        Material graph = publish(new Material("Graph " + (items.size() + 1), latex, "",
+                toPng(image), image.getWidth(), image.getHeight()));
+        // Keep the graph AND its source formula as independently draggable materials.
         if (latex != null && !latex.isBlank()) addFormula(latex);
+        return graph;
+    }
+    public static Material region(String title, BufferedImage image) {
+        Objects.requireNonNull(image, "image");
+        return new Material(title, "", "", toPng(image), image.getWidth(), image.getHeight());
+    }
+    /** Compatibility helpers; expression-splitting policy is owned by the domain. */
+    @Deprecated
+    public static Material detachedFormula(PdfMaterial source) {
+        PdfMaterial segment = PdfMaterial.formulaPart(source);
+        return new Material(segment.title(), segment.formula(), segment.result(), null, 0, 0);
+    }
+    @Deprecated
+    public static Material detachedResult(PdfMaterial source) {
+        PdfMaterial segment = PdfMaterial.resultPart(source);
+        return new Material(segment.title(), segment.formula(), segment.result(), null, 0, 0);
+    }
+    private Material publish(Material item) {
+        items.add(item);
+        for (Runnable listener : List.copyOf(listeners)) listener.run();
         return item;
     }
-    private void changed() { for (Runnable listener : new ArrayList<>(listeners)) listener.run(); }
+    private static byte[] toPng(BufferedImage image) {
+        try {
+            ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+            if (!ImageIO.write(image, "png", buffer)) throw new IOException("PNG encoder unavailable");
+            return buffer.toByteArray();
+        } catch (IOException error) { throw new IllegalStateException("Could not encode image", error); }
+    }
 }
