@@ -299,6 +299,21 @@ class FFN(nn.Module):
         hidden = SwiGLU(self.gate(normalised), self.up(normalised))
         return self.dropout(self.down(hidden)) + x
 
+class encoder(nn.Module):
+    """视觉特征的全局自注意力与 FFN；归一化和残差由子模块提供。"""
+
+    def __init__(self):
+        super(encoder, self).__init__()
+        self.self_attention = attention_module()
+        self.ffn = FFN()
+
+    def forward(self, x: torch.Tensor,
+                memory_key_padding_mask: torch.Tensor | None = None) -> torch.Tensor:
+        # x [B,S,d] 是展平后的图像特征；mask [B,S]，True 屏蔽补边，不使用因果遮罩。
+
+        x = self.self_attention(x, key_padding_mask=memory_key_padding_mask)
+        return self.ffn(x)
+
 class decoder(nn.Module):
 
     self_attention : attention_module
@@ -348,6 +363,8 @@ class vital_mini(nn.Module):
         self.decoder3 = decoder()
         self.decoder4 = decoder()
         self.decoder5 = decoder()
+        self.encoder1 = encoder()
+        self.encoder2 = encoder()
 
         # token id -> 向量; <pad> 对应的行保持为 0
         self.token_embedding = nn.Embedding(num_tokens, d_model, padding_idx=pad_id)
@@ -382,9 +399,11 @@ class vital_mini(nn.Module):
         # [B,C,h,w] -> [B,h*w,C]: flatten h,w row-major, then move channels last
         return x.flatten(2).transpose(1, 2)
 
-    def encode_image(self, image: torch.Tensor) -> torch.Tensor:
-        # 图像 [B,3,H,W] -> memory [B,h*w,d];导出 ONNX 时这一段就是 encoder.onnx
-        return self.encode(self.cnn(image))
+    def encode_image(self, image: torch.Tensor,
+                     memory_key_padding_mask: torch.Tensor | None = None) -> torch.Tensor:
+        memory = self.encode(self.cnn(image))
+        memory = self.encoder1(memory, memory_key_padding_mask)
+        return self.encoder2(memory, memory_key_padding_mask)
 
     def decode(self, tokens: torch.Tensor, memory: torch.Tensor,
                tgt_key_padding_mask: torch.Tensor | None = None,
@@ -403,7 +422,7 @@ class vital_mini(nn.Module):
                 tgt_key_padding_mask: torch.Tensor | None = None,
                 memory_key_padding_mask: torch.Tensor | None = None) -> torch.Tensor:
         # 训练(teacher forcing): tokens 是 <bos> y1..yn,logits[:, t] 预测的是 y_{t+1}
-        memory = self.encode_image(image)
+        memory = self.encode_image(image, memory_key_padding_mask)
         decoded = self.decode(tokens, memory, tgt_key_padding_mask, memory_key_padding_mask)
         return decoded
 
@@ -424,7 +443,7 @@ class vital_mini(nn.Module):
             raise ValueError(f"前缀必须为 [B,T]，且 1 <= T <= {max_len}")
         if image.ndim != 4 or image.size(0) != tokens.size(0) or image.size(1) != 3:
             raise ValueError("图片必须为与前缀批量对齐的 [B,3,H,W]")
-        memory = self.encode_image(image)
+        memory = self.encode_image(image, memory_key_padding_mask)
         if tgt_key_padding_mask is None:
             tgt_key_padding_mask = tokens.eq(pad_id)
         x = self.token_embedding(tokens) * math.sqrt(d_model) + self.token_pos[:, :tokens.size(1)]
@@ -445,7 +464,7 @@ class vital_mini(nn.Module):
         self.eval()                                           # 关 dropout;BatchNorm 使用滑动统计
         results = []
         for i in range(image.size(0)):                        # 每张图各做一次 beam search
-            memory = self.encode_image(image[i:i + 1])        # 每张图只过一次 CNN
+            memory = self.encode_image(image[i:i + 1])        # 每张图只过一次 CNN 和视觉 encoder
             tokens = torch.full((1, 1), bos_id, dtype=torch.long, device=image.device)
             state = None
             while True:
