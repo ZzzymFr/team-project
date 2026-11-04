@@ -28,10 +28,12 @@ public final class MaterialRenderer {
         try {
             if (!material.isGraph()) { g.setColor(Color.WHITE); g.fillRect(0, 0, width, height); }
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+            g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
             if (material.isGraph()) {
                 double scale = Math.min((double) width / material.imageWidth(), (double) height / material.imageHeight());
-                int w = (int) (material.imageWidth() * scale);
-                int h = (int) (material.imageHeight() * scale);
+                int w = Math.max(1, (int) Math.round(material.imageWidth() * scale));
+                int h = Math.max(1, (int) Math.round(material.imageHeight() * scale));
                 g.drawImage(graphImage(material), (width - w) / 2, (height - h) / 2, w, h, null);
             } else {
                 String formula = material.formula() == null ? "" : material.formula().trim();
@@ -45,22 +47,16 @@ public final class MaterialRenderer {
                     formula = formula.replaceFirst("\\s*=+\\s*$", "");
                     result = result.replaceFirst("^\\s*=+\\s*", "");
                     String leftText = formula + "=";
-                    TeXIcon leftIcon = latexIcon(leftText);
-                    TeXIcon rightIcon = latexIcon(result);
-                    if (leftIcon != null && rightIcon != null) {
-                        int gap = 12;
-                        int total = leftIcon.getIconWidth() + rightIcon.getIconWidth();
-                        int tallest = Math.max(leftIcon.getIconHeight(), rightIcon.getIconHeight());
-                        double scale = Math.max(.1, Math.min(1.8,
-                            Math.min((width - gap - 20.0) / Math.max(1, total),
-                                     (height - 12.0) / Math.max(1, tallest))));
-                        int scaledLeft = (int)Math.round(leftIcon.getIconWidth() * scale);
-                        int scaledRight = (int)Math.round(rightIcon.getIconWidth() * scale);
-                        int startX = Math.max(5, (width - scaledLeft - gap - scaledRight) / 2);
-                        paintIcon(g, leftIcon, startX,
-                            (int)((height - leftIcon.getIconHeight() * scale) / 2), scale);
-                        paintIcon(g, rightIcon, startX + scaledLeft + gap,
-                            (int)((height - rightIcon.getIconHeight() * scale) / 2), scale);
+                    // Typeset at the actual raster resolution instead of painting a 20px
+                    // icon and enlarging its already-rasterized pixels.
+                    TeXIcon[] icons = fittedPair(leftText, result, width - 20, height - 12);
+                    if (icons != null) {
+                        int gap = Math.max(6, Math.min(24, width / 40));
+                        int total = icons[0].getIconWidth() + icons[1].getIconWidth() + gap;
+                        int startX = Math.max(5, (width - total) / 2);
+                        paintIcon(g, icons[0], startX, (height - icons[0].getIconHeight()) / 2);
+                        paintIcon(g, icons[1], startX + icons[0].getIconWidth() + gap,
+                                (height - icons[1].getIconHeight()) / 2);
                     } else {
                         drawFormula(g, leftText + result, width, height, 0);
                     }
@@ -83,28 +79,32 @@ public final class MaterialRenderer {
             });
         }
     }
-    private static TeXIcon latexIcon(String text) {
-        try { return new TeXFormula(text).createTeXIcon(TeXConstants.STYLE_DISPLAY, 20); }
+    private static TeXIcon latexIcon(String text, float size) {
+        try { return new TeXFormula(text).createTeXIcon(TeXConstants.STYLE_DISPLAY, size); }
         catch (RuntimeException e) { return null; }
     }
-    private static void paintIcon(Graphics2D g, TeXIcon icon, int x, int y, double scale) {
-        Graphics2D copy = (Graphics2D) g.create();
-        copy.translate(x, y); copy.scale(scale, scale);
-        icon.paintIcon(new JLabel(), copy, 0, 0);
-        copy.dispose();
+    private static TeXIcon[] fittedPair(String left, String right, int width, int height) {
+        TeXIcon a = latexIcon(left, 20f), b = latexIcon(right, 20f);
+        if (a == null || b == null) return null;
+        int gap = Math.max(6, Math.min(24, (width + 20) / 40));
+        double fit = Math.min((width - gap) / (double) Math.max(1, a.getIconWidth() + b.getIconWidth()),
+                height / (double) Math.max(1, Math.max(a.getIconHeight(), b.getIconHeight())));
+        float size = (float) Math.max(2, Math.min(320, 20 * fit));
+        return new TeXIcon[] {latexIcon(left, size), latexIcon(right, size)};
+    }
+    private static void paintIcon(Graphics2D g, TeXIcon icon, int x, int y) {
+        icon.paintIcon(new JLabel(), g, x, y);
     }
     private static void drawFormula(Graphics2D g, String text, int width, int height, int top) {
         if (text == null || text.isEmpty()) return;
         try {
-            TeXFormula formula = new TeXFormula(text);
-            TeXIcon icon = formula.createTeXIcon(TeXConstants.STYLE_DISPLAY, 20);
-            double scale = Math.min((width - 12.0) / Math.max(1, icon.getIconWidth()),
+            TeXIcon icon = latexIcon(text, 20f);
+            if (icon == null) throw new IllegalArgumentException("Invalid LaTeX");
+            double fit = Math.min((width - 12.0) / Math.max(1, icon.getIconWidth()),
                     (height - 8.0) / Math.max(1, icon.getIconHeight()));
-            Graphics2D copy = (Graphics2D) g.create();
-            copy.translate(6, top + 4);
-            copy.scale(Math.max(.1, scale), Math.max(.1, scale));
-            icon.paintIcon(new JLabel(), copy, 0, 0);
-            copy.dispose();
+            icon = latexIcon(text, (float) Math.max(2, Math.min(320, 20 * fit)));
+            if (icon != null) paintIcon(g, icon, Math.max(6, (width - icon.getIconWidth()) / 2),
+                    top + Math.max(4, (height - icon.getIconHeight()) / 2));
         } catch (RuntimeException invalidLatex) {
             g.setColor(Color.DARK_GRAY);
             String plain = text.replace('\n', ' ');
