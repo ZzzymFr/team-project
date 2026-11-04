@@ -133,8 +133,16 @@ public final class PdfPageCanvas extends JPanel {
             for (PdfDocument.Placement p : placements) {
                 int x = Math.round(p.x()) + MARGIN, y = Math.round(p.y()) + MARGIN;
                 int width = Math.round(p.width()), height = Math.round(p.height());
-                g2.drawImage(p.isNote() ? NoteRenderer.render(p, width, height)
-                        : MaterialRenderer.render(p.material(), width, height), x, y, width, height, null);
+                // Render at device-visible resolution on every paint/zoom: a single
+                // low-res bitmap must never be stretched when the user zooms in.
+                double deviceScale = Math.max(1.0, zoom() * Math.max(1.0,
+                        g2.getDeviceConfiguration().getDefaultTransform().getScaleX()));
+                int rasterWidth = Math.min(3200, Math.max(8, (int) Math.ceil(width * deviceScale)));
+                int rasterHeight = Math.min(3200, Math.max(8, (int) Math.ceil(height * deviceScale)));
+                g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+                g2.drawImage(p.isNote() ? NoteRenderer.render(p, rasterWidth, rasterHeight)
+                        : MaterialRenderer.render(p.material(), rasterWidth, rasterHeight),
+                        x, y, width, height, null);
                 if (selected != null && selected.id().equals(p.id())) {
                     g2.setColor(new Color(33, 110, 220)); g2.setStroke(new BasicStroke(2));
                     g2.drawRect(x, y, width, height);
