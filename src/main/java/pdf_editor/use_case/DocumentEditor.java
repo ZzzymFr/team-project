@@ -77,6 +77,16 @@ public final class DocumentEditor {
         document.replace(page, updated);
         return updated;
     }
+    /** Apply a typeset correction atomically so Undo restores the prior formula and result. */
+    public PdfDocument.Placement editFormula(int page, String id, String formula, String result) {
+        PdfDocument.Placement current = findRequired(page, id);
+        if (current.isNote() || current.material().isGraph())
+            throw new IllegalArgumentException("Only typeset formula materials can be edited");
+        PdfDocument.Placement updated = current.withMaterial(current.material().withText(formula, result));
+        checkpoint();
+        document.replace(page, updated);
+        return updated;
+    }
     public void arrange(int page, String id, int direction) {
         validatePage(page);
         int index = document.indexOf(page, id);

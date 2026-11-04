@@ -73,6 +73,12 @@ public final class PdfEditorController {
         boolean changed = editor.delete(page, selectedId);
         selectedId = null; return changed;
     }
+    public boolean editSelectedFormula(String formula, String result) {
+        PdfDocument.Placement item = selected();
+        if (item == null || item.isNote() || item.material().isGraph()) return false;
+        editor.editFormula(page, selectedId, formula, result);
+        return true;
+    }
     public void arrange(int direction) { if (selected() != null) editor.arrange(page, selectedId, direction); }
     public boolean splitSelected() {
         if (selected() == null) return false;

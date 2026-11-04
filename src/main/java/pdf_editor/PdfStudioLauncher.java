@@ -17,6 +17,8 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /** Composition root for US4: wires incoming team events, use cases and external adapters. */
 public final class PdfStudioLauncher implements Us4InputBoundary {
@@ -32,6 +34,21 @@ public final class PdfStudioLauncher implements Us4InputBoundary {
     public MathLibrary getLibrary() { return library; }
     public MathLabCollector getCollector() { return collector; }
     @Override public void addCalculation(String latex, String result) { collector.acceptCalculation(latex, result); }
+    public void addCalculationWithSource(long sourceId, String latex, String result) {
+        collector.acceptCalculation(sourceId, latex, result);
+    }
+    public void synchronizeCanvas(SharedCanvas canvas) {
+        if (canvas == null) return;
+        Runnable prune = () -> {
+            if (canvas.isBlank()) { library.clear(); return; }
+            Set<Long> active = canvas.getDrawingCanvas().getFormulas().stream()
+                    .filter(formula -> formula.getAnswer() != null)
+                    .map(formula -> formula.getId()).collect(Collectors.toSet());
+            library.retainActiveSources(active);
+        };
+        if (SwingUtilities.isEventDispatchThread()) prune.run();
+        else SwingUtilities.invokeLater(prune);
+    }
     public void addFormulaResult(String latex, String result) { addCalculation(latex, result); }
     public void addRecognizedFormula(String latex) { collector.acceptRecognizedFormula(latex); }
     @Override public void addGraph(String latex, BufferedImage image) { collector.acceptGraph(latex, image); }

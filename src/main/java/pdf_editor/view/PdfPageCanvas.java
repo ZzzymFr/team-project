@@ -1,6 +1,8 @@
 package pdf_editor.view;
 
 import pdf_editor.adapter.PdfEditorController;
+import pdf_editor.adapter.PageZoomModel;
+import pdf_editor.adapter.PageCoordinateMapper;
 import pdf_editor.data_access.MaterialRenderer;
 import pdf_editor.data_access.NoteRenderer;
 import pdf_editor.domain.PdfDocument;
@@ -19,10 +21,30 @@ public final class PdfPageCanvas extends JPanel {
     public interface Listener {
         void contextMenu(MouseEvent event);
         void editNote();
+        void editFormula();
     }
     private static final int MARGIN = 28;
     private final PdfEditorController controller;
     private final Listener listener;
+    private final PageZoomModel zoomModel = new PageZoomModel();
+    public double zoom() { return zoomModel.zoom(); }
+    public double setZoom(double zoom) {
+        zoomModel.set(zoom);
+        updateSize(); revalidate(); repaint();
+        return zoomModel.zoom();
+    }
+    public double adjustZoom(double rotation) { return setZoom(zoomModel.adjustWheel(rotation)); }
+    public double fitZoom(int viewportWidth, int viewportHeight) {
+        return setZoom(zoomModel.fit(viewportWidth - MARGIN * 2, viewportHeight - MARGIN * 2,
+                (int) PdfDocument.PAGE_WIDTH, (int) PdfDocument.PAGE_HEIGHT));
+    }
+    private void updateSize() {
+        double z = zoom();
+        setPreferredSize(new Dimension((int)Math.ceil(PdfDocument.PAGE_WIDTH * z) + MARGIN * 2,
+                (int)Math.ceil(PdfDocument.PAGE_HEIGHT * z) + MARGIN * 2));
+    }
+    private float toPageX(int screenX) { return PageCoordinateMapper.screenToPage(screenX, MARGIN, zoom()); }
+    private float toPageY(int screenY) { return PageCoordinateMapper.screenToPage(screenY, MARGIN, zoom()); }
     private Point anchor;
     private float oldX, oldY, oldW, oldH;
     private boolean resizing;
@@ -31,8 +53,7 @@ public final class PdfPageCanvas extends JPanel {
     public PdfPageCanvas(PdfEditorController controller, Listener listener) {
         this.controller = Objects.requireNonNull(controller);
         this.listener = Objects.requireNonNull(listener);
-        setPreferredSize(new Dimension((int) PdfDocument.PAGE_WIDTH + MARGIN * 2,
-                (int) PdfDocument.PAGE_HEIGHT + MARGIN * 2));
+        updateSize();
         setBackground(new Color(243, 247, 253));
         setTransferHandler(new TransferHandler() {
             @Override public boolean canImport(TransferSupport support) {
@@ -45,7 +66,7 @@ public final class PdfPageCanvas extends JPanel {
                     MathLibrary.Material material = controller.library().find(id);
                     if (material == null) return false;
                     Point location = support.getDropLocation().getDropPoint();
-                    controller.place(material, location.x - MARGIN, location.y - MARGIN,
+                    controller.place(material, toPageX(location.x), toPageY(location.y),
                             material.isGraph() ? 260 : 300, material.isGraph() ? 180 : 100);
                     repaint(); return true;
                 } catch (Exception ignored) { return false; }
@@ -53,13 +74,13 @@ public final class PdfPageCanvas extends JPanel {
         });
         MouseAdapter mouse = new MouseAdapter() {
             @Override public void mousePressed(MouseEvent e) {
-                controller.selectAt(e.getX()-MARGIN, e.getY()-MARGIN);
+                controller.selectAt(toPageX(e.getX()), toPageY(e.getY()));
                 PdfDocument.Placement p = controller.selected();
                 anchor = null; dragStarted = false;
                 if (p != null) {
                     oldX = p.x(); oldY = p.y(); oldW = p.width(); oldH = p.height();
-                    resizing = e.getX() > p.x() + p.width() + MARGIN - 18
-                            && e.getY() > p.y() + p.height() + MARGIN - 18;
+                    resizing = toPageX(e.getX()) > p.x() + p.width() - 18 / zoom()
+                            && toPageY(e.getY()) > p.y() + p.height() - 18 / zoom();
                     if (SwingUtilities.isLeftMouseButton(e)) anchor = e.getPoint();
                 }
                 if (e.isPopupTrigger()) listener.contextMenu(e);
@@ -67,7 +88,8 @@ public final class PdfPageCanvas extends JPanel {
             }
             @Override public void mouseDragged(MouseEvent e) {
                 if (controller.selected() == null || anchor == null) return;
-                int dx = e.getX() - anchor.x, dy = e.getY() - anchor.y;
+                float dx = PageCoordinateMapper.deltaToPage(e.getX() - anchor.x, zoom());
+                float dy = PageCoordinateMapper.deltaToPage(e.getY() - anchor.y, zoom());
                 if (!dragStarted) {
                     if (dx == 0 && dy == 0) return;
                     controller.beginTransform(); dragStarted = true;
@@ -82,7 +104,10 @@ public final class PdfPageCanvas extends JPanel {
             }
             @Override public void mouseClicked(MouseEvent e) {
                 if (e.getClickCount() == 2 && SwingUtilities.isLeftMouseButton(e)
-                        && controller.selected() != null && controller.selected().isNote()) listener.editNote();
+                        && controller.selected() != null) {
+                    if (controller.selected().isNote()) listener.editNote();
+                    else if (!controller.selected().material().isGraph()) listener.editFormula();
+                }
             }
         };
         addMouseListener(mouse); addMouseMotionListener(mouse);
@@ -92,6 +117,10 @@ public final class PdfPageCanvas extends JPanel {
         Graphics2D g2 = (Graphics2D) g.create();
         try {
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            // Page and placements share the same physical view transform.
+            g2.translate(MARGIN, MARGIN);
+            g2.scale(zoom(), zoom());
+            g2.translate(-MARGIN, -MARGIN);
             g2.setColor(new Color(117, 142, 173, 28));
             g2.fillRoundRect(MARGIN + 5, MARGIN + 7, (int)PdfDocument.PAGE_WIDTH,
                     (int)PdfDocument.PAGE_HEIGHT, 5, 5);
