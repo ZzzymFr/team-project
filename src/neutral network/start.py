@@ -13,7 +13,7 @@ IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp", ".webp", ".tif", ".tiff"}
 
 
 def load_image(path: Path, invert: bool | None = None) -> torch.Tensor:
-    return load_formula_image(path, invert).unsqueeze(0).expand(1, 3, -1, -1).contiguous()
+    return load_formula_image(path, invert).unsqueeze(0)
 
 
 def main():

@@ -13,11 +13,10 @@ import java.io.IOException;
 import java.nio.file.Path;
 
 import java.util.ArrayList;
-import ai.djl.ndarray.types.DataType;
 import ai.djl.modality.cv.ImageFactory;
 
 /**
- * 已有 CNN 特征 -> 五个 decoder -> final_norm -> head。
+ * 已有 CNN 特征 -> 两个视觉 encoder -> 五个 decoder -> final_norm -> head。
  * forward 返回词表 logits；judge 返回前缀判断概率。输入均为已准备好的张量。
  * 单线程使用。先 init()；返回的 NDArray 由调用方 close，最晚在模型 close 时释放。
  */
@@ -27,6 +26,7 @@ public final class vital_mini implements AutoCloseable {
     private final Path modelPath;
     private ModelRuntime runtime;
     private vital_pixel cnn;
+    private encoder encoder1, encoder2;
     private float[] embedding;
     private boolean closed;
 
@@ -51,11 +51,18 @@ public final class vital_mini implements AutoCloseable {
                 throw new IOException("模型的 head/词表尺寸与当前 " + VOCAB_LENGTH + " 个 token 不匹配");
             }
             embedding = weights.toFloatArray();
+            // 提前验证导出文件包含完整视觉编码器，避免运行到识别时才发现旧文件。
+            NDArray probe = scope.zeros(new Shape(1, 1, 256));
+            NDArray noMask = scope.create(new boolean[0]);
+            loaded.callMini(scope, "encoder1", probe, noMask);
+            loaded.callMini(scope, "encoder2", probe, noMask);
             cnn = new vital_pixel(loaded);
+            encoder1 = new encoder(loaded, "encoder1");
+            encoder2 = new encoder(loaded, "encoder2");
             runtime = loaded;
         } catch (TranslateException e) {
             loaded.close();
-            throw new IOException("无法通过 head 读取共享词嵌入，请使用导出的 model_ops.pt", e);
+            throw new IOException("无法读取共享词嵌入或视觉编码器，请重新导出 model_ops.pt", e);
         } catch (IOException | RuntimeException | Error e) {
             loaded.close();
             throw e;
@@ -69,8 +76,28 @@ public final class vital_mini implements AutoCloseable {
         if (cnn == null) throw new IllegalStateException("请先调用 init() 加载模型");
     }
 
-    private NDArray encodeIn(NDArray features) {
-        return features.reshape(features.getShape().get(0), 256, -1).transpose(0, 2, 1);
+    private NDArray encodeIn(NDManager scope, NDArray features, NDArray memoryMask) throws TranslateException {
+        Shape shape = features.getShape();
+        if (features.getDataType() != DataType.FLOAT32 || shape.dimension() != 4
+                || shape.get(0) < 1 || shape.get(1) != 256 || shape.get(2) < 1 || shape.get(3) < 1) {
+            throw new IllegalArgumentException("encoded 必须为 CNN 输出 FLOAT32 [B,256,h,w]");
+        }
+        NDArray memory = runtime.copyInput(scope, features).reshape(shape.get(0), 256, -1).transpose(0, 2, 1);
+        memory = encoder1.forwardIn(scope, memory, memoryMask);
+        return encoder2.forwardIn(scope, memory, memoryMask);
+    }
+
+    public NDArray encodeFeatures(NDArray encoded) throws TranslateException {
+        return encodeFeatures(encoded, null);
+    }
+
+    /** CNN 特征 -> 两层视觉编码器输出 [B,h*w,256]，可缓存供逐词生成复用。 */
+    public NDArray encodeFeatures(NDArray encoded, NDArray memoryMask) throws TranslateException {
+        try (NDManager scope = manager().newSubManager()) {
+            NDArray memory = encodeIn(scope, encoded, memoryMask);
+            memory.attach(manager());
+            return memory;
+        }
     }
 
     private static void validateBatch(NDArray tokens, NDArray memory) {
@@ -123,8 +150,25 @@ public final class vital_mini implements AutoCloseable {
     /** tokenMask: BOOL [B,T]；memoryMask: BOOL [B,h*w]；true 表示屏蔽。 */
     public NDArray forward(NDArray encoded, NDArray tokens, NDArray tokenMask, NDArray memoryMask)
             throws TranslateException {
+        try (NDArray memory = encodeFeatures(encoded, memoryMask)) {
+            return decode(memory, tokens, tokenMask, memoryMask);
+        }
+    }
+
+    public NDArray decode(NDArray memory, NDArray tokens) throws TranslateException {
+        return decode(memory, tokens, null, null);
+    }
+
+    /** 已经过两个 encoder 的 memory [B,S,256] -> logits；不重复执行视觉编码。 */
+    public NDArray decode(NDArray memory, NDArray tokens, NDArray tokenMask, NDArray memoryMask)
+            throws TranslateException {
         try (NDManager scope = manager().newSubManager()) {
-            NDArray memory = encodeIn(encoded);
+            Shape shape = memory.getShape();
+            if (memory.getDataType() != DataType.FLOAT32 || shape.dimension() != 3
+                    || shape.get(0) < 1 || shape.get(1) < 1 || shape.get(2) != 256) {
+                throw new IllegalArgumentException("memory 必须为 FLOAT32 [B,S,256]");
+            }
+            memory = runtime.copyInput(scope, memory);
             NDArray x = tokenEmbedding(scope, tokens);
             validateBatch(tokens, memory);
             NDArray tm = mask(scope, tokenMask, tokens.getShape(), "tokenMask");
@@ -156,7 +200,7 @@ public final class vital_mini implements AutoCloseable {
     public NDArray judge(NDArray encoded, NDArray tokens, NDArray tokenMask,
                          NDArray memoryMask, boolean returnLogits) throws TranslateException {
         try (NDManager scope = manager().newSubManager()) {
-            NDArray memory = encodeIn(encoded);
+            NDArray memory = encodeIn(scope, encoded, memoryMask);
             NDArray x = tokenEmbedding(scope, tokens);
             validateBatch(tokens, memory);
             NDArray tm;
@@ -187,6 +231,8 @@ public final class vital_mini implements AutoCloseable {
             closed = true;
             try {
                 if (cnn != null) cnn.close();
+                if (encoder1 != null) encoder1.close();
+                if (encoder2 != null) encoder2.close();
             } finally {
                 if (runtime != null) runtime.close();
                 embedding = null;
@@ -195,37 +241,38 @@ public final class vital_mini implements AutoCloseable {
     }
 
     public String generate(BufferedImage image) throws TranslateException{
-        NDArray image_tensor = ImageFactory.getInstance()
-                .fromImage(image)
-                .toNDArray(this.manager())
-                .toType(DataType.FLOAT32, false)
-                .div(255f)           // 像素归一化到 [0, 1]
-                .transpose(2, 0, 1)  // [H, W, 3] → [3, H, W]
-                .expandDims(0);      // → [1, 3, H, W]
-        NDArray encoded = cnn.forward(image_tensor);
         ArrayList<Integer> tokens = new ArrayList<>();
         tokens.add(BOS_ID);
-        while(tokens.size() < MAX_LEN){
-            long[] ids = tokens.stream()
-                    .mapToLong(Integer::longValue)
-                    .toArray();
-            NDArray tokens_tensor = this.manager().create(ids).reshape(1,ids.length);
-            try(
-                    NDArray decoded = this.forward(encoded, tokens_tensor);
-                    NDArray last = decoded.get("0,-1,:");
-                    ){
-                float[] scores = last.toFloatArray();
-                    Integer next_token = new Integer(-1);
-                    float max_score = Float.NEGATIVE_INFINITY;
-                    for(int i=0;i < scores.length;++i){
-                        if(i == BOS_ID || i == PAD_ID) continue;
-                        if (scores[i] >= max_score){
-                            max_score = scores[i];
-                            next_token = i;
+        try (NDManager scope = manager().newSubManager()) {
+            NDArray image_tensor = ImageFactory.getInstance()
+                    .fromImage(image)
+                    .toNDArray(scope)
+                    .toType(DataType.FLOAT32, false)
+                    .div(255f)           // 像素归一化到 [0, 1]
+                    .transpose(2, 0, 1)  // [H, W, 3] → [3, H, W]
+                    .expandDims(0);      // → [1, 3, H, W]
+            // 图像编码只计算一次；所有 token 步骤复用 memory。
+            try (NDArray encoded = cnn.forward(image_tensor);
+                 NDArray memory = encodeFeatures(encoded)) {
+                while (tokens.size() < MAX_LEN) {
+                    long[] ids = tokens.stream().mapToLong(Integer::longValue).toArray();
+                    try (NDArray tokens_tensor = scope.create(ids).reshape(1, ids.length);
+                         NDArray decoded = decode(memory, tokens_tensor);
+                         NDArray last = decoded.get("0,-1,:")) {
+                        float[] scores = last.toFloatArray();
+                        int next_token = -1;
+                        float max_score = Float.NEGATIVE_INFINITY;
+                        for (int i = 0; i < scores.length; ++i) {
+                            if (i == BOS_ID || i == PAD_ID) continue;
+                            if (scores[i] >= max_score) {
+                                max_score = scores[i];
+                                next_token = i;
+                            }
                         }
+                        if (next_token == EOS_ID) break;
+                        tokens.add(next_token);
                     }
-                    if (next_token == EOS_ID) break;
-                    tokens.add(next_token);
+                }
             }
         }
         String result;

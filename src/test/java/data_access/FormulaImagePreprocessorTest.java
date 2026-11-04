@@ -96,6 +96,32 @@ class FormulaImagePreprocessorTest {
     }
 
     @Test
+    void colouredInkKeepsDistinctRgbChannelsIncludingYellow() {
+        for (Color colour : new Color[]{Color.RED, Color.BLUE, Color.YELLOW}) {
+            BufferedImage out = FormulaImagePreprocessor.prepare(
+                    drawing(300, 120, Color.WHITE, colour, 20, 60, 280, 60));
+            assertModelShape(out);
+            int pixel = out.getRGB(out.getWidth() / 2, 64) & 0xFFFFFF;
+            assertEquals(colour.getRGB() & 0xFFFFFF, pixel, "ink colour must be preserved");
+            assertEquals(0xFFFFFF, out.getRGB(0, 0) & 0xFFFFFF);
+        }
+    }
+
+    @Test
+    void transparentPixelsAreCompositedOntoWhiteWithoutLosingColour() {
+        BufferedImage image = new BufferedImage(100, 60, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = image.createGraphics();
+        g.setColor(new Color(255, 0, 0, 128));
+        g.fillRect(20, 20, 60, 20);
+        g.dispose();
+        BufferedImage out = FormulaImagePreprocessor.prepare(image);
+        int pixel = out.getRGB(out.getWidth() / 2, 64);
+        assertEquals(255, (pixel >>> 16) & 0xFF);
+        assertTrue(Math.abs(((pixel >>> 8) & 0xFF) - 127) <= 1);
+        assertEquals((pixel >>> 8) & 0xFF, pixel & 0xFF);
+    }
+
+    @Test
     void blankImageIsRejectedWithAMessage() {
         BufferedImage blank = drawing(100, 50, Color.WHITE, Color.WHITE, 0, 0, 0, 0);
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,

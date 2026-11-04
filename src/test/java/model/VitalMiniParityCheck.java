@@ -74,6 +74,21 @@ public final class VitalMiniParityCheck {
                 shared.manager();
                 throw new AssertionError("Closed CNN is still accessible");
             } catch (IllegalStateException expected) { }
+            encoder sharedEncoder = new encoder(runtime, "encoder1");
+            sharedEncoder.close();
+            sharedEncoder.close();
+            try (NDArray output = runtime.callMini(scope, "encoder2", scope.zeros(new Shape(1, 3, 256)),
+                    scope.create(new boolean[0]))) {
+                output.toFloatArray();
+            }
+            try {
+                sharedEncoder.manager();
+                throw new AssertionError("Closed encoder is still accessible");
+            } catch (IllegalStateException expected) { }
+            try {
+                new encoder(runtime, "decoder1");
+                throw new AssertionError("Encoder accepted a decoder name");
+            } catch (IllegalArgumentException expected) { }
         }
         System.out.println("Layer boundaries and shared runtime ownership passed");
     }
@@ -114,6 +129,29 @@ public final class VitalMiniParityCheck {
                             NDArray noPadding = scope.create(new boolean[Math.toIntExact(tokens.size())]).reshape(tokens.getShape());
                             check("judge explicit mask", model.judge(features, tokens, noPadding, null),
                                     read(input, scope, "float"), model.device());
+                            NDArray flat = features.reshape(features.getShape().get(0), 256, -1).transpose(0, 2, 1);
+                            for (String name : new String[]{"encoder1", "encoder2"}) {
+                                try (encoder block = new encoder(modelFile, name)) {
+                                    check(name + " no mask", block.forward(flat), read(input, scope, "float"), block.device());
+                                    check(name + " memory mask", block.forward(flat, memoryMask),
+                                            read(input, scope, "float"), block.device());
+                                    try {
+                                        block.forward(flat, scope.create(new boolean[1]));
+                                        throw new AssertionError("Encoder accepted an invalid mask");
+                                    } catch (IllegalArgumentException expected) { }
+                                }
+                            }
+                            try (NDArray memory = model.encodeFeatures(features);
+                                 NDArray maskedMemory = model.encodeFeatures(features, memoryMask)) {
+                                check("two visual encoders", memory.duplicate(), read(input, scope, "float"), model.device());
+                                check("two visual encoders masked", maskedMemory.duplicate(), read(input, scope, "float"), model.device());
+                                check("cached visual memory decode", model.decode(memory, tokens),
+                                        read(input, scope, "float"), model.device());
+                                check("cached masked visual memory decode", model.decode(maskedMemory, tokens, tokenMask, memoryMask),
+                                        read(input, scope, "float"), model.device());
+                                // 解码及关闭输出不能关闭复用的视觉特征。
+                                memory.toFloatArray(); maskedMemory.toFloatArray(); flat.toFloatArray();
+                            }
                         }
                         if (!image.getDevice().equals(Device.cpu()) || !tokens.getDevice().equals(Device.cpu())) {
                             throw new AssertionError("Caller inputs were moved");
