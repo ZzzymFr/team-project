@@ -43,6 +43,16 @@ public class PdfMaterial {
         return new PdfMaterial(source.title() + " - Result", "", "=" + result, null, 0, 0);
     }
 
+    /** Return a new material value with its own ID (copy-on-write).
+     * The placement identity remains stable, while PDF appendix deduplication
+     * can distinguish differently edited copies of one source material.
+     * Image/graph materials are deliberately not editable as LaTeX text. */
+    public final PdfMaterial withText(String newFormula, String newResult) {
+        if (isGraph()) throw new IllegalStateException("An image cannot be edited as a formula");
+        return new PdfMaterial(title, Objects.requireNonNull(newFormula, "formula"),
+                Objects.requireNonNull(newResult, "result"), null, 0, 0);
+    }
+
     public final String id() { return id; }
     public final String title() { return title; }
     public final String formula() { return formula; }

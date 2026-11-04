@@ -33,7 +33,11 @@ public class AnswerCanvasPage extends CanvasPage {
     private static final int ERROR_MESSAGE_MILLIS = 7000;
     private static final int DEFINED_MESSAGE_MILLIS = 4000;
 
-    private final BiConsumer<String, String> pdfResultSink;
+    /** Optional source-aware export callback. Older two-argument integrations remain supported. */
+    @FunctionalInterface public interface FormulaResultSink {
+        void accept(long sourceId, String latex, String result);
+    }
+    private final FormulaResultSink pdfResultSink;
     private final Map<Long, Long> exportedRevisions = new HashMap<>();
     private final AnswerWorker worker;
     private final AnswerPopup popup;
@@ -49,7 +53,7 @@ public class AnswerCanvasPage extends CanvasPage {
     // no evaluate feature, just a placeholder
     public AnswerCanvasPage(SharedCanvas sharedCanvas) {
         super(sharedCanvas);
-        this.pdfResultSink = (latex, result) -> {};
+        this.pdfResultSink = (id, latex, result) -> {};
         this.worker = null;
         this.popup = null;
         this.pauseTimer = null;
@@ -57,11 +61,17 @@ public class AnswerCanvasPage extends CanvasPage {
     }
 
     public AnswerCanvasPage(SharedCanvas sharedCanvas, EvaluateController controller, MathLabViewModel viewModel) {
-        this(sharedCanvas, controller, viewModel, (latex, result) -> {});
+        this(sharedCanvas, controller, viewModel, (id, latex, result) -> {});
     }
 
     public AnswerCanvasPage(SharedCanvas sharedCanvas, EvaluateController controller, MathLabViewModel viewModel,
                             BiConsumer<String, String> pdfResultSink) {
+        this(sharedCanvas, controller, viewModel,
+                (sourceId, latex, result) -> pdfResultSink.accept(latex, result));
+    }
+
+    public AnswerCanvasPage(SharedCanvas sharedCanvas, EvaluateController controller, MathLabViewModel viewModel,
+                            FormulaResultSink pdfResultSink) {
         super(sharedCanvas);
         this.pdfResultSink = java.util.Objects.requireNonNull(pdfResultSink);
         this.worker = new AnswerWorker(controller, viewModel);
@@ -239,7 +249,7 @@ public class AnswerCanvasPage extends CanvasPage {
             if (drawn && latex != null && !latex.isBlank()
                     && !java.util.Objects.equals(exportedRevisions.get(capture.getId()), capture.getRevision())) {
                 exportedRevisions.put(capture.getId(), capture.getRevision());
-                pdfResultSink.accept(latex, result);
+                pdfResultSink.accept(capture.getId(), latex, result);
             }
         }
         if (--running == 0 && !ownMessage) {

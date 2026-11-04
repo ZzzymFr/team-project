@@ -39,7 +39,13 @@ public class StackedAppBuilder {
     private final StackedPages pages = new StackedPages();
     private final PdfStudioLauncher pdfStudio = new PdfStudioLauncher();
 
-    { pdfStudio.setSourceCanvas(sharedCanvas); }
+    {
+        pdfStudio.setSourceCanvas(sharedCanvas);
+        sharedCanvas.addFormulaChangeListener(id -> pdfStudio.synchronizeCanvas(sharedCanvas));
+        // User action events precede Clear/Erase mutations. Schedule synchronization after the event.
+        sharedCanvas.addUserActionListener(() -> javax.swing.SwingUtilities.invokeLater(
+                () -> pdfStudio.synchronizeCanvas(sharedCanvas)));
+    }
 
     /** The Graph page, wired to the graph use case: LaTeX -> parse and sample -> QuickChart -> graph card. */
     public StackedAppBuilder addGraphPage() {
@@ -70,7 +76,8 @@ public class StackedAppBuilder {
         EvaluateInteractor interactor = new EvaluateInteractor(
                 new InMemoryFunctionDataAccessObject(), new EvaluatePresenter(viewModel));
         EvaluateController controller = new EvaluateController(interactor);
-        pages.addPage("Answer", ANSWER_GREEN, new AnswerCanvasPage(sharedCanvas, controller, viewModel, pdfStudio::addCalculation));
+        pages.addPage("Answer", ANSWER_GREEN, new AnswerCanvasPage(sharedCanvas, controller, viewModel,
+                (AnswerCanvasPage.FormulaResultSink) pdfStudio::addCalculationWithSource));
         return this;
     }
 

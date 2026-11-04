@@ -56,6 +56,11 @@ public final class PdfDocument {
         public List<NoteSpan> noteSpans() { return noteSpans; }
         public int noteStyle() { return noteStyle; }
         public int noteSize() { return noteSize; }
+        public Placement withMaterial(PdfMaterial newMaterial) {
+            if (isNote()) throw new IllegalStateException("Notes are not formula materials");
+            return new Placement(id, Objects.requireNonNull(newMaterial), x, y, width, height,
+                    null, List.of(), noteStyle, noteSize);
+        }
         public Placement withBounds(float newX, float newY, float newWidth, float newHeight) {
             return new Placement(id, material, newX, newY, newWidth, newHeight, noteText, noteSpans, noteStyle, noteSize);
         }

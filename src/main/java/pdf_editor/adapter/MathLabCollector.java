@@ -12,6 +12,10 @@ public final class MathLabCollector {
         if (latex != null && !latex.trim().isEmpty())
             onEdt(() -> library.addCalculation(latex, result == null ? "" : result));
     }
+    public void acceptCalculation(long sourceId, String latex, String result) {
+        if (latex != null && !latex.isBlank())
+            onEdt(() -> library.addSourceCalculation(sourceId, latex, result == null ? "" : result));
+    }
     public void acceptRecognizedFormula(String latex) {
         if (latex != null && !latex.trim().isEmpty()) onEdt(() -> library.addFormula(latex));
     }
