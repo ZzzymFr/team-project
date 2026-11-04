@@ -1,4 +1,4 @@
-package pdf_editor;
+package pdf_editor.view;
 
 import javax.swing.JTextPane;
 import javax.swing.text.AttributeSet;

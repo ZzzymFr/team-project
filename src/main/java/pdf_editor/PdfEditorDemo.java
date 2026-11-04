@@ -8,7 +8,8 @@ import java.awt.image.BufferedImage;
 public final class PdfEditorDemo {
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
-            MathLibrary library = new MathLibrary();
+            PdfStudioLauncher studio = new PdfStudioLauncher();
+            MathLibrary library = studio.getLibrary();
             library.addCalculation("x^2+2x+1=0", "x=-1");
             library.addCalculation("\\frac{1}{2}+\\frac{1}{3}", "\\frac{5}{6}");
             library.addFormula("\\int_0^1 x^2\\,dx");
@@ -24,7 +25,7 @@ public final class PdfEditorDemo {
             }
             g.dispose();
             library.addGraph("y=x^2", graph);
-            new PdfEditorFrame(library).setVisible(true);
+            studio.openEditor();
         });
     }
 }
