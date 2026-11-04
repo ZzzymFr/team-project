@@ -21,7 +21,7 @@ import ai.djl.modality.cv.ImageFactory;
  * 单线程使用。先 init()；返回的 NDArray 由调用方 close，最晚在模型 close 时释放。
  */
 public final class vital_mini implements AutoCloseable {
-    public static final int VOCAB_LENGTH = 200;
+    public static final int VOCAB_LENGTH = 234;
     public static final int PAD_ID = 67, BOS_ID = 68, EOS_ID = 69, MAX_LEN = 200;
     private final Path modelPath;
     private ModelRuntime runtime;
@@ -280,9 +280,16 @@ public final class vital_mini implements AutoCloseable {
                 Path.of("src/main/java/model/checkpoints/tokeniser.json"))) {
             var vocab = com.google.gson.JsonParser.parseReader(reader)
                     .getAsJsonObject().getAsJsonObject("base").getAsJsonObject("vocab");
+            if (vocab.size() != VOCAB_LENGTH) {
+                throw new TranslateException("词表必须包含 " + VOCAB_LENGTH + " 个 token");
+            }
             String[] table = new String[VOCAB_LENGTH];
             for (var entry : vocab.entrySet()) {
-                table[entry.getValue().getAsInt()] = entry.getKey();
+                int id = entry.getValue().getAsInt();
+                if (id < 0 || id >= VOCAB_LENGTH || table[id] != null) {
+                    throw new TranslateException("词表 token ID 越界或重复: " + id);
+                }
+                table[id] = entry.getKey();
             }
 
             StringBuilder text = new StringBuilder();

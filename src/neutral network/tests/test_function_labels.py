@@ -63,7 +63,7 @@ class FunctionLabelsTests(unittest.TestCase):
         java = json.loads((root / 'main/java/model/checkpoints/tokeniser.json').read_text())['base']['vocab']
         table = load_vocab()
         self.assertEqual({t: i for i, t in enumerate(table)}, java)
-        self.assertEqual(table[188:], ['\\' + n for n in
+        self.assertEqual(table[188:200], ['\\' + n for n in
             'arcsin arccos arctan sinh cosh tanh exp max min cot sec csc'.split()])
 
 

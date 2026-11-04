@@ -8,8 +8,8 @@ import torch.nn.functional as F
 
 d_model = 256
 attention_heads = 4
-vocab_size = 200
-legacy_vocab_sizes = (147, 148, 149, 154, 186, 187, 188)
+vocab_size = 234
+legacy_vocab_sizes = (147, 148, 149, 154, 186, 187, 188, 200)
 pad_id, bos_id, eos_id = 67, 68, 69   # 与 tokeniser.json 中的特殊 token 对应
 max_len = 300                        # LaTeX token 序列的最大长度(含 <bos>/<eos>)
 
@@ -24,9 +24,17 @@ def SwiGLU(gate: torch.Tensor, content: torch.Tensor) -> torch.Tensor:
 
 def load_vocab(path: Path = Path(__file__).with_name("tokeniser.json")) -> list[str]:
     # tokeniser.json 里是 token -> id,翻转成下标即 id 的列表
+    def unique_object(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError(f"tokeniser.json 存在重复键: {key}")
+            result[key] = value
+        return result
     with open(path, encoding="utf-8") as f:
-        vocab = json.load(f)["base"]["vocab"]
-    assert len(vocab) == vocab_size, f"tokeniser.json 有 {len(vocab)} 个 token,但 vocab_size = {vocab_size}"
+        vocab = json.load(f, object_pairs_hook=unique_object)["base"]["vocab"]
+    if len(vocab) != vocab_size or any(type(i) is not int for i in vocab.values()) or set(vocab.values()) != set(range(vocab_size)):
+        raise ValueError(f"tokeniser.json 必须包含 {vocab_size} 个 token，编号连续且唯一为 0–{vocab_size - 1}")
     table = [""] * len(vocab)
     for token, i in vocab.items():
         table[i] = token

@@ -43,6 +43,7 @@ def generate(checkpoint, folder):
             tokens = torch.randint(0, model.token_embedding.num_embeddings, (batch, length))
             tokens[:, 0] = bos_id
             if length > 1:
+                tokens[:, 1] = model.token_embedding.num_embeddings - 1
                 tokens[:, -1] = pad_id
             flat = model.encode(model.cnn(image))
             tm = tokens.eq(pad_id)
