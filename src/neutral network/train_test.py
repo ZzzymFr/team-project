@@ -15,6 +15,7 @@ import torch
 import torch.nn.functional as F
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader
+from augmentation import DEFAULT_AUGMENT_PROBABILITY
 
 from model import (bos_id, eos_id, pad_id, max_len, legacy_vocab_sizes, load_vocab,
                    vital_mini, complete_judge_weights)
@@ -177,8 +178,12 @@ def parse_args():
     parser.add_argument("--workers", type=int, default=0)
     parser.add_argument("--max-samples", type=int, default=0, help="限制每个数据划分的图片数，0 表示不限")
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--augment", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--augment-prob", type=float, default=DEFAULT_AUGMENT_PROBABILITY)
     parser.add_argument("--device", choices=("cpu", "cuda", "mps"))
     args = parser.parse_args()
+    if not 0 <= args.augment_prob <= 1:
+        parser.error("augment-prob 必须在 [0,1] 内")
     if min(args.epochs, args.batch_size) < 1 or args.lr <= 0 or min(args.workers, args.max_samples) < 0:
         parser.error("epochs、batch-size、lr 必须为正；workers、max-samples 不得为负")
     return args
@@ -199,7 +204,8 @@ def main():
     vocab = {token: i for i, token in enumerate(load_vocab()[:model.head.out_features])}
     root = str(resolve_data_root(args.data))
     train_ds = MathWriting(root, ["train"], vocab, train=True, max_samples=args.max_samples,
-                           personal_train=None if args.no_personal_train else args.personal_train.resolve())
+                           personal_train=None if args.no_personal_train else args.personal_train.resolve(),
+                           augment=args.augment, augment_probability=args.augment_prob)
     val_ds = MathWriting(root, ["valid"], vocab, train=False, max_samples=args.max_samples)
     if not len(train_ds) or not len(val_ds):
         raise ValueError("训练集或验证集为空")

@@ -1,4 +1,4 @@
-"""仅导出卷积、归一化、SiLU、线性层和完整 decoder；不导出 generate。
+"""导出基础层、完整视觉 encoder 和 decoder；不导出 generate。
 
 运行：.venv/bin/python 'src/neutral network/export_torchscript_ops.py'
 生成 checkpoints/model_ops.pt 和 model_ops.json（方法清单）。
@@ -24,6 +24,7 @@ from model import attention_heads, d_model, vital_mini
 ROOT = Path(__file__).resolve().parents[2]
 LAYER_TYPES = (nn.Conv2d, nn.BatchNorm2d, nn.Linear, nn.LayerNorm)
 DECODER_PREFIXES = ('decoder1', 'decoder2', 'decoder3', 'decoder4', 'decoder5', 'judge_decoder')
+ENCODER_PREFIXES = ('encoder1', 'encoder2')
 
 
 def layer_methods(model):
@@ -84,6 +85,19 @@ class ExportFFN(nn.Module):
         return self.dropout(self.down(hidden)) + x
 
 
+class ExportEncoder(nn.Module):
+    """与 model.py 的 encoder 对齐：无因果遮罩的视觉自注意力 -> FFN。"""
+    def __init__(self, source):
+        super().__init__()
+        self.self_attention = ExportAttention(source.self_attention)
+        self.ffn = ExportFFN(source.ffn)
+
+    def forward(self, x: torch.Tensor,
+                memory_key_padding_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+        x = self.self_attention(x, None, None, memory_key_padding_mask)
+        return self.ffn(x)
+
+
 class ExportDecoder(nn.Module):
     """与 model.py 的 decoder 对齐：因果自注意力 -> 交叉注意力 -> FFN。"""
     def __init__(self, source):
@@ -109,6 +123,8 @@ class TensorOps(nn.Module):
             self.add_module('layer_' + name, layer)
         for name in DECODER_PREFIXES:
             self.add_module('block_' + name, ExportDecoder(getattr(model, name)))
+        for name in ENCODER_PREFIXES:
+            self.add_module('block_' + name, ExportEncoder(getattr(model, name)))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         raise RuntimeError('Use a named exported method, not forward.')
@@ -139,6 +155,11 @@ def build_scripted(model):
         source += (f'    @torch.jit.export\n'
                    f'    def {name}(self, x: torch.Tensor) -> torch.Tensor:\n'
                    f'        return self.layer_{name}(x)\n\n')
+    for name in ENCODER_PREFIXES:
+        source += (f'    @torch.jit.export\n'
+                   f'    def {name}(self, x: torch.Tensor, '
+                   f'memory_key_padding_mask: Optional[torch.Tensor] = None) -> torch.Tensor:\n'
+                   f'        return self.block_{name}(x, memory_key_padding_mask)\n\n')
     for name in DECODER_PREFIXES:
         source += (f'    @torch.jit.export\n'
                    f'    def {name}(self, x: torch.Tensor, memory: torch.Tensor, '
@@ -177,8 +198,10 @@ def export(checkpoint_path, output_path):
                    for name, (path, layer) in layer_methods(model).items()},
         'decoder_blocks': {name: {'python_path': name, 'includes': 'causal self-attention, cross-attention, FFN (including SwiGLU), all normalization and residual connections'}
                            for name in DECODER_PREFIXES},
-        'mask_convention': 'True = blocked; omitted/None or an empty BOOL tensor = no padding mask. Each decoder creates its own causal mask.',
-        'scope': 'All Conv2d, BatchNorm2d, LayerNorm and Linear layers (including decoder internals), one shared silu, and six complete decoders. No separate SwiGLU, attention or FFN block methods.',
+        'encoder_blocks': {name: {'python_path': name, 'includes': 'non-causal visual self-attention, FFN (including SwiGLU), all normalization and residual connections'}
+                           for name in ENCODER_PREFIXES},
+        'mask_convention': 'True = blocked; omitted/None or an empty BOOL tensor = no padding mask. Encoders are non-causal; each decoder creates its own causal mask.',
+        'scope': 'All Conv2d, BatchNorm2d, LayerNorm and Linear layers (including block internals), one shared silu, two complete visual encoders and six complete decoders. No separate SwiGLU, attention or FFN block methods.',
         'methods': methods,
     }
     output_path.with_suffix('.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')

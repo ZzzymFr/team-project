@@ -23,6 +23,7 @@ from torch.utils.data import DataLoader, Dataset, Sampler, Subset
 
 from model import vital_mini, load_vocab, load_training_weights, vocab_size, pad_id, bos_id, eos_id, max_len
 from preprocess import EmptyFormulaImageError, check_formula_image, load_formula_image
+from augmentation import augment_formula_image, DEFAULT_AUGMENT_PROBABILITY, AUGMENTATION_VERSION
 
 Learning_rate = 8e-5
 minimum_learning_rate = 3e-6
@@ -117,7 +118,7 @@ def render(strokes: list[np.ndarray], stroke_px: float = 3.0, ss: int = 2) -> to
     return torch.from_numpy(np.asarray(canvas, dtype=np.float32) / 255.0).unsqueeze(0)
 
 # ---------- 图片有效性缓存 ----------
-IMAGE_CHECK_VERSION = 1              # 修改 check_formula_image 的判定规则时递增，使旧缓存失效
+IMAGE_CHECK_VERSION = 2              # 修改 check_formula_image 的判定规则时递增，使旧缓存失效
 
 def load_image_check_cache(path: Path) -> dict[str, list]:
     """{图片路径: [字节数, mtime_ns, 是否有效, 错误信息]}；缓存缺失、损坏或版本不符时当作空"""
@@ -145,8 +146,13 @@ class MathWriting(Dataset):
 
     def __init__(self, root: str, splits: list[str], vocab: dict[str, int], train: bool,
                  oov: str = "skip", max_samples: int | None = None,
-                 image_roots: list[str] | None = None, personal_train: Path | None = None):
+                 image_roots: list[str] | None = None, personal_train: Path | None = None,
+                 augment: bool = True, augment_probability: float = DEFAULT_AUGMENT_PROBABILITY):
         self.root, self.train = Path(root).resolve(), train
+        if not 0 <= augment_probability <= 1:
+            raise ValueError('augment_probability 必须在 [0,1] 内')
+        self.augment = train and augment
+        self.augment_probability = augment_probability
         if personal_train is not None:
             personal_train = personal_train.resolve()
         if (self.root / ".preparing").exists():
@@ -253,14 +259,15 @@ class MathWriting(Dataset):
 
     def __getitem__(self, i: int) -> tuple[torch.Tensor, list[int]]:
         kind, path, ids = self.items[i]
+        do_augment = self.augment and self.augment_probability > 0 and random.random() < self.augment_probability
         if kind == "image":
-            return load_formula_image(Path(path), invert=IMAGE_INVERT), ids
+            image = load_formula_image(Path(path), invert=IMAGE_INVERT)
+            return augment_formula_image(image) if do_augment else image, ids
         strokes = read_strokes(Path(path))
         stroke_px = 3.0
-        if self.train:                                         # 训练时随机扰动笔迹形状和粗细,验证时不扰动
-            rng = random.Random()
-            strokes = augment_strokes(strokes, rng)
-            stroke_px = rng.uniform(2.0, 4.0)
+        if do_augment:                                        # 复用坐标增强；不叠加图片几何变换
+            strokes = augment_strokes(strokes, random)
+            stroke_px = random.uniform(2.0, 4.0)
         return render(strokes, stroke_px), ids
 
 
@@ -287,15 +294,15 @@ def read_manifest(path: Path):
                 raise ValueError(f"无效数据清单 {path}:{line_number}: {error}") from error
 
 def convert(images: list[torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
-    """B 张 [1,H,W_i] -> ([B,3,H,W_max], 每张的真实宽度 [B])
-    宽度不同的沿用各自背景色补到最宽;灰度复制成 3 通道,因为 vital_pixel 第一层是 3 通道"""
+    """图片 RGB [3,H,W_i] 或 InkML [1,H,W_i] -> [B,3,H,W_max]。
+    保留图片颜色；仅将单通道笔迹渲染复制为 3 通道。"""
     widths = torch.tensor([im.size(-1) for im in images])
-    batch = torch.zeros(len(images), 1, IMG_H, int(widths.max()))
+    batch = torch.zeros(len(images), 3, IMG_H, int(widths.max()))
     for i, im in enumerate(images):
         # 两条预处理路径都留有纯色边距，左上角就是该样本的补边颜色。
-        batch[i].fill_(im[0, 0, 0].item())
+        batch[i] = im[:, :1, :1]
         batch[i, :, :, :im.size(-1)] = im
-    return batch.expand(-1, 3, -1, -1).contiguous(), widths
+    return batch, widths
 
 def collate(batch):
     images, ids = zip(*batch)
@@ -593,7 +600,13 @@ def main(argv=None, *, freeze_cnn: bool = False):
         ap.add_argument("--init-weights", type=Path, default=checkpoint_root / "model.pt",
                         help="输出权重不存在时读取的预训练模型；只读，默认 checkpoints/model.pt")
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--augment", action=argparse.BooleanOptionalAction, default=True,
+                    help="训练时随机增强图片/InkML；--no-augment 关闭，验证和推理始终不增强")
+    ap.add_argument("--augment-prob", type=float, default=DEFAULT_AUGMENT_PROBABILITY,
+                    help="每个训练样本应用增强的概率，范围 [0,1]，默认 0.7")
     args = ap.parse_args(argv)
+    if not 0 <= args.augment_prob <= 1:
+        ap.error("augment-prob 必须在 [0,1] 内")
     if args.max_samples < 0 or args.workers < 0 or args.epochs < 1 or args.batch_size < 1 or args.eval_n < 1:
         ap.error("max-samples、workers 必须 >= 0；epochs、batch-size、eval-n 必须 >= 1")
     args.data = str(resolve_data_root(args.data))
@@ -633,9 +646,14 @@ def train(args):
               "请使用 --workers 0 --no-pin-memory。", flush=True)
 
     vocab = {t: i for i, t in enumerate(load_vocab())}
+    augmentation = {"enabled": getattr(args, "augment", True),
+                    "probability": getattr(args, "augment_prob", DEFAULT_AUGMENT_PROBABILITY),
+                    "version": AUGMENTATION_VERSION}
+    print(f"训练数据增强: {augmentation} | 验证集不增强", flush=True)
     train_ds = MathWriting(args.data, args.splits.split(","), vocab, train=True, oov=args.oov,
                            max_samples=args.max_samples, image_roots=args.image_data,
-                           personal_train=None if args.no_personal_train else args.personal_train.resolve())
+                           personal_train=None if args.no_personal_train else args.personal_train.resolve(),
+                           augment=augmentation["enabled"], augment_probability=augmentation["probability"])
     val_ds = MathWriting(args.data, ["valid"], vocab, train=False, oov=args.oov,
                          max_samples=args.max_samples, image_roots=args.image_data)
     if not len(train_ds) or not len(val_ds):
@@ -644,7 +662,7 @@ def train(args):
     if overlap:
         raise ValueError(f"训练和验证清单引用了相同文件，例如: {next(iter(overlap))}")
     validation_hash = hashlib.sha256()
-    validation_hash.update(json.dumps({"image_invert": IMAGE_INVERT}).encode("utf-8"))
+    validation_hash.update(json.dumps({"image_invert": IMAGE_INVERT, "image_color_mode": "RGB"}).encode("utf-8"))
     validation_hash.update(json.dumps(load_vocab(), ensure_ascii=False).encode("utf-8"))
     for source, item in zip(val_ds.sources, val_ds.items):
         validation_hash.update(json.dumps([source, item], ensure_ascii=False).encode("utf-8") + b"\n")
@@ -766,6 +784,8 @@ def train(args):
                 "cnn_frozen": freeze_cnn, "initial_weights": str(initial_path.resolve()),
                 "model": model.state_dict(), "epoch": epoch, "val_loss": val_loss, "exp_rate": rate,
                 "validation_signature": validation_signature, "image_invert": IMAGE_INVERT,
+                "image_color_mode": "RGB",
+                "augmentation": augmentation,
                 "validation": validation, "validation_by_source": validation_by_source,
                 "exp_rate_count": expression["sample_count"], "exp_rate_by_source": expression_by_source,
                 "exp_rate_protocol": exp_protocol}

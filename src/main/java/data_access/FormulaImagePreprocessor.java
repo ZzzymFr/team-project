@@ -10,7 +10,7 @@ import java.util.Arrays;
  * Turns a picture of a handwritten formula into the input the model was trained on, the same
  * way as {@code src/neutral network/preprocess.py} ({@code load_formula_image}) with
  * {@code IMAGE_INVERT = False} from {@code train.py}:
- * grey levels, light/dark kept as they are, cropped to the ink, scaled so the ink fits 128 px
+ * RGB colours and light/dark kept as they are, cropped to the ink, scaled so the ink fits 128 px
  * high with an 8 px margin (at most 1024 px wide), centred on a canvas 128 px high whose width
  * is a multiple of 16 (at least 64), the background filled with the original background colour.
  *
@@ -23,31 +23,35 @@ final class FormulaImagePreprocessor {
     static final int STRIDE = 16;
     static final int MAX_WIDTH = 1024;
     static final int MIN_WIDTH = 64;
-    private static final int INK_THRESHOLD = 32;  // grey difference from the background that counts as ink
+    private static final int INK_THRESHOLD = 32;  // difference in any RGB channel from black/white background
 
     private FormulaImagePreprocessor() {
     }
 
     /**
      * @return an RGB image {@value #HEIGHT} px high, width a multiple of {@value #STRIDE},
-     *         grey (R = G = B) like the training images
+     *         preserving the source RGB colours like the training images
      * @throws IllegalArgumentException if there is no ink in the image
      */
     static BufferedImage prepare(BufferedImage source) {
         int width = source.getWidth();
         int height = source.getHeight();
-        int[] gray = toGray(source);
+        int[] rgb = toRgb(source);
 
         // A light border means a light background (as on the canvas); the ink is then the dark part.
-        boolean lightBackground = median(border(gray, width, height)) >= 128;
+        boolean lightBackground = median(border(rgb, width, height)) >= 128;
         int left = width;
         int top = height;
         int right = -1;
         int bottom = -1;
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
-                int value = gray[y * width + x];
-                int foreground = lightBackground ? 255 - value : value;
+                int pixel = rgb[y * width + x];
+                int foreground = 0;
+                for (int shift = 16; shift >= 0; shift -= 8) {
+                    int value = (pixel >>> shift) & 0xFF;
+                    foreground = Math.max(foreground, lightBackground ? 255 - value : value);
+                }
                 if (foreground > INK_THRESHOLD) {
                     left = Math.min(left, x);
                     top = Math.min(top, y);
@@ -61,7 +65,8 @@ final class FormulaImagePreprocessor {
         }
         int inkWidth = right - left + 1;
         int inkHeight = bottom - top + 1;
-        BufferedImage ink = grayImage(gray, width, left, top, inkWidth, inkHeight);
+        BufferedImage ink = new BufferedImage(inkWidth, inkHeight, BufferedImage.TYPE_INT_RGB);
+        ink.setRGB(0, 0, inkWidth, inkHeight, rgb, top * width + left, width);
 
         // Same scaling as training: very flat ink (a long line) is measured as 20% of its width high.
         double scale = Math.min((HEIGHT - 2.0 * MARGIN) / Math.max(inkHeight, 0.2 * inkWidth),
@@ -82,11 +87,11 @@ final class FormulaImagePreprocessor {
         return canvas;
     }
 
-    /** Grey levels 0..255, transparent parts on white, with PIL's "L" weights (ITU-R 601-2). */
-    private static int[] toGray(BufferedImage source) {
+    /** Composite transparency onto white without discarding RGB colour information. */
+    private static int[] toRgb(BufferedImage source) {
         int width = source.getWidth();
         int height = source.getHeight();
-        int[] gray = new int[width * height];
+        int[] rgb = new int[width * height];
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
                 int argb = source.getRGB(x, y);
@@ -94,22 +99,27 @@ final class FormulaImagePreprocessor {
                 double r = ((argb >> 16) & 0xFF) * alpha + 255 * (1 - alpha);
                 double gr = ((argb >> 8) & 0xFF) * alpha + 255 * (1 - alpha);
                 double b = (argb & 0xFF) * alpha + 255 * (1 - alpha);
-                gray[y * width + x] = (int) Math.round((r * 299 + gr * 587 + b * 114) / 1000);
+                rgb[y * width + x] = ((int) Math.round(r) << 16)
+                        | ((int) Math.round(gr) << 8) | (int) Math.round(b);
             }
         }
-        return gray;
+        return rgb;
     }
 
-    private static int[] border(int[] gray, int width, int height) {
-        int[] values = new int[2 * width + 2 * height];
+    private static int[] border(int[] rgb, int width, int height) {
+        int[] values = new int[3 * (2 * width + 2 * height)];
         int n = 0;
         for (int x = 0; x < width; x++) {
-            values[n++] = gray[x];
-            values[n++] = gray[(height - 1) * width + x];
+            for (int shift = 16; shift >= 0; shift -= 8) {
+                values[n++] = (rgb[x] >>> shift) & 0xFF;
+                values[n++] = (rgb[(height - 1) * width + x] >>> shift) & 0xFF;
+            }
         }
         for (int y = 0; y < height; y++) {
-            values[n++] = gray[y * width];
-            values[n++] = gray[y * width + width - 1];
+            for (int shift = 16; shift >= 0; shift -= 8) {
+                values[n++] = (rgb[y * width] >>> shift) & 0xFF;
+                values[n++] = (rgb[y * width + width - 1] >>> shift) & 0xFF;
+            }
         }
         return values;
     }
@@ -119,17 +129,6 @@ final class FormulaImagePreprocessor {
         Arrays.sort(sorted);
         int middle = sorted.length / 2;
         return sorted.length % 2 == 1 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2.0;
-    }
-
-    private static BufferedImage grayImage(int[] gray, int width, int left, int top, int w, int h) {
-        BufferedImage image = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
-        for (int y = 0; y < h; y++) {
-            for (int x = 0; x < w; x++) {
-                int v = gray[(top + y) * width + left + x];
-                image.setRGB(x, y, (v << 16) | (v << 8) | v);
-            }
-        }
-        return image;
     }
 
     /** Smooth resizing: area averaging when shrinking (close to training's Lanczos), bicubic when enlarging. */
