@@ -1,4 +1,4 @@
-import app.StackedAppBuilder;
+import app.AppBuilder;
 import data_access.VitalMiniFormulaRecognizer;
 import model.vital_mini;
 
@@ -22,10 +22,7 @@ public class app {
             } catch (Exception ignored) {
                 // Fall back to the default look.
             }
-            frame = new StackedAppBuilder()
-                    .addGraphPage()
-                    .addPdfPage()
-                    .addAnswerPage()
+            frame = new AppBuilder()
                     .setFormulaRecognizer(new VitalMiniFormulaRecognizer(model))
                     .build();
             frame.addWindowListener(new WindowAdapter() {

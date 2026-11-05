@@ -3,8 +3,9 @@ package view.canvas;
 import org.scilab.forge.jlatexmath.TeXConstants;
 import org.scilab.forge.jlatexmath.TeXFormula;
 import org.scilab.forge.jlatexmath.TeXIcon;
-import view.glass.GlassButton;
-import view.glass.GlassDock;
+import view.glass.GlassBackdrop;
+import view.glass.GlassBar;
+import view.glass.GlassIcons;
 import view.stack.Fonts;
 
 import javax.swing.JComponent;
@@ -20,12 +21,10 @@ import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.event.MouseAdapter;
 import java.awt.geom.RoundRectangle2D;
-import java.util.function.Consumer;
 
-// floating "Calculate" capsule + white card with the recognised formula
+// floating Graph | Calculate capsule + white card with the recognised formula
 public class AnswerPopup extends JPanel {
     private static final float TEX_SIZE = 22f;
-    private static final int CARD_SHIFT = 24;   // card sits a bit right of the button
     private static final int GAP = 4;
     private static final int PAD_X = 14;
     private static final int PAD_Y = 10;
@@ -38,60 +37,74 @@ public class AnswerPopup extends JPanel {
     private static final Color BORDER = new Color(203, 213, 225);
     private static final Color ERROR_TEXT = new Color(185, 28, 28);
 
-    private final GlassDock dock = new GlassDock();
-    private final GlassButton calculate = new GlassButton("Calculate", 34);
+    private final GlassBar buttons;
+    private final GlassBar.Item graph;
+    private final GlassBar.Item calculate;
     private final Card card = new Card();
+    private Runnable onGraph;  // null = no Graph to press
     private Runnable onCalculate = () -> { };
     private String latex;
     private String problem;
     private TeXIcon icon;
 
-    public AnswerPopup(Consumer<Graphics2D> backdrop) {
+    public AnswerPopup(GlassBackdrop backdrop) {
         super(null);
         setOpaque(false);
-        calculate.setFont(Fonts.ui(Font.PLAIN, 14f));
-        calculate.addActionListener(e -> onCalculate.run());
-        dock.add(calculate);
-        // dock paints in our coords, backdrop wants canvas coords
-        dock.setBackdrop(g -> {
-            Graphics2D c = (Graphics2D) g.create();
-            c.translate(-getX(), -getY());
-            backdrop.accept(c);
-            c.dispose();
-        });
-        add(dock);
+        // buttons paint in our coords, backdrop wants canvas coords
+        buttons = new GlassBar(new GlassBackdrop() {
+            @Override
+            public void paintBackdrop(Graphics2D g) {
+                Graphics2D c = (Graphics2D) g.create();
+                c.translate(-getX(), -getY());
+                backdrop.paintBackdrop(c);
+                c.dispose();
+            }
+
+            @Override
+            public long backdropVersion() {
+                return backdrop.backdropVersion() * 31 + getLocation().hashCode();
+            }
+        }, Fonts.ui(Font.PLAIN, 14f));
+        graph = buttons.action("Graph", GlassIcons::scribble, () -> onGraph.run(), () -> onGraph != null);
+        calculate = buttons.action("Calculate", GlassIcons::equalCircle, () -> onCalculate.run(), () -> true);
+        buttons.finish();
+        add(buttons);  // added first = drawn last: the hover droplet goes over the card
         add(card);
         setVisible(false);
     }
 
-    public void showFormula(String latex, Runnable onCalculate) {
+    // onGraph null = Graph stays greyed out
+    public void showFormula(String latex, Runnable onGraph, Runnable onCalculate) {
         this.latex = latex;
         this.problem = null;
+        this.onGraph = onGraph;
         this.onCalculate = onCalculate;
         icon = typeset(latex);
-        dock.setVisible(true);
+        buttons.setVisible(true);
         relayout();
     }
 
     public void showProblem(String reason) {
         this.latex = null;
         this.problem = reason;
+        this.onGraph = null;
         this.onCalculate = () -> { };
         icon = null;
-        dock.setVisible(false);
+        buttons.setVisible(false);
         relayout();
     }
 
     // above-right of the formula, below if no room, always inside the canvas
     Rectangle spotBeside(Rectangle formula, int areaWidth, int areaHeight) {
         Dimension d = getPreferredSize();
-        int x = formula.x + formula.width - POPUP_LEFT;
+        int margin = buttonMargin();  // clear room for the droplet: only the capsule has to stay inside
+        int x = formula.x + formula.width - POPUP_LEFT - margin;
         int y = formula.y - POPUP_GAP - d.height;
-        if (y < EDGE) {
+        if (y + margin < EDGE) {
             y = formula.y + formula.height + POPUP_GAP;
         }
-        x = Math.max(EDGE, Math.min(x, areaWidth - d.width - EDGE));
-        y = Math.max(EDGE, Math.min(y, areaHeight - d.height - EDGE));
+        x = Math.max(EDGE - margin, Math.min(x, areaWidth - d.width - EDGE + margin));
+        y = Math.max(EDGE - margin, Math.min(y, areaHeight - d.height - EDGE));
         return new Rectangle(x, y, d.width, d.height);
     }
 
@@ -104,7 +117,11 @@ public class AnswerPopup extends JPanel {
     }
 
     boolean hasCalculate() {
-        return dock.isVisible();
+        return buttons.isVisible();
+    }
+
+    boolean canGraph() {
+        return buttons.isVisible() && buttons.isEnabled(graph);
     }
 
     boolean isTypeset() {
@@ -112,7 +129,11 @@ public class AnswerPopup extends JPanel {
     }
 
     void clickCalculate() {
-        calculate.doClick(0);
+        buttons.activate(calculate);
+    }
+
+    void clickGraph() {
+        buttons.activate(graph);
     }
 
     private static TeXIcon typeset(String latex) {
@@ -123,12 +144,17 @@ public class AnswerPopup extends JPanel {
         }
     }
 
+    private int buttonMargin() {
+        return buttons.isVisible() ? GlassBar.MARGIN : 0;
+    }
+
     private void relayout() {
-        Dimension d = dock.getPreferredSize();
+        buttons.clearHover();
+        Dimension d = buttons.getPreferredSize();
         Dimension c = card.getPreferredSize();
-        if (dock.isVisible()) {
-            dock.setBounds(0, 0, d.width, d.height);
-            card.setBounds(CARD_SHIFT, d.height + GAP, c.width, c.height);
+        if (buttons.isVisible()) {
+            buttons.setBounds(0, 0, d.width, d.height);
+            card.setBounds(GlassBar.MARGIN, GlassBar.MARGIN + GlassBar.CAPSULE_HEIGHT + GAP, c.width, c.height);
         } else {
             card.setBounds(0, 0, c.width, c.height);
         }
@@ -140,11 +166,11 @@ public class AnswerPopup extends JPanel {
     @Override
     public Dimension getPreferredSize() {
         Dimension c = card.getPreferredSize();
-        if (!dock.isVisible()) {
+        if (!buttons.isVisible()) {
             return c;
         }
-        Dimension d = dock.getPreferredSize();
-        return new Dimension(Math.max(d.width, CARD_SHIFT + c.width), d.height + GAP + c.height);
+        return new Dimension(Math.max(buttons.getPreferredSize().width, GlassBar.MARGIN + c.width),
+                GlassBar.MARGIN + GlassBar.CAPSULE_HEIGHT + GAP + c.height);
     }
 
     // white rounded card, eats clicks so they never hit the canvas

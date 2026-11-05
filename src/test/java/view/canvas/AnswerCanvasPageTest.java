@@ -353,9 +353,9 @@ class AnswerCanvasPageTest {
             return "1+1";
         });
         openPage();
-        GraphCanvasPage[] graph = new GraphCanvasPage[1];
+        AnswerCanvasPage[] graph = new AnswerCanvasPage[1];
         onEdt(() -> {
-            graph[0] = new GraphCanvasPage(shared);
+            graph[0] = new AnswerCanvasPage(shared);
             shared.attachTo(graph[0]);
         });
         write();
@@ -375,7 +375,7 @@ class AnswerCanvasPageTest {
         openPage();
         write();
         waitPopup("1+1");
-        onEdt(() -> shared.attachTo(new GraphCanvasPage(shared)));
+        onEdt(() -> shared.attachTo(new AnswerCanvasPage(shared)));
         assertNull(popup());
     }
 

@@ -1,49 +1,36 @@
 package view.canvas;
 
-import view.DrawingCanvas;
 import view.glass.Glass;
 import view.glass.GlassButton;
 import view.glass.GlassDock;
 import view.glass.GlassLabel;
-import view.glass.GlassSegmentedControl;
-import view.stack.Fonts;
 
-import javax.swing.BorderFactory;
-import javax.swing.Box;
 import javax.swing.JComponent;
-import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.Timer;
 import java.awt.BorderLayout;
 import java.awt.Color;
-import java.awt.Component;
-import java.awt.Container;
 import java.awt.Dimension;
-import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 
 /**
- * A page of the app: its own function area at the top, and the shared handwriting canvas below.
+ * A page of the app: the shared handwriting canvas filling the window, with the page's own controls
+ * floating over it.
  *
- * <p>Subclasses ({@link GraphCanvasPage}, {@link PdfCanvasPage}, {@link AnswerCanvasPage}) put their
- * controls in the function area with {@link #setFunctionArea}. They all write on the same
- * {@link SharedCanvas}, so switching pages keeps the ink. To work with what was written, a subclass
+ * <p>Subclasses such as {@link AnswerCanvasPage} put their controls in the function area with
+ * {@link #setFunctionArea}. They write on the {@link SharedCanvas}. To work with what was written, a subclass
  * calls {@link #captureFormula()} (the image) or {@link #recognizeFormula()} (the LaTeX).
  */
 public abstract class CanvasPage extends JPanel {
-    private static final Color LINE = new Color(226, 232, 240);
-    private static final Color HINT = new Color(100, 116, 139);
     private static final int FLOAT_INSET = 10;  // gap between the floating glass and the canvas edges
+    private static final int FUNCTION_TOP = 18;
     private static final Color ERROR_TEXT = new Color(185, 28, 28);
 
     private final SharedCanvas sharedCanvas;
-    private final JPanel functionArea = new JPanel(new BorderLayout());
+    private final GlassDock functionDock = new GlassDock();
     private final JPanel canvasSlot = new CanvasSlot();
-    private final GlassLabel hint = new GlassLabel("");
-    private final GlassDock hintDock = new GlassDock();
-    private final GlassDock toolDock = new GlassDock();
     private final GlassDock zoomDock = new GlassDock();
     private final GlassLabel message = new GlassLabel("");
     private final GlassDock messageDock = new GlassDock();
@@ -54,26 +41,16 @@ public abstract class CanvasPage extends JPanel {
     protected CanvasPage(SharedCanvas sharedCanvas) {
         super(new BorderLayout());
         this.sharedCanvas = sharedCanvas;
-        setBackground(Color.WHITE);
+        setBackground(Glass.CANVAS);
 
-        functionArea.setBackground(Color.WHITE);
-        functionArea.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createMatteBorder(0, 0, 1, 0, LINE),
-                BorderFactory.createEmptyBorder(8, 16, 8, 16)));
-        add(functionArea, BorderLayout.NORTH);
-
-        // The canvas fills the rest of the page; the hint and the tools float over its bottom edge
-        // and the zoom over its top-right corner, showing a frosted copy of any ink underneath.
-        hintDock.add(hint);
-        buildTools();
+        // The canvas fills the page; the controls float over it, showing the ink underneath through the glass.
         buildZoomBadge();
         messageDock.add(message);
         messageDock.setVisible(false);
         messageTimer.setRepeats(false);
-        hintDock.setBackdrop(sharedCanvas::paintInkCopy);
-        toolDock.setBackdrop(sharedCanvas::paintInkCopy);
-        zoomDock.setBackdrop(sharedCanvas::paintInkCopy);
-        messageDock.setBackdrop(sharedCanvas::paintInkCopy);
+        functionDock.setBackdrop(sharedCanvas);
+        zoomDock.setBackdrop(sharedCanvas);
+        messageDock.setBackdrop(sharedCanvas);
         canvasArea = new CanvasArea();
         add(canvasArea, BorderLayout.CENTER);
     }
@@ -128,13 +105,14 @@ public abstract class CanvasPage extends JPanel {
         return Math.round(zoom * 100) + "%";
     }
 
-    /** Puts this page's own controls at the top of the page. */
-    protected final void setFunctionArea(JComponent component) {
-        functionArea.removeAll();
-        clearPanelBackgrounds(component);  // panels inside blend into the white page
-        functionArea.add(component, BorderLayout.CENTER);
-        functionArea.revalidate();
-        functionArea.repaint();
+    /** Floats this page's own glass controls at the top of the canvas, in a row. */
+    protected final void setFunctionArea(JComponent... controls) {
+        functionDock.removeAll();
+        for (JComponent control : controls) {
+            functionDock.add(control);
+        }
+        functionDock.revalidate();
+        functionDock.repaint();
     }
 
     // floats over the canvas, on top; caller sets its bounds
@@ -175,88 +153,22 @@ public abstract class CanvasPage extends JPanel {
         return sharedCanvas.recognizeFormula(formulaImage);
     }
 
-    /** A grey line of text saying what will go in the function area; for pages not built yet. */
+    /** A line of text saying what will go in the function area; for pages not built yet. */
     protected static JComponent placeholder(String text) {
-        JLabel label = new JLabel(text);
-        label.setFont(Fonts.ui(Font.ITALIC, 13f));
-        label.setForeground(HINT);
-        label.setBorder(BorderFactory.createEmptyBorder(6, 0, 6, 0));
-        return label;
-    }
-
-    private static void clearPanelBackgrounds(Component component) {
-        if (component instanceof JPanel) {
-            ((JPanel) component).setOpaque(false);
-        }
-        if (component instanceof Container) {
-            for (Component child : ((Container) component).getComponents()) {
-                clearPanelBackgrounds(child);
-            }
-        }
+        return new GlassLabel(text);
     }
 
     JPanel getCanvasSlot() {
         return canvasSlot;
     }
 
-    private void buildTools() {
-        hint.setText(hintFor(sharedCanvas.getTool(), sharedCanvas.getEraserMode()));
-
-        // The tool and eraser mode belong to the shared canvas, so every page shows the same ones.
-        GlassSegmentedControl tools = new GlassSegmentedControl("Pen", "Eraser", "Lasso");
-        tools.setSelectedIndex(sharedCanvas.getTool().ordinal());
-        tools.addSelectionListener(i -> sharedCanvas.setTool(DrawingCanvas.Tool.values()[i]));
-
-        GlassSegmentedControl eraserModes = new GlassSegmentedControl("Precise", "Stroke");
-        eraserModes.setSelectedIndex(sharedCanvas.getEraserMode().ordinal());
-        eraserModes.setToolTipText("Precise erases only the ink under the eraser; Stroke erases whole strokes.");
-        eraserModes.setVisible(sharedCanvas.getTool() == DrawingCanvas.Tool.ERASER);
-        eraserModes.addSelectionListener(i -> sharedCanvas.setEraserMode(DrawingCanvas.EraserMode.values()[i]));
-
-        sharedCanvas.addToolListener(tool -> {
-            tools.setSelectedIndex(tool.ordinal());
-            eraserModes.setVisible(tool == DrawingCanvas.Tool.ERASER);
-            hint.setText(hintFor(tool, sharedCanvas.getEraserMode()));
-            toolDock.revalidate();
-        });
-        sharedCanvas.addEraserModeListener(mode -> {
-            eraserModes.setSelectedIndex(mode.ordinal());
-            hint.setText(hintFor(sharedCanvas.getTool(), mode));
-        });
-
-        GlassButton undo = new GlassButton("Undo");
-        undo.addActionListener(e -> sharedCanvas.undo());
-        GlassButton clear = new GlassButton("Clear");
-        clear.addActionListener(e -> sharedCanvas.clear());
-
-        toolDock.add(eraserModes);
-        toolDock.add(tools);
-        toolDock.add(Box.createHorizontalStrut(6));
-        toolDock.add(undo);
-        toolDock.add(clear);
-    }
-
-    private static String hintFor(DrawingCanvas.Tool tool, DrawingCanvas.EraserMode eraserMode) {
-        switch (tool) {
-            case PEN:
-                return "Write anywhere · scroll or right-drag to move · Ctrl+scroll to zoom";
-            case ERASER:
-                return eraserMode == DrawingCanvas.EraserMode.PRECISE
-                        ? "Drag over the ink to erase just that part."
-                        : "Touch a stroke to erase all of it.";
-            default:
-                return "Circle ink to select · drag to move · drag a corner to resize · Delete to remove";
-        }
-    }
-
-    /** The canvas filling the area, with the hint floating bottom-left and the tools bottom-right. */
+    /** The canvas filling the area, with the zoom top-right and the function row and message top centre. */
     private final class CanvasArea extends JPanel {
         CanvasArea() {
             super(null);
-            setBackground(Color.WHITE);
+            setBackground(Glass.CANVAS);
             add(messageDock);  // added first = drawn last = on top
-            add(toolDock);
-            add(hintDock);
+            add(functionDock);
             add(zoomDock);
             add(canvasSlot);
         }
@@ -272,18 +184,16 @@ public abstract class CanvasPage extends JPanel {
             int w = getWidth();
             int h = getHeight();
             canvasSlot.setBounds(0, 0, w, h);
-            Dimension tools = toolDock.getPreferredSize();
-            toolDock.setBounds(w - FLOAT_INSET - tools.width, h - FLOAT_INSET - tools.height,
-                    tools.width, tools.height);
-            Dimension hintSize = hintDock.getPreferredSize();
-            hintDock.setVisible(3 * FLOAT_INSET + hintSize.width + tools.width <= w);  // hide it if there is no room
-            hintDock.setBounds(FLOAT_INSET, h - FLOAT_INSET - hintSize.height, hintSize.width, hintSize.height);
             Dimension zoomSize = zoomDock.getPreferredSize();
-            zoomDock.setBounds(w - FLOAT_INSET - zoomSize.width, FLOAT_INSET, zoomSize.width, zoomSize.height);
-            // the message sits top centre, kept clear of the zoom badge (long text is shortened with …)
+            zoomDock.setBounds(w - FLOAT_INSET - zoomSize.width, FUNCTION_TOP, zoomSize.width, zoomSize.height);
+            Dimension functionSize = functionDock.getPreferredSize();
+            int functionWidth = Math.min(functionSize.width, w);
+            functionDock.setBounds((w - functionWidth) / 2, FUNCTION_TOP, functionWidth, functionSize.height);
+            // the message sits below the function row (long text is cut off at the edges of the window)
             Dimension messageSize = messageDock.getPreferredSize();
-            int messageWidth = Math.max(0, Math.min(messageSize.width, w - 2 * (zoomSize.width + 2 * FLOAT_INSET)));
-            messageDock.setBounds((w - messageWidth) / 2, FLOAT_INSET, messageWidth, messageSize.height);
+            int messageWidth = Math.max(0, Math.min(messageSize.width, w - 2 * FLOAT_INSET));
+            messageDock.setBounds((w - messageWidth) / 2, FUNCTION_TOP + functionSize.height,
+                    messageWidth, messageSize.height);
         }
     }
 
@@ -291,7 +201,7 @@ public abstract class CanvasPage extends JPanel {
     private final class CanvasSlot extends JPanel {
         CanvasSlot() {
             super(new BorderLayout());
-            setBackground(Color.WHITE);
+            setBackground(Glass.CANVAS);
         }
 
         @Override

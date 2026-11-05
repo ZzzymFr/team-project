@@ -5,36 +5,28 @@ import java.awt.Component;
 import java.awt.FlowLayout;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
-import java.awt.RenderingHints;
-import java.awt.Shape;
+import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
-import java.awt.image.ConvolveOp;
-import java.awt.image.Kernel;
-import java.util.function.Consumer;
 
 /**
- * A row of glass controls that floats over other content. Behind each control it draws a blurred
- * copy of what lies underneath (the backdrop), so content passing under the glass shows through
- * frosted, as with real glass. Gaps between the controls let mouse clicks through to what is below.
+ * A row of glass controls that floats over other content. Behind each control it draws what lies
+ * underneath (the backdrop), barely blurred and bent along the rim like a lens, as with real glass.
+ * Gaps between the controls let mouse clicks through to what is below.
  */
 public class GlassDock extends JPanel {
-    private static final int BLUR_RADIUS = 3;
-    private static final double MAGNIFY = 1.06;  // the glass bends light like a lens: what is behind looks a bit bigger
-    private static final float[] BLUR_KERNEL = gaussian(BLUR_RADIUS);
-
-    private Consumer<Graphics2D> backdrop;
+    private GlassBackdrop backdrop;
+    private BufferedImage lensed;  // the backdrop through every control's glass, at device resolution
+    private long lensedKey;
 
     public GlassDock() {
         super(new FlowLayout(FlowLayout.LEFT, 4, 0));
         setOpaque(false);
     }
 
-    /**
-     * What lies under the dock, painted in the coordinates of the dock's parent (the dock shifts it
-     * into place). It is drawn over white and blurred.
-     */
-    public void setBackdrop(Consumer<Graphics2D> backdrop) {
+    /** What lies under the dock, painted in the coordinates of the dock's parent (the dock shifts it into place). */
+    public void setBackdrop(GlassBackdrop backdrop) {
         this.backdrop = backdrop;
+        lensed = null;
         repaint();
     }
 
@@ -44,58 +36,52 @@ public class GlassDock extends JPanel {
         if (backdrop == null || getWidth() <= 0 || getHeight() <= 0) {
             return;
         }
-        BufferedImage frosted = blurredBackdrop();
         Graphics2D g2 = (Graphics2D) g.create();
-        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        for (Component child : getComponents()) {
-            if (!child.isVisible()) {
-                continue;
-            }
-            // the same capsule the control paints its glass in
-            Shape glass = Glass.capsule(child.getX() + Glass.SHADOW, child.getY() + Glass.SHADOW,
-                    child.getWidth() - 2.0 * Glass.SHADOW, child.getHeight() - 2.0 * Glass.SHADOW);
-            Graphics2D clip = (Graphics2D) g2.create();
-            clip.clip(glass);
-            clip.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-            double cx = glass.getBounds2D().getCenterX();
-            double cy = glass.getBounds2D().getCenterY();
-            clip.translate(cx, cy);
-            clip.scale(MAGNIFY, MAGNIFY);
-            clip.translate(-cx, -cy);
-            clip.drawImage(frosted, -BLUR_RADIUS * 2, -BLUR_RADIUS * 2, null);
-            clip.dispose();
+        double scale = g2.getTransform().getScaleX();
+        long key = lensedKey(scale);
+        if (lensed == null || key != lensedKey) {
+            lensed = renderLensed(scale);
+            lensedKey = key;
         }
+        GlassOptics.drawPixels(g2, lensed, scale, 0, 0);
         g2.dispose();
     }
 
-    /** The backdrop under the dock (plus a margin so the edges blur cleanly), blurred both ways. */
-    private BufferedImage blurredBackdrop() {
-        int pad = BLUR_RADIUS * 2;
-        BufferedImage sharp = new BufferedImage(getWidth() + 2 * pad, getHeight() + 2 * pad,
-                BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g = sharp.createGraphics();
-        g.setColor(java.awt.Color.WHITE);
-        g.fillRect(0, 0, sharp.getWidth(), sharp.getHeight());
-        g.translate(pad - getX(), pad - getY());
-        backdrop.accept(g);
-        g.dispose();
-        BufferedImage across = new ConvolveOp(new Kernel(BLUR_KERNEL.length, 1, BLUR_KERNEL),
-                ConvolveOp.EDGE_NO_OP, null).filter(sharp, null);
-        return new ConvolveOp(new Kernel(1, BLUR_KERNEL.length, BLUR_KERNEL),
-                ConvolveOp.EDGE_NO_OP, null).filter(across, null);
+    /** Fingerprint of everything the lensed picture depends on. */
+    private long lensedKey(double scale) {
+        long key = Double.doubleToLongBits(scale) * 31 + backdrop.backdropVersion();
+        key = key * 31 + getX();
+        key = key * 31 + getY();
+        key = key * 31 + getWidth();
+        key = key * 31 + getHeight();
+        for (Component child : getComponents()) {
+            key = key * 31 + (child.isVisible() ? child.getBounds().hashCode() : 0);
+        }
+        return key;
     }
 
-    private static float[] gaussian(int radius) {
-        float[] kernel = new float[2 * radius + 1];
-        double sigma = radius / 2.0;
-        double sum = 0;
-        for (int i = -radius; i <= radius; i++) {
-            kernel[i + radius] = (float) Math.exp(-(i * i) / (2 * sigma * sigma));
-            sum += kernel[i + radius];
+    private BufferedImage renderLensed(double scale) {
+        int pw = (int) Math.ceil(getWidth() * scale);
+        int ph = (int) Math.ceil(getHeight() * scale);
+        BufferedImage sharp = new BufferedImage(pw, ph, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = sharp.createGraphics();
+        g.scale(scale, scale);
+        g.translate(-getX(), -getY());
+        backdrop.paintBackdrop(g);
+        g.dispose();
+        BufferedImage frosted = GlassOptics.gaussian(sharp, (float) (GlassOptics.BLUR_SIGMA * scale));
+
+        BufferedImage result = new BufferedImage(pw, ph, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D out = result.createGraphics();
+        for (Component child : getComponents()) {
+            if (child.isVisible() && child.getWidth() > 2 * Glass.SHADOW && child.getHeight() > 2 * Glass.SHADOW) {
+                // the same capsule the control paints its glass in
+                RoundRectangle2D glass = Glass.capsule(child.getX() + Glass.SHADOW, child.getY() + Glass.SHADOW,
+                        child.getWidth() - 2.0 * Glass.SHADOW, child.getHeight() - 2.0 * Glass.SHADOW);
+                out.drawImage(GlassOptics.refract(frosted, scale, glass, 1f, 0, 0), 0, 0, null);
+            }
         }
-        for (int i = 0; i < kernel.length; i++) {
-            kernel[i] /= sum;
-        }
-        return kernel;
+        out.dispose();
+        return result;
     }
 }

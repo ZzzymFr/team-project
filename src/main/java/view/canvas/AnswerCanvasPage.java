@@ -6,34 +6,31 @@ import interface_adapter.TextRun;
 import interface_adapter.MathLabViewModel;
 import interface_adapter.evaluate.EvaluateController;
 import view.FormulaCapture;
-import view.stack.Fonts;
 
-import javax.swing.BorderFactory;
 import javax.swing.JComponent;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
-import java.awt.Color;
-import java.awt.FlowLayout;
-import java.awt.Font;
 import java.awt.Rectangle;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
+import java.awt.image.BufferedImage;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 
-// answer page: pause -> popup with the read formula -> Calculate -> answer on the canvas
+// the page: pause, or a lasso around ink -> popup with the read formula -> Calculate -> answer on the canvas,
+// or Graph -> card beside it
 public class AnswerCanvasPage extends CanvasPage {
     static final int POPUP_DELAY_MILLIS = 1500;
     private static final int ERROR_MESSAGE_MILLIS = 7000;
     private static final int DEFINED_MESSAGE_MILLIS = 4000;
 
     private final BiConsumer<String, String> pdfResultSink;
+    private final FormulaGrapher grapher;
     private final Map<Long, Long> exportedRevisions = new HashMap<>();
     private final AnswerWorker worker;
     private final AnswerPopup popup;
@@ -42,7 +39,7 @@ public class AnswerCanvasPage extends CanvasPage {
     private Stroke targetStroke;      // new ink to pop up for, or
     private long targetId = -1;       // an edited formula
     private long generation;          // bumps on every user action, old results check it
-    private FormulaCapture shown;     // formula the popup is about
+    private Supplier<Rectangle> shown;  // where the ink the popup is about is now (world coordinates)
     private int running;              // Calculate jobs still going
     private boolean ownMessage;       // one of them put up its own message
 
@@ -50,6 +47,7 @@ public class AnswerCanvasPage extends CanvasPage {
     public AnswerCanvasPage(SharedCanvas sharedCanvas) {
         super(sharedCanvas);
         this.pdfResultSink = (latex, result) -> {};
+        this.grapher = null;
         this.worker = null;
         this.popup = null;
         this.pauseTimer = null;
@@ -57,15 +55,22 @@ public class AnswerCanvasPage extends CanvasPage {
     }
 
     public AnswerCanvasPage(SharedCanvas sharedCanvas, EvaluateController controller, MathLabViewModel viewModel) {
-        this(sharedCanvas, controller, viewModel, (latex, result) -> {});
+        this(sharedCanvas, controller, viewModel, (latex, result) -> {}, null);
     }
 
     public AnswerCanvasPage(SharedCanvas sharedCanvas, EvaluateController controller, MathLabViewModel viewModel,
                             BiConsumer<String, String> pdfResultSink) {
+        this(sharedCanvas, controller, viewModel, pdfResultSink, null);
+    }
+
+    // grapher null = no Graph button to press
+    public AnswerCanvasPage(SharedCanvas sharedCanvas, EvaluateController controller, MathLabViewModel viewModel,
+                            BiConsumer<String, String> pdfResultSink, FormulaGrapher grapher) {
         super(sharedCanvas);
         this.pdfResultSink = java.util.Objects.requireNonNull(pdfResultSink);
+        this.grapher = grapher;
         this.worker = new AnswerWorker(controller, viewModel);
-        popup = new AnswerPopup(sharedCanvas::paintInkCopy);
+        popup = new AnswerPopup(sharedCanvas);
         addCanvasOverlay(popup);
         pauseTimer = new Timer(POPUP_DELAY_MILLIS, e -> paused());
         pauseTimer.setRepeats(false);
@@ -75,6 +80,7 @@ public class AnswerCanvasPage extends CanvasPage {
         sharedCanvas.addUserActionListener(this::dismiss);
         sharedCanvas.addPageSwitchListener(this::dismiss);
         sharedCanvas.addViewListener(this::placePopup);
+        sharedCanvas.addSelectionListener(this::inkSelected);
         getCanvasArea().addComponentListener(new ComponentAdapter() {
             @Override
             public void componentResized(ComponentEvent e) {
@@ -82,13 +88,10 @@ public class AnswerCanvasPage extends CanvasPage {
             }
         });
 
-        JLabel note = new JLabel("Write a formula, then pause — it will offer to calculate.");
-        note.setFont(Fonts.ui(Font.PLAIN, 13f));
-        note.setForeground(new Color(100, 116, 139));
-        note.setBorder(BorderFactory.createEmptyBorder(6, 0, 6, 0));
-        JPanel tools = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        tools.add(note);
-        setFunctionArea(tools);
+        if (grapher != null) {
+            grapher.setMessages(this::showMessage);
+            setFunctionArea(grapher.controls());
+        }
     }
 
     // tests use a short wait
@@ -184,9 +187,51 @@ public class AnswerCanvasPage extends CanvasPage {
         if (problem != null) {
             popup.showProblem(problem);
         } else {
-            popup.showFormula(latex, () -> calculate(capture, latex));
+            popup.showFormula(latex, grapher == null ? null : () -> graph(capture, latex), () -> calculate(capture, latex));
         }
-        shown = capture;
+        showPopup(() -> getSharedCanvas().formulaBounds(capture.getId()));
+    }
+
+    // a lasso closed around ink: it is already chosen, so no pause
+    private void inkSelected() {
+        if (!inFront()) {
+            return;
+        }
+        dismiss();
+        long gen = generation;
+        BufferedImage image = captureFormula();
+        worker.recognize(() -> recognizeFormula(image), (latex, problem) -> selectionRecognized(gen, latex, problem));
+    }
+
+    private void selectionRecognized(long gen, String latex, String problem) {
+        // anything that changes the selection counts as moving on
+        if (gen != generation || !inFront() || !getSharedCanvas().hasSelectedInk()) {
+            return;
+        }
+        if (problem != null) {
+            popup.showProblem(problem);
+        } else {
+            popup.showFormula(latex, grapher == null ? null : () -> graphSelection(latex), () -> calculateSelection(latex));
+        }
+        showPopup(getSharedCanvas()::getFormulaBounds);
+    }
+
+    private void graphSelection(String latex) {
+        if (grapher.graph(latex, getSharedCanvas().getFormulaBounds())) {
+            hidePopup();
+            getSharedCanvas().clearSelection();
+        }
+    }
+
+    // only now does the selection become a formula: just circling ink must not cost it its answer
+    private void calculateSelection(String latex) {
+        FormulaCapture capture = getSharedCanvas().takeFormulasToCalculate().get(0);
+        getSharedCanvas().clearSelection();
+        calculate(capture, latex);
+    }
+
+    private void showPopup(Supplier<Rectangle> spot) {
+        shown = spot;
         popup.setVisible(true);
         placePopup();
     }
@@ -195,7 +240,7 @@ public class AnswerCanvasPage extends CanvasPage {
         if (shown == null || !popup.isVisible()) {
             return;
         }
-        Rectangle world = getSharedCanvas().formulaBounds(shown.getId());
+        Rectangle world = shown.get();
         if (world == null) {
             hidePopup();
             return;
@@ -205,6 +250,13 @@ public class AnswerCanvasPage extends CanvasPage {
                 getSharedCanvas().worldToScreen(world).getBounds(), area);
         popup.setBounds(popup.spotBeside(f, area.getWidth(), area.getHeight()));
         area.repaint();
+    }
+
+    // Graph in the popup: a typo in a range box leaves the popup up, to press again once it is fixed
+    private void graph(FormulaCapture capture, String latex) {
+        if (grapher.graph(latex, getSharedCanvas().formulaBounds(capture.getId()))) {
+            hidePopup();
+        }
     }
 
     // Calculate in the popup: use the latex we already have, no second read

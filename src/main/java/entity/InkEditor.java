@@ -101,7 +101,7 @@ public final class InkEditor {
 
     /** A copy of the stroke shifted by (dx, dy). */
     public static Stroke translate(Stroke stroke, int dx, int dy) {
-        Stroke moved = new Stroke();
+        Stroke moved = new Stroke(stroke.getColor());
         for (InkPoint p : stroke.getPoints()) {
             moved.addPoint(new InkPoint(p.getX() + dx, p.getY() + dy, p.getTimeMillis()));
         }
@@ -113,7 +113,7 @@ public final class InkEditor {
      * is and every point moves towards it (factor below 1) or away from it (above 1).
      */
     public static Stroke scale(Stroke stroke, double anchorX, double anchorY, double factor) {
-        Stroke scaled = new Stroke();
+        Stroke scaled = new Stroke(stroke.getColor());
         for (InkPoint p : stroke.getPoints()) {
             scaled.addPoint(new InkPoint((int) Math.round(anchorX + (p.getX() - anchorX) * factor),
                     (int) Math.round(anchorY + (p.getY() - anchorY) * factor), p.getTimeMillis()));
@@ -158,7 +158,7 @@ public final class InkEditor {
             if (i + 1 == points.size() || segmentDistance(p, points.get(i + 1), cx, cy) > radius) {
                 // This segment is clear of the eraser (or p is the last point): keep p as it is.
                 if (within(p.getX(), p.getY(), cx, cy, radius)) {
-                    finishPiece(piece, pieces);
+                    finishPiece(piece, pieces, stroke.getColor());
                 } else {
                     piece.add(p);
                 }
@@ -173,20 +173,20 @@ public final class InkEditor {
                 double x = p.getX() + (q.getX() - p.getX()) * t;
                 double y = p.getY() + (q.getY() - p.getY()) * t;
                 if (within(x, y, cx, cy, radius)) {
-                    finishPiece(piece, pieces);
+                    finishPiece(piece, pieces, stroke.getColor());
                 } else {
                     long time = p.getTimeMillis() + Math.round((q.getTimeMillis() - p.getTimeMillis()) * t);
                     piece.add(new InkPoint((int) Math.round(x), (int) Math.round(y), time));
                 }
             }
         }
-        finishPiece(piece, pieces);
+        finishPiece(piece, pieces, stroke.getColor());
         return pieces;
     }
 
-    private static void finishPiece(List<InkPoint> piece, List<Stroke> pieces) {
+    private static void finishPiece(List<InkPoint> piece, List<Stroke> pieces, int color) {
         if (piece.size() >= 2) {
-            Stroke stroke = new Stroke();
+            Stroke stroke = new Stroke(color);
             for (InkPoint p : piece) {
                 stroke.addPoint(p);
             }

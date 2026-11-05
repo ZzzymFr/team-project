@@ -8,6 +8,7 @@ import view.answer.CanvasAnswer;
 import interface_adapter.TextRun;
 import view.answer.Formula;
 import view.answer.FormulaBook;
+import view.glass.Glass;
 import entity.InkEditor;
 import entity.InkPoint;
 import entity.Stroke;
@@ -29,6 +30,7 @@ import java.awt.event.ActionEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseWheelEvent;
+import java.awt.geom.AffineTransform;
 import java.awt.geom.Ellipse2D;
 import java.awt.geom.Path2D;
 import java.awt.geom.Point2D;
@@ -51,7 +53,7 @@ import java.util.function.LongConsumer;
 import java.util.function.UnaryOperator;
 
 /**
- * An infinite white canvas the user writes on with the mouse or a pen; keeps the ink as strokes.
+ * An infinite canvas the user writes on with the mouse or a pen; keeps the ink as strokes.
  *
  * <p>The ink lives in an unbounded "world"; the panel is a window onto it that can be moved and
  * zoomed. Scroll to move up and down, Shift+scroll to move sideways, drag with the right or middle
@@ -94,8 +96,6 @@ public class DrawingCanvas extends JPanel {
     private static final Color SELECTION = new Color(37, 99, 235);
     private static final Color SELECTION_HALO = new Color(37, 99, 235, 60);
     private static final Color ERASER_OUTLINE = new Color(100, 116, 139);
-    private static final int GRID_SPACING = 24;      // world units between grid dots
-    private static final Color GRID_DOT = new Color(203, 213, 225);
     private static final double SCROLL_STEP = 48;    // screen pixels per wheel notch
     private static final double ZOOM_STEP = 1.1;     // zoom factor per wheel notch
     private static final int HANDLE_SIZE = 8;        // selection corner handles, on screen
@@ -108,7 +108,8 @@ public class DrawingCanvas extends JPanel {
     private static final int GRAPH_CARD_GAP = 48;         // space between the formula and the card, on screen
     private static final int GRAPH_CLOSE_RADIUS = 11;     // close button, on screen
     private static final int VIEW_MARGIN_X = 16;          // keep a new card this far inside the view...
-    private static final int VIEW_MARGIN_Y = 60;          // ...and clear of the floating controls
+    private static final int VIEW_MARGIN_TOP = 76;        // ...and clear of the glass bars at the top
+    private static final int VIEW_MARGIN_BOTTOM = 60;     // ...and mostly clear of those at the bottom
     private static final Color ANSWER_ERROR = new Color(220, 38, 38);
     private static final int[] HANDLE_CURSORS = {Cursor.NW_RESIZE_CURSOR, Cursor.NE_RESIZE_CURSOR,
         Cursor.SE_RESIZE_CURSOR, Cursor.SW_RESIZE_CURSOR};
@@ -121,8 +122,10 @@ public class DrawingCanvas extends JPanel {
     private final List<Consumer<Stroke>> strokeListeners = new ArrayList<>();
     private final List<Runnable> actionListeners = new ArrayList<>();  // user started doing something
     private final List<Runnable> viewListeners = new ArrayList<>();    // pan / zoom
+    private final List<Runnable> selectionListeners = new ArrayList<>();  // a lasso closed around ink
     private Tool tool = Tool.PEN;
     private EraserMode eraserMode = EraserMode.PRECISE;
+    private Color inkColor = INK_COLOR;
     private Stroke currentStroke;
 
     // view: screen = world * scale + origin
@@ -155,8 +158,15 @@ public class DrawingCanvas extends JPanel {
     private Point2D resizeCorner;     // where the dragged corner started
     private double resizeFactor = 1;
 
+    // what the canvas shows, kept as a picture: glass animating on top repaints it many times a second
+    private long sceneVersion;        // goes up on every repaint that may change the picture
+    private boolean outlineOnly;      // this repaint is only for the eraser outline, drawn over the picture
+    private BufferedImage sceneImage;
+    private long sceneImageVersion;
+    private double sceneImageScale;
+
     public DrawingCanvas() {
-        setBackground(Color.WHITE);
+        setBackground(Glass.CANVAS);
         setPreferredSize(new Dimension(900, 500));
         setFocusable(true);
         setCursor(Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR));
@@ -246,7 +256,7 @@ public class DrawingCanvas extends JPanel {
                 }
                 if (tool == Tool.ERASER) {
                     eraserAt = e.getPoint();
-                    repaint();
+                    repaintEraserOutline();
                 } else if (tool == Tool.LASSO && !spaceDown) {
                     int handle = handleAt(e.getPoint());
                     Rectangle bounds = selectionBounds();
@@ -261,7 +271,7 @@ public class DrawingCanvas extends JPanel {
             public void mouseExited(MouseEvent e) {
                 if (eraserAt != null) {
                     eraserAt = null;
-                    repaint();
+                    repaintEraserOutline();
                 }
             }
 
@@ -282,7 +292,10 @@ public class DrawingCanvas extends JPanel {
         addMouseWheelListener(mouse);
         bindKey("DELETE", "deleteSelection", this::deleteSelection);
         bindKey("BACK_SPACE", "deleteSelection", this::deleteSelection);
-        bindKey("ESCAPE", "clearSelection", this::clearSelection);
+        bindKey("ESCAPE", "clearSelection", () -> {
+            clearSelection();
+            fire(actionListeners);
+        });
         bindKey("ctrl Z", "undo", this::undo);
         bindKey("pressed SPACE", "panOn", () -> setSpaceDown(true));
         bindKey("released SPACE", "panOff", () -> setSpaceDown(false));
@@ -434,8 +447,8 @@ public class DrawingCanvas extends JPanel {
         }
         double left = VIEW_MARGIN_X;
         double right = getWidth() - VIEW_MARGIN_X;
-        double top = VIEW_MARGIN_Y;
-        double bottom = getHeight() - VIEW_MARGIN_Y;
+        double top = VIEW_MARGIN_TOP;
+        double bottom = getHeight() - VIEW_MARGIN_BOTTOM;
         Rectangle2D target = toScreen(world);
         if (target.getWidth() > right - left || target.getHeight() > bottom - top) {
             target = toScreen(fallback);  // too big: just show the fallback
@@ -524,6 +537,15 @@ public class DrawingCanvas extends JPanel {
         fire(actionListeners);
     }
 
+    /** The colour new strokes are written in. Handwriting recognition always sees them in black. */
+    public Color getInkColor() {
+        return inkColor;
+    }
+
+    public void setInkColor(Color inkColor) {
+        this.inkColor = inkColor;
+    }
+
     /** The eraser's radius on screen; it stays the same size however far you zoom. */
     private int eraserRadius() {
         return eraserMode == EraserMode.PRECISE ? PRECISE_ERASER_RADIUS : STROKE_ERASER_RADIUS;
@@ -532,7 +554,7 @@ public class DrawingCanvas extends JPanel {
     private void startStroke(MouseEvent e) {
         clearSelection();
         saveForUndo();
-        currentStroke = new Stroke();
+        currentStroke = new Stroke(inkColor.getRGB() & 0xFFFFFF);
         strokes.add(currentStroke);
         record(e);
     }
@@ -646,6 +668,9 @@ public class DrawingCanvas extends JPanel {
                 }
             }
             lassoPath = null;
+            if (!selection.isEmpty()) {
+                fire(selectionListeners);
+            }
         }
         repaint();
     }
@@ -821,6 +846,10 @@ public class DrawingCanvas extends JPanel {
         return strokes.isEmpty();
     }
 
+    public boolean canUndo() {
+        return !history.isEmpty();
+    }
+
     /** Steps back one change: a stroke, an erase, a lasso move or delete, or Clear. */
     public void undo() {
         if (!history.isEmpty()) {
@@ -947,6 +976,16 @@ public class DrawingCanvas extends JPanel {
 
     public void addViewListener(Runnable listener) {
         viewListeners.add(listener);
+    }
+
+    /** Called when a lasso has just closed around some ink (not just answers, and not for a move or resize). */
+    public void addSelectionListener(Runnable listener) {
+        selectionListeners.add(listener);
+    }
+
+    /** True if ink is selected, not just answers: then the selection is what {@link #toFormulaImage} shows. */
+    public boolean hasSelectedInk() {
+        return !selection.isEmpty();
     }
 
     public boolean isBound(Stroke s) {
@@ -1177,12 +1216,15 @@ public class DrawingCanvas extends JPanel {
         return image;
     }
 
-    /** Draws the ink (no background) as it appears on screen, e.g. onto a copy of the canvas elsewhere. */
+    /** Draws the ink (no background) where it appears on screen, in black, e.g. onto a copy of the canvas elsewhere. */
     public void paintInk(Graphics2D g2) {
         Graphics2D world = (Graphics2D) g2.create();
         world.translate(originX, originY);
         world.scale(scale, scale);
-        drawStrokes(world);
+        setUpInk(world);
+        for (Stroke stroke : strokes) {
+            drawStroke(world, stroke);
+        }
         world.dispose();
     }
 
@@ -1201,19 +1243,13 @@ public class DrawingCanvas extends JPanel {
         world.dispose();
     }
 
-    /** Draws the grid, the graph card and the ink (no background) as they appear on screen. */
-    public void paintView(Graphics2D g2) {
-        paintGrid(g2);
-        paintContent(g2);
-    }
-
-    // ---------------------------------------------------------------- painting
-
-    @Override
-    protected void paintComponent(Graphics g) {
-        super.paintComponent(g);
-        Graphics2D g2 = (Graphics2D) g.create();
-        paintGrid(g2);
+    /**
+     * Everything the canvas shows, opaque, in its own coordinates: what glass floating over it sees.
+     * Painted from the stroke vectors, so it stays sharp when {@code g2} is scaled up.
+     */
+    public void paintBackdrop(Graphics2D g2) {
+        g2.setColor(getBackground());
+        g2.fillRect(0, 0, getWidth(), getHeight());
 
         Graphics2D world = (Graphics2D) g2.create();
         world.translate(originX, originY);
@@ -1222,7 +1258,7 @@ public class DrawingCanvas extends JPanel {
         setUpInk(world);
         for (Stroke stroke : strokes) {
             if (!selection.contains(stroke)) {
-                drawStroke(world, stroke);
+                drawInColor(world, stroke);
             }
         }
         for (Formula f : book.all()) {
@@ -1239,6 +1275,55 @@ public class DrawingCanvas extends JPanel {
         world.dispose();
 
         paintGraphClose(g2);
+    }
+
+    /** Changes whenever {@link #paintBackdrop} may paint something new. */
+    public long getBackdropVersion() {
+        return sceneVersion;
+    }
+
+    @Override
+    public void repaint(long tm, int x, int y, int width, int height) {
+        if (!outlineOnly) {
+            sceneVersion++;
+        }
+        super.repaint(tm, x, y, width, height);
+    }
+
+    /** Repaints for an eraser outline that moved; what lies under the glass stays the same. */
+    private void repaintEraserOutline() {
+        outlineOnly = true;
+        repaint();
+        outlineOnly = false;
+    }
+
+    /** The picture of the canvas at a render scale, redrawn only if something changed. */
+    private BufferedImage sceneImage(double renderScale) {
+        int pw = Math.max(1, (int) Math.ceil(getWidth() * renderScale));
+        int ph = Math.max(1, (int) Math.ceil(getHeight() * renderScale));
+        boolean sameSize = sceneImage != null && sceneImage.getWidth() == pw && sceneImage.getHeight() == ph;
+        if (sameSize && sceneImageScale == renderScale && sceneImageVersion == sceneVersion) {
+            return sceneImage;
+        }
+        if (!sameSize) {
+            sceneImage = new BufferedImage(pw, ph, BufferedImage.TYPE_INT_RGB);
+        }
+        Graphics2D g = sceneImage.createGraphics();
+        g.scale(renderScale, renderScale);
+        paintBackdrop(g);
+        g.dispose();
+        sceneImageScale = renderScale;
+        sceneImageVersion = sceneVersion;
+        return sceneImage;
+    }
+
+    // ---------------------------------------------------------------- painting
+
+    @Override
+    protected void paintComponent(Graphics g) {
+        Graphics2D g2 = (Graphics2D) g.create();
+        double renderScale = g2.getTransform().getScaleX();
+        g2.drawImage(sceneImage(renderScale), AffineTransform.getScaleInstance(1 / renderScale, 1 / renderScale), null);
         if (tool == Tool.ERASER && eraserAt != null) {
             int r = eraserRadius();
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
@@ -1306,26 +1391,6 @@ public class DrawingCanvas extends JPanel {
         g.dispose();
     }
 
-    /** Light dots that move and zoom with the world, so you can see the canvas moving. */
-    private void paintGrid(Graphics2D g2) {
-        double spacing = GRID_SPACING * scale;
-        while (spacing < 14) {
-            spacing *= 2;  // zoomed far out: fewer dots
-        }
-        double startX = floorMod(originX, spacing);
-        double startY = floorMod(originY, spacing);
-        g2.setColor(GRID_DOT);
-        for (double x = startX; x < getWidth(); x += spacing) {
-            for (double y = startY; y < getHeight(); y += spacing) {
-                g2.fillRect((int) Math.round(x) - 1, (int) Math.round(y) - 1, 2, 2);
-            }
-        }
-    }
-
-    private static double floorMod(double a, double m) {
-        return ((a % m) + m) % m;
-    }
-
     /** A dashed line that looks the same at every zoom. */
     private BasicStroke dashed() {
         float unit = (float) (1 / scale);
@@ -1343,7 +1408,7 @@ public class DrawingCanvas extends JPanel {
         }
         setUpInk(ink);
         for (Stroke stroke : preview) {
-            drawStroke(ink, stroke);
+            drawInColor(ink, stroke);
         }
         ink.dispose();
         for (CanvasAnswer a : answerPreview()) {
@@ -1401,8 +1466,13 @@ public class DrawingCanvas extends JPanel {
     private void drawStrokes(Graphics2D g2) {
         setUpInk(g2);
         for (Stroke stroke : strokes) {
-            drawStroke(g2, stroke);
+            drawInColor(g2, stroke);
         }
+    }
+
+    private static void drawInColor(Graphics2D g2, Stroke stroke) {
+        g2.setColor(new Color(stroke.getColor()));
+        drawStroke(g2, stroke);
     }
 
     private static void setUpInk(Graphics2D g2) {

@@ -3,7 +3,6 @@ package view.glass;
 import view.stack.Fonts;
 
 import javax.swing.JButton;
-import javax.swing.Timer;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.FontMetrics;
@@ -24,7 +23,7 @@ public class GlassButton extends JButton {
     private double hover;
     private double press;
     private boolean hovering;
-    private final Timer animator = new Timer(15, e -> step());
+    private final GlassAnimator animator = new GlassAnimator(this::step);
 
     public GlassButton(String text) {
         this(text, HEIGHT);
@@ -71,8 +70,9 @@ public class GlassButton extends JButton {
     private void step() {
         double hoverTarget = hovering && isEnabled() ? 1 : 0;
         double pressTarget = getModel().isPressed() ? 1 : 0;
-        hover += (hoverTarget - hover) * 0.25;
-        press += (pressTarget - press) * 0.45;
+        float f = animator.elapsedFrames();
+        hover += (hoverTarget - hover) * GlassAnimator.ease(0.25f, f);
+        press += (pressTarget - press) * GlassAnimator.ease(0.45f, f);
         if (Math.abs(hoverTarget - hover) < 0.01 && Math.abs(pressTarget - press) < 0.01) {
             hover = hoverTarget;
             press = pressTarget;

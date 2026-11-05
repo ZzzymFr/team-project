@@ -7,10 +7,12 @@ import interface_adapter.TextRun;
 import interface_adapter.recognize.FormulaRecognizer;
 import view.DrawingCanvas;
 import view.FormulaCapture;
+import view.glass.GlassBackdrop;
 
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
+import java.awt.Color;
 import java.awt.Container;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
@@ -35,7 +37,7 @@ import java.util.function.LongConsumer;
  * {@link #recognizeFormula()} sends it to handwriting recognition once a
  * {@link FormulaRecognizer} is connected. {@link #showGraph} puts a graph beside the formula.
  */
-public class SharedCanvas {
+public class SharedCanvas implements GlassBackdrop {
     private final DrawingCanvas canvas;
     private FormulaRecognizer recognizer;
 
@@ -73,9 +75,15 @@ public class SharedCanvas {
         slot.repaint();
     }
 
-    /** The ink and graph card as they appear on screen, e.g. for the frosted backdrop behind floating glass. */
-    void paintInkCopy(Graphics2D g2) {
-        canvas.paintContent(g2);
+    /** The canvas as it appears on screen, for the glass floating over it. */
+    @Override
+    public void paintBackdrop(Graphics2D g2) {
+        canvas.paintBackdrop(g2);
+    }
+
+    @Override
+    public long backdropVersion() {
+        return canvas.getBackdropVersion();
     }
 
     /** Shows the graph as a card beside the formula (not over the whole canvas). Call on the Swing event thread. */
@@ -101,9 +109,9 @@ public class SharedCanvas {
         return canvas.hasGraph();
     }
 
-    /** The grid and ink as they appear on screen, for pages that are not in front. */
+    /** The ink as it appears on screen, for pages that are not in front. */
     void paintCanvasCopy(Graphics2D g2) {
-        canvas.paintView(g2);
+        canvas.paintContent(g2);
     }
 
     /** The zoom of the infinite canvas: 1 = 100%. */
@@ -149,6 +157,19 @@ public class SharedCanvas {
     public void addEraserModeListener(Consumer<DrawingCanvas.EraserMode> listener) {
         canvas.addPropertyChangeListener(DrawingCanvas.ERASER_MODE_PROPERTY,
                 e -> listener.accept((DrawingCanvas.EraserMode) e.getNewValue()));
+    }
+
+    public Color getInkColor() {
+        return canvas.getInkColor();
+    }
+
+    /** The colour new strokes are written in, on every page. */
+    public void setInkColor(Color color) {
+        canvas.setInkColor(color);
+    }
+
+    public boolean canUndo() {
+        return canvas.canUndo();
     }
 
     public void undo() {
@@ -203,6 +224,18 @@ public class SharedCanvas {
 
     public void addViewListener(Runnable listener) {
         canvas.addViewListener(listener);
+    }
+
+    public void addSelectionListener(Runnable listener) {
+        canvas.addSelectionListener(listener);
+    }
+
+    public boolean hasSelectedInk() {
+        return canvas.hasSelectedInk();
+    }
+
+    public void clearSelection() {
+        canvas.clearSelection();
     }
 
     // canvas moved to another page (or out of one)

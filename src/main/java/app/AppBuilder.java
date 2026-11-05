@@ -14,35 +14,32 @@ import use_case.evaluate.EvaluateInteractor;
 import use_case.graph_function.GraphFunctionInteractor;
 import view.DrawingCanvas;
 import view.canvas.AnswerCanvasPage;
-import view.canvas.CanvasPage;
-import view.canvas.GraphCanvasPage;
-import view.canvas.PdfCanvasPage;
+import view.canvas.CanvasShell;
+import view.canvas.FormulaGrapher;
 import view.canvas.SharedCanvas;
-import view.stack.StackedPages;
-import view.stack.WindowChrome;
+import view.glass.GlassBar;
+import view.stack.Fonts;
 import pdf_editor.PdfStudioLauncher;
 
-import javax.swing.JComponent;
 import javax.swing.JFrame;
 import javax.swing.WindowConstants;
-import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.Font;
 
 /**
- * Builds the stacked-pages window: Graph, PDF and Answer pages sharing one handwriting canvas.
+ * Builds the window: one handwriting canvas filling it. Pausing after writing offers Graph and
+ * Calculate on the formula; calculated formulas and graphs are collected for the PDF editor.
  */
-public class StackedAppBuilder {
-    private static final Color GRAPH_BLUE = new Color(37, 99, 235);
-    private static final Color PDF_ORANGE = new Color(234, 88, 12);
-    private static final Color ANSWER_GREEN = new Color(22, 163, 74);
+public class AppBuilder {
+    private static final Dimension MINIMUM_SIZE = new Dimension(900, 520);
 
     private final SharedCanvas sharedCanvas = new SharedCanvas(new DrawingCanvas());
-    private final StackedPages pages = new StackedPages();
     private final PdfStudioLauncher pdfStudio = new PdfStudioLauncher();
 
     { pdfStudio.setSourceCanvas(sharedCanvas); }
 
-    /** The Graph page, wired to the graph use case: LaTeX -> parse and sample -> QuickChart -> graph card. */
-    public StackedAppBuilder addGraphPage() {
+    /** The graph use case: LaTeX -> parse and sample -> QuickChart -> graph card, and on to the PDF editor. */
+    private FormulaGrapher buildGrapher() {
         GraphViewModel viewModel = new GraphViewModel();
         viewModel.addPropertyChangeListener(event -> {
             if (GraphViewModel.STATE_PROPERTY.equals(event.getPropertyName())) {
@@ -54,28 +51,20 @@ public class StackedAppBuilder {
         });
         GraphFunctionInteractor interactor = new GraphFunctionInteractor(
                 new LatexFunctionParser(), new QuickChartGraphRenderer(), new GraphPresenter(viewModel));
-        GraphController controller = new GraphController(interactor);
-        pages.addPage("Graph", GRAPH_BLUE, new GraphCanvasPage(sharedCanvas, controller, viewModel));
-        return this;
+        return new FormulaGrapher(sharedCanvas, new GraphController(interactor), viewModel);
     }
 
-    public StackedAppBuilder addPdfPage() {
-        pages.addPage("PDF", PDF_ORANGE, new PdfCanvasPage(sharedCanvas, pdfStudio::openEditor));
-        return this;
-    }
-
-    // answer page -> evaluate use case
-    public StackedAppBuilder addAnswerPage() {
+    // the page -> evaluate use case, graph use case
+    private AnswerCanvasPage buildPage() {
         MathLabViewModel viewModel = new MathLabViewModel();
         EvaluateInteractor interactor = new EvaluateInteractor(
                 new InMemoryFunctionDataAccessObject(), new EvaluatePresenter(viewModel));
         EvaluateController controller = new EvaluateController(interactor);
-        pages.addPage("Answer", ANSWER_GREEN, new AnswerCanvasPage(sharedCanvas, controller, viewModel, pdfStudio::addCalculation));
-        return this;
+        return new AnswerCanvasPage(sharedCanvas, controller, viewModel, pdfStudio::addCalculation, buildGrapher());
     }
 
     /** Connects handwriting recognition once the machine-learning part is ready. */
-    public StackedAppBuilder setFormulaRecognizer(FormulaRecognizer recognizer) {
+    public AppBuilder setFormulaRecognizer(FormulaRecognizer recognizer) {
         sharedCanvas.setFormulaRecognizer(recognizer);
         return this;
     }
@@ -85,22 +74,15 @@ public class StackedAppBuilder {
     }
 
     public JFrame build() {
-        // The one canvas follows whichever page is in front.
-        attachCanvasToFrontPage();
-        pages.addChangeListener(e -> attachCanvasToFrontPage());
+        CanvasShell shell = new CanvasShell(sharedCanvas, buildPage(), pdfStudio::openEditor);
 
-        JFrame frame = new JFrame("Math Lab");  // the title still shows in the taskbar
+        JFrame frame = new JFrame("Math Lab");
         frame.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
-        WindowChrome.install(frame, pages);
+        shell.install(frame);
+        frame.setMinimumSize(MINIMUM_SIZE);
         frame.setSize(980, 660);
         frame.setLocationRelativeTo(null);
+        GlassBar.warmUp(Fonts.ui(Font.PLAIN, 15f));
         return frame;
-    }
-
-    private void attachCanvasToFrontPage() {
-        JComponent front = pages.getSelectedComponent();
-        if (front instanceof CanvasPage) {
-            sharedCanvas.attachTo((CanvasPage) front);
-        }
     }
 }
