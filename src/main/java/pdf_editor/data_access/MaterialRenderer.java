@@ -32,7 +32,15 @@ public final class MaterialRenderer {
                 double scale = Math.min((double) width / material.imageWidth(), (double) height / material.imageHeight());
                 int w = (int) (material.imageWidth() * scale);
                 int h = (int) (material.imageHeight() * scale);
-                g.drawImage(graphImage(material), (width - w) / 2, (height - h) / 2, w, h, null);
+                BufferedImage graph = graphImage(material);
+                if (scale < 0.75) {
+                    // area-averaged: thin chart lines stay whole instead of breaking into dots
+                    g.drawImage(graph.getScaledInstance(Math.max(1, w), Math.max(1, h), java.awt.Image.SCALE_SMOOTH),
+                            (width - w) / 2, (height - h) / 2, null);
+                } else {
+                    g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+                    g.drawImage(graph, (width - w) / 2, (height - h) / 2, w, h, null);
+                }
             } else {
                 String formula = material.formula() == null ? "" : material.formula().trim();
                 String result = material.result() == null ? "" : material.result().trim();

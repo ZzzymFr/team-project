@@ -8,7 +8,7 @@ import java.awt.image.ConvolveOp;
 import java.awt.image.Kernel;
 
 /**
- * The pixel work behind the glass: a barely-there blur, lensing along the edge of a capsule, and a
+ * The pixel work behind the glass: a barely-there blur, lensing along the edge of the glass, and a
  * soft halo that keeps icons and labels readable over ink.
  *
  * <p>All sizes are in logical pixels and are multiplied by the render scale here. Apple does not
@@ -59,48 +59,46 @@ final class GlassOptics {
     }
 
     /**
-     * The picture as seen through a capsule: bent along the rim, with an anti-aliased edge and
-     * nothing outside it. (ox, oy) is where {@code src} starts, in device pixels of the capsule's
+     * The picture as seen through a piece of glass: bent along the rim, with an anti-aliased edge and
+     * nothing outside it. (ox, oy) is where {@code src} starts, in device pixels of the glass's
      * coordinates.
      *
      * @param strength 0..1, how much lensing; 0 is flat glass
      */
-    static BufferedImage refract(BufferedImage src, double scale, RoundRectangle2D capsule, float strength,
+    static BufferedImage refract(BufferedImage src, double scale, RoundRectangle2D glass, float strength,
                                  int ox, int oy) {
         int pw = src.getWidth();
         int ph = src.getHeight();
         int[] in = src.getRGB(0, 0, pw, ph, null, 0, pw);
         int[] out = new int[pw * ph];
-        double radius = capsule.getHeight() / 2.0 * scale;
-        double cy = (capsule.getY() + capsule.getHeight() / 2.0) * scale - oy;
-        double x0 = (capsule.getX() + capsule.getHeight() / 2.0) * scale - ox;
-        double x1 = Math.max(x0, (capsule.getMaxX() - capsule.getHeight() / 2.0) * scale - ox);
+        double cx = glass.getCenterX() * scale - ox;
+        double cy = glass.getCenterY() * scale - oy;
+        double hw = glass.getWidth() / 2.0 * scale;
+        double hh = glass.getHeight() / 2.0 * scale;
+        double radius = Math.min(Math.min(hw, hh), glass.getArcHeight() / 2.0 * scale);
         double band = LENS_BAND * scale;
         double k = LENS_STRENGTH * scale * strength;
-        int yMin = Math.max(0, (int) (cy - radius) - 1);
-        int yMax = Math.min(ph, (int) Math.ceil(cy + radius) + 1);
-        int xMin = Math.max(0, (int) (x0 - radius) - 1);
-        int xMax = Math.min(pw, (int) Math.ceil(x1 + radius) + 1);
+        int yMin = Math.max(0, (int) (cy - hh) - 1);
+        int yMax = Math.min(ph, (int) Math.ceil(cy + hh) + 1);
+        int xMin = Math.max(0, (int) (cx - hw) - 1);
+        int xMax = Math.min(pw, (int) Math.ceil(cx + hw) + 1);
+        double[] normal = new double[2];
         for (int y = yMin; y < yMax; y++) {
             double py = y + 0.5;
             for (int x = xMin; x < xMax; x++) {
                 double px = x + 0.5;
-                double qx = Math.max(x0, Math.min(x1, px));
-                double dx = px - qx;
-                double dy = py - cy;
-                double len = Math.sqrt(dx * dx + dy * dy);
-                double d = len - radius;
+                double d = edgeDistance(px - cx, py - cy, hw, hh, radius, normal);
                 if (d > 0.5) {
                     continue;
                 }
                 double coverage = Math.min(1.0, 0.5 - d);
                 double sx = px;
                 double sy = py;
-                if (-d < band && len > 1e-6) {
+                if (-d < band) {
                     double t = 1.0 + d / band;
                     double offset = t * t * k;
-                    sx += dx / len * offset;
-                    sy += dy / len * offset;
+                    sx += normal[0] * offset;
+                    sy += normal[1] * offset;
                 }
                 int c = bilinear(in, pw, ph, sx - 0.5, sy - 0.5);
                 int a = (int) Math.round(((c >>> 24) & 0xFF) * coverage);
@@ -110,6 +108,37 @@ final class GlassOptics {
         BufferedImage result = new BufferedImage(pw, ph, BufferedImage.TYPE_INT_ARGB);
         result.setRGB(0, 0, pw, ph, out, 0, pw);
         return result;
+    }
+
+    /**
+     * Signed distance from a point to the edge of a rounded rectangle (negative inside), with the
+     * point given relative to the rectangle's centre. The outward direction of the nearest edge goes
+     * into {@code normal}.
+     *
+     * @param hw     half the width
+     * @param hh     half the height
+     * @param radius the corner radius, at most hw and hh
+     */
+    static double edgeDistance(double dx, double dy, double hw, double hh, double radius, double[] normal) {
+        double qx = Math.abs(dx) - (hw - radius);
+        double qy = Math.abs(dy) - (hh - radius);
+        double signX = dx < 0 ? -1 : 1;
+        double signY = dy < 0 ? -1 : 1;
+        if (qx > 0 && qy > 0) {
+            // in a corner: the distance to the arc
+            double len = Math.sqrt(qx * qx + qy * qy);
+            normal[0] = signX * qx / len;
+            normal[1] = signY * qy / len;
+            return len - radius;
+        }
+        if (qx > qy) {
+            normal[0] = signX;
+            normal[1] = 0;
+            return qx - radius;
+        }
+        normal[0] = 0;
+        normal[1] = signY;
+        return qy - radius;
     }
 
     /**

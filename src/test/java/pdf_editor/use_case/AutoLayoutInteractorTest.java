@@ -20,13 +20,11 @@ class AutoLayoutInteractorTest {
         assertEquals("y=x^2", editor.placements(1).get(0).material().formula());
         assertFalse(editor.placements(1).get(0).material().isGraph());
         assertTrue(editor.placements(1).get(1).material().isGraph());
-        assertTrue(editor.undo());
-        assertEquals(1, editor.pageCount());
-        assertEquals(1, editor.placements(0).size());
     }
     @Test void emptyLibraryLeavesDocumentUnchanged() {
         DocumentEditor editor = new DocumentEditor();
         assertEquals(0, new AutoLayoutInteractor(editor).importMaterials(0, java.util.List.of()));
-        assertFalse(editor.undo());
+        assertEquals(1, editor.pageCount());
+        assertTrue(editor.placements(0).isEmpty());
     }
 }

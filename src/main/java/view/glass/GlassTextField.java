@@ -76,7 +76,7 @@ public class GlassTextField extends JTextField {
         Glass.setUp(g2);
         double s = Glass.SHADOW;
         boolean focused = isFocusOwner();
-        Glass.paint(g2, Glass.capsule(s, s, getWidth() - 2 * s, getHeight() - 2 * s),
+        Glass.paint(g2, Glass.rounded(s, s, getWidth() - 2 * s, getHeight() - 2 * s),
                 focused ? Glass.ACCENT : null, focused ? 0.3 : 0, hovering && !focused ? 0.6 : 0, 0, 0);
         if (getText().isEmpty() && !focused && placeholder != null) {
             g2.setFont(getFont());

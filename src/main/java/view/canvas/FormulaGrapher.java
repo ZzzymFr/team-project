@@ -4,11 +4,11 @@ import interface_adapter.graph.AxisRangeParser;
 import interface_adapter.graph.GraphController;
 import interface_adapter.graph.GraphState;
 import interface_adapter.graph.GraphViewModel;
-import view.glass.GlassLabel;
 import view.glass.GlassTextField;
 import view.stack.Fonts;
 
 import javax.swing.JComponent;
+import javax.swing.JLabel;
 import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
 import java.awt.Font;
@@ -56,14 +56,15 @@ public class FormulaGrapher implements PropertyChangeListener {
         this.messages = messages;
     }
 
-    /** The range boxes and their labels, for the page to float over the canvas. */
+    /** The range boxes and their labels, for the Math tab of the ribbon. */
     JComponent[] controls() {
         return new JComponent[]{axisLabel("x"), xRangeField, axisLabel("y"), yRangeField};
     }
 
-    private static GlassLabel axisLabel(String axis) {
-        GlassLabel label = new GlassLabel(axis);
+    private static JLabel axisLabel(String axis) {
+        JLabel label = new JLabel(axis);
         label.setFont(Fonts.ui(Font.ITALIC, 16f));
+        label.setBorder(javax.swing.BorderFactory.createEmptyBorder(0, 6, 0, 0));
         return label;
     }
 

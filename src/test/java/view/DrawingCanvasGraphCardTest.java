@@ -67,10 +67,23 @@ class DrawingCanvasGraphCardTest {
     @Test
     void cardGoesBesideTheFormulaItIsGiven() {
         drag(100, 100, 200, 130);
-        canvas.showGraph(CHART, new java.awt.Rectangle(400, 200, 50, 50));
+        canvas.showGraph(CHART, new java.awt.Rectangle(100, 200, 50, 50));
         Rectangle2D card = canvas.getGraphCardOnScreen();
-        assertTrue(card.getMinX() >= 450 + 40);
+        assertTrue(card.getMinX() >= 150 + 40);
         assertEquals(225, card.getCenterY(), 2);
+    }
+
+    @Test
+    void cardGoesBelowAFormulaWithNoRoomOnItsRightOnTheSheet() {
+        drag(100, 100, 200, 130);
+        java.awt.Rectangle formula = new java.awt.Rectangle(600, 200, 50, 50);
+        canvas.showGraph(CHART, formula);
+        Rectangle2D card = canvas.getGraphCardOnScreen();
+        Rectangle2D formulaOnScreen = canvas.worldToScreen(formula);  // the view may have moved to show the card
+        Rectangle2D sheetOnScreen = canvas.worldToScreen(new Rectangle2D.Double(0, 0, view.Paper.PAGE_WIDTH, 1));
+        assertTrue(card.getMinY() >= formulaOnScreen.getMaxY() + 40, "below the formula");
+        assertTrue(card.getMaxX() <= sheetOnScreen.getMaxX(), "slid left to stay on the sheet");
+        assertTrue(card.getMaxX() > formulaOnScreen.getMinX(), "but still under it");
     }
 
     @Test

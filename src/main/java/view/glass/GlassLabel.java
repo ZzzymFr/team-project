@@ -60,7 +60,7 @@ public class GlassLabel extends JComponent {
         Graphics2D g2 = (Graphics2D) g.create();
         Glass.setUp(g2);
         double s = Glass.SHADOW;
-        Glass.paint(g2, Glass.capsule(s, s, getWidth() - 2 * s, getHeight() - 2 * s), null, 0, 0, 0, 0);
+        Glass.paint(g2, Glass.rounded(s, s, getWidth() - 2 * s, getHeight() - 2 * s), null, 0, 0, 0, 0);
         g2.setFont(getFont());
         FontMetrics fm = g2.getFontMetrics();
         int textY = (int) Math.round((getHeight() + fm.getAscent() - fm.getDescent()) / 2.0);

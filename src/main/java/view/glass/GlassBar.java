@@ -51,6 +51,7 @@ public class GlassBar extends JComponent {
     public static final int CAPSULE_HEIGHT = SEGMENT_HEIGHT + 2 * PAD;
     /** Room around the capsule for its shadow and the hover droplet. */
     public static final int MARGIN = 28;
+    /** The bar's corner radius; the buttons inside it and the hover droplet keep the same curve. */
     private static final int ICON = 18;
     private static final int ICON_GAP = 7;
     private static final int ITEM_PAD_X = 16;
@@ -67,7 +68,7 @@ public class GlassBar extends JComponent {
     private static final float HOVER_EDGE_K = 9f;
     private static final float HOVER_DISPERSION = 0.45f;
 
-    private enum Kind { SEGMENT, ACTION, SWATCH, SEPARATOR }
+    private enum Kind { SEGMENT, ACTION, SWATCH, SEPARATOR, SPACER }
 
     /** One thing in the bar. */
     public static final class Item {
@@ -139,6 +140,8 @@ public class GlassBar extends JComponent {
     private final Map<Integer, Item> selected = new HashMap<>();
     private final Map<Integer, Platter> platters = new HashMap<>();
     private float capsuleWidth;
+    private float minCapsuleWidth;
+    private int padY = PAD;              // glass above and below the buttons
 
     private Item hoverItem;
     private Item pressItem;
@@ -275,6 +278,43 @@ public class GlassBar extends JComponent {
         items.add(new Item(Kind.SEPARATOR, null, null, -1, SEPARATOR_WIDTH));
     }
 
+    /** Empty glass of the given width, e.g. for another control laid over the bar there. */
+    public Item spacer(float width) {
+        Item item = new Item(Kind.SPACER, null, null, -1, Math.max(1f, width));
+        items.add(item);
+        return item;
+    }
+
+    /** Where an item starts, in the bar's own coordinates (once {@link #finish}ed). */
+    public int itemX(Item item) {
+        return Math.round(MARGIN + PAD + item.x);
+    }
+
+    /**
+     * Makes the glass taller than the buttons need, the buttons staying the same size in the
+     * middle; call before {@link #finish}.
+     */
+    public void setCapsuleHeight(int height) {
+        padY = Math.max(PAD, (height - SEGMENT_HEIGHT) / 2);
+    }
+
+    /** The height of the glass itself, without the room around it. */
+    public int capsuleHeight() {
+        return SEGMENT_HEIGHT + 2 * padY;
+    }
+
+    /** Stretches the glass to at least this width, the buttons staying at its left. */
+    public void setCapsuleWidth(int width) {
+        if (width != minCapsuleWidth) {
+            minCapsuleWidth = width;
+            finish();
+        }
+    }
+
+    private float barRadius() {
+        return (float) Glass.cornerRadius(capsuleHeight());
+    }
+
     /** Measures the labels and lays the items out left to right. */
     public void finish() {
         FontRenderContext frc = new FontRenderContext(null, true, true);
@@ -288,14 +328,14 @@ public class GlassBar extends JComponent {
             item.x = x;
             x += item.width;
         }
-        capsuleWidth = x + 2 * PAD;
+        capsuleWidth = Math.max(x + 2 * PAD, minCapsuleWidth);
         shadowCaches.clear();
         setSize(getPreferredSize());
     }
 
     @Override
     public Dimension getPreferredSize() {
-        return new Dimension((int) Math.ceil(capsuleWidth) + 2 * MARGIN, CAPSULE_HEIGHT + 2 * MARGIN);
+        return new Dimension((int) Math.ceil(capsuleWidth) + 2 * MARGIN, capsuleHeight() + 2 * MARGIN);
     }
 
     /** Puts the bar so its capsule is centred across the given width with its top at capsuleTop. */
@@ -313,7 +353,7 @@ public class GlassBar extends JComponent {
         }
         if (item.kind == Kind.ACTION) {
             item.onActivate.getAsBoolean();
-        } else if (item.kind != Kind.SEPARATOR && item.onActivate.getAsBoolean()) {
+        } else if (item.kind != Kind.SEPARATOR && item.kind != Kind.SPACER && item.onActivate.getAsBoolean()) {
             select(item);
         }
         repaint();
@@ -368,7 +408,7 @@ public class GlassBar extends JComponent {
     private Item itemAt(int x) {
         float lx = x - MARGIN - PAD;
         for (Item item : items) {
-            if (item.kind != Kind.SEPARATOR && lx >= item.x && lx < item.x + item.width) {
+            if (item.kind != Kind.SEPARATOR && item.kind != Kind.SPACER && lx >= item.x && lx < item.x + item.width) {
                 return item;
             }
         }
@@ -401,8 +441,9 @@ public class GlassBar extends JComponent {
 
     private RoundRectangle2D.Float capsule(float grow) {
         float w = capsuleWidth + 2 * grow;
-        float h = CAPSULE_HEIGHT + 2 * grow;
-        return new RoundRectangle2D.Float(MARGIN - grow, MARGIN - grow, w, h, h, h);
+        float h = capsuleHeight() + 2 * grow;
+        float arc = 2 * (barRadius() + grow);
+        return new RoundRectangle2D.Float(MARGIN - grow, MARGIN - grow, w, h, arc, arc);
     }
 
     private void step() {
@@ -658,6 +699,8 @@ public class GlassBar extends JComponent {
                 case SWATCH:
                     paintSwatch(g2, item, b.getCenterX(), b.getCenterY(), stretch);
                     break;
+                case SPACER:
+                    break;
                 default:
                     g2.setColor(Glass.EDGE);
                     g2.setStroke(new BasicStroke(1f));
@@ -712,11 +755,12 @@ public class GlassBar extends JComponent {
 
     /** The droplet's current outline in bar coordinates. */
     private RoundRectangle2D.Float lensShape() {
-        float lh = CAPSULE_HEIGHT + 2 * HOVER_GROW_Y + press.x * 4f;
+        float lh = capsuleHeight() + 2 * HOVER_GROW_Y + press.x * 4f;
         float lw = Math.max(lh, lensWidth.x + Math.min(Math.abs(lensX.v) * 1.2f, 28f) + press.x * 4f);
         float lcx = MARGIN + PAD + lensX.x;
-        float lcy = MARGIN + CAPSULE_HEIGHT / 2f;
-        return new RoundRectangle2D.Float(lcx - lw / 2, lcy - lh / 2, lw, lh, lh, lh);
+        float lcy = MARGIN + capsuleHeight() / 2f;
+        float arc = 2 * (barRadius() + (lh - capsuleHeight()) / 2);
+        return new RoundRectangle2D.Float(lcx - lw / 2, lcy - lh / 2, lw, lh, arc, arc);
     }
 
     /**
@@ -735,11 +779,11 @@ public class GlassBar extends JComponent {
         g2.setComposite(AlphaComposite.SrcOver.derive(baseAlpha * lensAlpha));
         Glass.setUp(g2);
 
-        // soft contact shadow (a few stacked translucent capsules: cheap enough per frame)
+        // soft contact shadow (a few stacked translucent shapes: cheap enough per frame)
         for (int i = 4; i >= 1; i--) {
             g2.setColor(new Color(0f, 0f, 0f, Glass.DROP_SHADOW * 0.16f));
             g2.fill(new RoundRectangle2D.Float(lens.x - i, lens.y + 2 - i + 3, lens.width + 2 * i,
-                    lens.height + 2 * i, lens.height + 2 * i, lens.height + 2 * i));
+                    lens.height + 2 * i, lens.arcwidth + 2 * i, lens.archeight + 2 * i));
         }
 
         // The output is device-resolution; the scene was rendered at lensScale, so r = HOVER_MAG and
@@ -753,24 +797,21 @@ public class GlassBar extends JComponent {
         int[] out = new int[pw * ph];
         double cx = lcx * scale;
         double cy = lcy * scale;
-        double radius = lh / 2.0 * scale;
-        double x0 = cx - (lw / 2.0 - lh / 2.0) * scale;
-        double x1 = cx + (lw / 2.0 - lh / 2.0) * scale;
+        double hw = lw / 2.0 * scale;
+        double hh = lh / 2.0 * scale;
+        double radius = Math.min(Math.min(hw, hh), lens.archeight / 2.0 * scale);
         double band = HOVER_EDGE_BAND * scale;
         double k = HOVER_EDGE_K * scale;
-        int yMin = Math.max(0, (int) (cy - radius) - 1);
-        int yMax = Math.min(ph, (int) Math.ceil(cy + radius) + 1);
-        int xMin = Math.max(0, (int) (x0 - radius) - 1);
-        int xMax = Math.min(pw, (int) Math.ceil(x1 + radius) + 1);
+        int yMin = Math.max(0, (int) (cy - hh) - 1);
+        int yMax = Math.min(ph, (int) Math.ceil(cy + hh) + 1);
+        int xMin = Math.max(0, (int) (cx - hw) - 1);
+        int xMax = Math.min(pw, (int) Math.ceil(cx + hw) + 1);
+        double[] normal = new double[2];
         for (int y = yMin; y < yMax; y++) {
             double py = y + 0.5;
             for (int x = xMin; x < xMax; x++) {
                 double px = x + 0.5;
-                double qx = Math.max(x0, Math.min(x1, px));
-                double dx = px - qx;
-                double dy = py - cy;
-                double len = Math.sqrt(dx * dx + dy * dy);
-                double d = len - radius;
+                double d = GlassOptics.edgeDistance(px - cx, py - cy, hw, hh, radius, normal);
                 if (d > 0.5) {
                     continue;
                 }
@@ -780,11 +821,11 @@ public class GlassBar extends JComponent {
                 double offset = 0;
                 double nx = 0;
                 double ny = 0;
-                if (-d < band && len > 1e-6) {
+                if (-d < band) {
                     double t = 1.0 + d / band;
                     offset = t * t * k;
-                    nx = dx / len;
-                    ny = dy / len;
+                    nx = normal[0];
+                    ny = normal[1];
                 }
                 double offsetRed = offset * (1 + HOVER_DISPERSION);
                 double offsetBlue = offset * (1 - HOVER_DISPERSION);
@@ -814,10 +855,12 @@ public class GlassBar extends JComponent {
 
     private RoundRectangle2D.Float slot(float x, float width, RoundRectangle2D.Float capsule, float stretch) {
         float sx = capsule.x + (PAD + x) * stretch;
-        float sy = capsule.y + PAD * stretch;
+        float sy = capsule.y + padY * stretch;
         float sw = width * stretch;
         float sh = SEGMENT_HEIGHT * stretch;
-        return new RoundRectangle2D.Float(sx, sy, sw, sh, sh, sh);
+        // concentric with the bar's corners: the gap between the two curves stays even
+        float arc = 2 * Math.max(3f, capsule.archeight / 2 - padY * stretch);
+        return new RoundRectangle2D.Float(sx, sy, sw, sh, arc, arc);
     }
 
     private BufferedImage buildShadow(double scale) {

@@ -1,7 +1,6 @@
 package view.canvas;
 
 import view.glass.Glass;
-import view.glass.GlassButton;
 import view.glass.GlassDock;
 import view.glass.GlassLabel;
 
@@ -26,17 +25,18 @@ import java.awt.image.BufferedImage;
 public abstract class CanvasPage extends JPanel {
     private static final int FLOAT_INSET = 10;  // gap between the floating glass and the canvas edges
     private static final int FUNCTION_TOP = 18;
+    private static final int GLASS_BOTTOM_SLACK = 58;  // from the function row's top to clear of it and the message
     private static final Color ERROR_TEXT = new Color(185, 28, 28);
 
     private final SharedCanvas sharedCanvas;
     private final GlassDock functionDock = new GlassDock();
     private final JPanel canvasSlot = new CanvasSlot();
-    private final GlassDock zoomDock = new GlassDock();
     private final GlassLabel message = new GlassLabel("");
     private final GlassDock messageDock = new GlassDock();
     private final Timer messageTimer = new Timer(0, e -> hideMessage());
     private boolean messageIsError;
     private CanvasArea canvasArea;
+    private int functionTop = FUNCTION_TOP;
 
     protected CanvasPage(SharedCanvas sharedCanvas) {
         super(new BorderLayout());
@@ -44,12 +44,10 @@ public abstract class CanvasPage extends JPanel {
         setBackground(Glass.CANVAS);
 
         // The canvas fills the page; the controls float over it, showing the ink underneath through the glass.
-        buildZoomBadge();
         messageDock.add(message);
         messageDock.setVisible(false);
         messageTimer.setRepeats(false);
         functionDock.setBackdrop(sharedCanvas);
-        zoomDock.setBackdrop(sharedCanvas);
         messageDock.setBackdrop(sharedCanvas);
         canvasArea = new CanvasArea();
         add(canvasArea, BorderLayout.CENTER);
@@ -89,20 +87,15 @@ public abstract class CanvasPage extends JPanel {
         return messageDock.isVisible() && messageIsError;
     }
 
-    /** Shows the zoom of the infinite canvas; click it to go back to 100% with the ink in the middle. */
-    private void buildZoomBadge() {
-        GlassButton zoom = new GlassButton(percent(sharedCanvas.getZoom()));
-        zoom.setToolTipText("Ctrl+scroll to zoom. Click to go back to 100% with the ink in the middle.");
-        zoom.addActionListener(e -> sharedCanvas.resetView());
-        sharedCanvas.addZoomListener(value -> {
-            zoom.setText(percent(value));
-            zoomDock.revalidate();
-        });
-        zoomDock.add(zoom);
-    }
-
-    private static String percent(double zoom) {
-        return Math.round(zoom * 100) + "%";
+    /**
+     * Moves the function row (and the message under it) down to {@code top}, e.g. below a bar across
+     * the top of the window, and tells the canvas to keep new answers and cards below them.
+     */
+    void setFunctionTop(int top) {
+        functionTop = top;
+        sharedCanvas.getDrawingCanvas().setViewMarginTop(top + GLASS_BOTTOM_SLACK);
+        canvasArea.revalidate();
+        canvasArea.repaint();
     }
 
     /** Floats this page's own glass controls at the top of the canvas, in a row. */
@@ -162,14 +155,13 @@ public abstract class CanvasPage extends JPanel {
         return canvasSlot;
     }
 
-    /** The canvas filling the area, with the zoom top-right and the function row and message top centre. */
+    /** The canvas filling the area, with the function row and message top centre. */
     private final class CanvasArea extends JPanel {
         CanvasArea() {
             super(null);
             setBackground(Glass.CANVAS);
             add(messageDock);  // added first = drawn last = on top
             add(functionDock);
-            add(zoomDock);
             add(canvasSlot);
         }
 
@@ -184,15 +176,13 @@ public abstract class CanvasPage extends JPanel {
             int w = getWidth();
             int h = getHeight();
             canvasSlot.setBounds(0, 0, w, h);
-            Dimension zoomSize = zoomDock.getPreferredSize();
-            zoomDock.setBounds(w - FLOAT_INSET - zoomSize.width, FUNCTION_TOP, zoomSize.width, zoomSize.height);
             Dimension functionSize = functionDock.getPreferredSize();
             int functionWidth = Math.min(functionSize.width, w);
-            functionDock.setBounds((w - functionWidth) / 2, FUNCTION_TOP, functionWidth, functionSize.height);
+            functionDock.setBounds((w - functionWidth) / 2, functionTop, functionWidth, functionSize.height);
             // the message sits below the function row (long text is cut off at the edges of the window)
             Dimension messageSize = messageDock.getPreferredSize();
             int messageWidth = Math.max(0, Math.min(messageSize.width, w - 2 * FLOAT_INSET));
-            messageDock.setBounds((w - messageWidth) / 2, FUNCTION_TOP + functionSize.height,
+            messageDock.setBounds((w - messageWidth) / 2, functionTop + functionSize.height,
                     messageWidth, messageSize.height);
         }
     }

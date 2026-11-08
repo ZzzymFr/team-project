@@ -1,31 +1,28 @@
 package view.canvas;
 
 import interface_adapter.AnswerKind;
-import entity.Stroke;
 import interface_adapter.TextRun;
 import interface_adapter.MathLabViewModel;
 import interface_adapter.evaluate.EvaluateController;
 import view.FormulaCapture;
+import view.glass.GlassIcons;
+import view.ribbon.Ribbon;
+import view.ribbon.RibbonButton;
 
 import javax.swing.JComponent;
-import javax.swing.SwingUtilities;
-import javax.swing.Timer;
-import java.awt.Rectangle;
-import java.awt.event.ComponentAdapter;
-import java.awt.event.ComponentEvent;
 import java.awt.image.BufferedImage;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.function.Supplier;
+import java.util.function.Consumer;
 
-// the page: pause, or a lasso around ink -> popup with the read formula -> Calculate -> answer on the canvas,
-// or Graph -> card beside it
+/**
+ * The page: circle a formula with the lasso and it is read at once; the Math tab of the ribbon then
+ * shows it, with Calculate (the answer is written on the canvas) and Graph (a card beside it).
+ * Writing alone reads nothing.
+ */
 public class AnswerCanvasPage extends CanvasPage {
-    static final int POPUP_DELAY_MILLIS = 1500;
     private static final int ERROR_MESSAGE_MILLIS = 7000;
     private static final int DEFINED_MESSAGE_MILLIS = 4000;
 
@@ -33,15 +30,15 @@ public class AnswerCanvasPage extends CanvasPage {
     private final FormulaGrapher grapher;
     private final Map<Long, Long> exportedRevisions = new HashMap<>();
     private final AnswerWorker worker;
-    private final AnswerPopup popup;
-    private final Timer pauseTimer;
-    private final Set<Stroke> session = new LinkedHashSet<>();  // loose ink since the last pause
-    private Stroke targetStroke;      // new ink to pop up for, or
-    private long targetId = -1;       // an edited formula
-    private long generation;          // bumps on every user action, old results check it
-    private Supplier<Rectangle> shown;  // where the ink the popup is about is now (world coordinates)
-    private int running;              // Calculate jobs still going
-    private boolean ownMessage;       // one of them put up its own message
+    private final FormulaPreview preview = new FormulaPreview();
+    private RibbonButton calculateButton;
+    private RibbonButton graphButton;
+    private long generation;            // bumps on every new selection, old readings check it
+    private String selectedLatex;       // what the circled ink was read as, once known
+    private String selectedProblem;     // or why it could not be read
+    private Consumer<String> waiting;   // Calculate or Graph pressed before the reading was done
+    private int running;                // Calculate jobs still going
+    private boolean ownMessage;         // one of them put up its own message
 
     // no evaluate feature, just a placeholder
     public AnswerCanvasPage(SharedCanvas sharedCanvas) {
@@ -49,8 +46,6 @@ public class AnswerCanvasPage extends CanvasPage {
         this.pdfResultSink = (latex, result) -> {};
         this.grapher = null;
         this.worker = null;
-        this.popup = null;
-        this.pauseTimer = null;
         setFunctionArea(placeholder("Answer tools go here: evaluate or solve the expression on the canvas."));
     }
 
@@ -63,162 +58,144 @@ public class AnswerCanvasPage extends CanvasPage {
         this(sharedCanvas, controller, viewModel, pdfResultSink, null);
     }
 
-    // grapher null = no Graph button to press
+    // grapher null = no Graph to press
     public AnswerCanvasPage(SharedCanvas sharedCanvas, EvaluateController controller, MathLabViewModel viewModel,
                             BiConsumer<String, String> pdfResultSink, FormulaGrapher grapher) {
         super(sharedCanvas);
         this.pdfResultSink = java.util.Objects.requireNonNull(pdfResultSink);
         this.grapher = grapher;
         this.worker = new AnswerWorker(controller, viewModel);
-        popup = new AnswerPopup(sharedCanvas);
-        addCanvasOverlay(popup);
-        pauseTimer = new Timer(POPUP_DELAY_MILLIS, e -> paused());
-        pauseTimer.setRepeats(false);
-
-        sharedCanvas.addFormulaChangeListener(this::formulaChanged);
-        sharedCanvas.addStrokeListener(this::strokeDone);
-        sharedCanvas.addUserActionListener(this::dismiss);
-        sharedCanvas.addPageSwitchListener(this::dismiss);
-        sharedCanvas.addViewListener(this::placePopup);
         sharedCanvas.addSelectionListener(this::inkSelected);
-        getCanvasArea().addComponentListener(new ComponentAdapter() {
-            @Override
-            public void componentResized(ComponentEvent e) {
-                placePopup();
-            }
-        });
-
+        sharedCanvas.addPageSwitchListener(this::forgetSelection);
         if (grapher != null) {
             grapher.setMessages(this::showMessage);
-            setFunctionArea(grapher.controls());
         }
     }
 
-    // tests use a short wait
-    void setPopupDelay(int millis) {
-        pauseTimer.setInitialDelay(millis);
+    /**
+     * Adds the Math tab to the ribbon: the circled formula, Calculate and Graph, and the graph's
+     * ranges. It is greyed out until ink is circled with the lasso.
+     */
+    public Ribbon.Tab addMathTab(Ribbon ribbon) {
+        Ribbon.Tab tab = ribbon.addTab("Math", this::hasFormulaSelected);
+        tab.addControl(preview);
+        calculateButton = tab.addButton("Calculate", GlassIcons::equalCircle, this::calculateSelected,
+                this::canCalculate);
+        graphButton = tab.addButton("Graph", GlassIcons::chart, this::graphSelected, this::canGraph);
+        if (grapher != null) {
+            for (JComponent control : grapher.controls()) {
+                tab.addControl(control);
+            }
+        }
+        return tab;
     }
 
-    // null when hidden
-    AnswerPopup visiblePopup() {
-        return popup != null && popup.isVisible() ? popup : null;
+    /** Whether ink is circled with the lasso on this page, so the Math tab can be used. */
+    public boolean hasFormulaSelected() {
+        return inFront() && getSharedCanvas().hasSelectedInk();
+    }
+
+    private boolean canCalculate() {
+        return worker != null && hasFormulaSelected() && selectedProblem == null;
+    }
+
+    private boolean canGraph() {
+        return grapher != null && canCalculate();
+    }
+
+    /** What the circled ink was read as; null while it is being read or could not be. */
+    String getSelectedLatex() {
+        return selectedLatex;
+    }
+
+    FormulaPreview getPreview() {
+        return preview;
+    }
+
+    RibbonButton getCalculateButton() {
+        return calculateButton;
+    }
+
+    RibbonButton getGraphButton() {
+        return graphButton;
     }
 
     private boolean inFront() {
         return getSharedCanvas().isAttachedTo(this);
     }
 
-    // pen lifted; bound strokes already came in through formulaChanged
-    private void strokeDone(Stroke s) {
-        if (!inFront() || getSharedCanvas().isBound(s)) {
-            return;
-        }
-        session.add(s);
-        targetStroke = s;
-        targetId = -1;
-        restartPause();
-    }
-
-    // ink of a formula changed: answer is gone already, offer again after a pause
-    private void formulaChanged(long id) {
-        if (!inFront()) {
-            return;
-        }
-        targetStroke = null;
-        targetId = id;
-        restartPause();
-    }
-
-    private void restartPause() {
-        hidePopup();
-        generation++;
-        pauseTimer.restart();
-    }
-
-    // user went on to do something else
-    private void dismiss() {
-        pauseTimer.stop();
-        targetStroke = null;
-        targetId = -1;
-        generation++;
-        hidePopup();
-    }
-
-    private void hidePopup() {
-        shown = null;
-        if (popup.isVisible()) {
-            popup.setVisible(false);
-            getCanvasArea().repaint();
-        }
-    }
-
-    private void paused() {
-        if (!inFront()) {
-            return;
-        }
-        if (getSharedCanvas().isBusy()) {
-            pauseTimer.restart();  // mouse still down, wait more
-            return;
-        }
-        FormulaCapture capture = null;
-        if (targetStroke != null) {
-            capture = getSharedCanvas().registerNewInk(targetStroke, session);
-            session.clear();
-        } else if (targetId >= 0) {
-            capture = getSharedCanvas().captureForRecalculation(targetId);
-        }
-        targetStroke = null;
-        targetId = -1;
-        if (capture != null) {
-            recognize(capture, generation);
-        }
-    }
-
-    private void recognize(FormulaCapture capture, long gen) {
-        worker.recognize(() -> recognizeFormula(capture.getImage()),
-                (latex, problem) -> recognized(capture, gen, latex, problem));
-    }
-
-    private void recognized(FormulaCapture capture, long gen, String latex, String problem) {
-        // user moved on, or ink changed while we were reading it
-        if (gen != generation || !inFront() || !getSharedCanvas().isCurrent(capture.getId(), capture.getRevision())) {
-            return;
-        }
-        if (problem != null) {
-            popup.showProblem(problem);
-        } else {
-            popup.showFormula(latex, grapher == null ? null : () -> graph(capture, latex), () -> calculate(capture, latex));
-        }
-        showPopup(() -> getSharedCanvas().formulaBounds(capture.getId()));
-    }
-
-    // a lasso closed around ink: it is already chosen, so no pause
+    // a lasso closed around ink: read it now, so it is ready when the Math tab is used
     private void inkSelected() {
-        if (!inFront()) {
+        if (!inFront() || worker == null) {
             return;
         }
-        dismiss();
-        long gen = generation;
+        long gen = ++generation;
+        selectedLatex = null;
+        selectedProblem = null;
+        waiting = null;
+        preview.showReading();
         BufferedImage image = captureFormula();
         worker.recognize(() -> recognizeFormula(image), (latex, problem) -> selectionRecognized(gen, latex, problem));
     }
 
     private void selectionRecognized(long gen, String latex, String problem) {
-        // anything that changes the selection counts as moving on
+        // a newer selection, or none left
         if (gen != generation || !inFront() || !getSharedCanvas().hasSelectedInk()) {
             return;
         }
+        Consumer<String> then = waiting;
+        waiting = null;
         if (problem != null) {
-            popup.showProblem(problem);
-        } else {
-            popup.showFormula(latex, grapher == null ? null : () -> graphSelection(latex), () -> calculateSelection(latex));
+            selectedProblem = problem;
+            preview.showProblem(problem);
+            if (then != null) {
+                showMessage(problem, true, ERROR_MESSAGE_MILLIS);
+            }
+            return;
         }
-        showPopup(getSharedCanvas()::getFormulaBounds);
+        selectedLatex = latex;
+        preview.showFormula(latex);
+        if (then != null) {
+            then.accept(latex);
+        }
+    }
+
+    // the canvas went to another page
+    private void forgetSelection() {
+        generation++;
+        selectedLatex = null;
+        selectedProblem = null;
+        waiting = null;
+        preview.clear();
+    }
+
+    /** Calculate on the Math tab: the answer goes beside the circled formula. */
+    void calculateSelected() {
+        whenRead(this::calculateSelection);
+    }
+
+    /** Graph on the Math tab: a card beside the circled formula. */
+    void graphSelected() {
+        if (grapher != null) {
+            whenRead(this::graphSelection);
+        }
+    }
+
+    // runs at once if the circled ink is read, else as soon as it is
+    private void whenRead(Consumer<String> action) {
+        if (!canCalculate()) {
+            return;
+        }
+        if (selectedLatex != null) {
+            action.accept(selectedLatex);
+        } else {
+            waiting = action;
+            showMessage("Reading the formula…", false, 0);
+        }
     }
 
     private void graphSelection(String latex) {
         if (grapher.graph(latex, getSharedCanvas().getFormulaBounds())) {
-            hidePopup();
             getSharedCanvas().clearSelection();
         }
     }
@@ -230,38 +207,7 @@ public class AnswerCanvasPage extends CanvasPage {
         calculate(capture, latex);
     }
 
-    private void showPopup(Supplier<Rectangle> spot) {
-        shown = spot;
-        popup.setVisible(true);
-        placePopup();
-    }
-
-    private void placePopup() {
-        if (shown == null || !popup.isVisible()) {
-            return;
-        }
-        Rectangle world = shown.get();
-        if (world == null) {
-            hidePopup();
-            return;
-        }
-        JComponent area = getCanvasArea();
-        Rectangle f = SwingUtilities.convertRectangle(getSharedCanvas().getDrawingCanvas(),
-                getSharedCanvas().worldToScreen(world).getBounds(), area);
-        popup.setBounds(popup.spotBeside(f, area.getWidth(), area.getHeight()));
-        area.repaint();
-    }
-
-    // Graph in the popup: a typo in a range box leaves the popup up, to press again once it is fixed
-    private void graph(FormulaCapture capture, String latex) {
-        if (grapher.graph(latex, getSharedCanvas().formulaBounds(capture.getId()))) {
-            hidePopup();
-        }
-    }
-
-    // Calculate in the popup: use the latex we already have, no second read
     private void calculate(FormulaCapture capture, String latex) {
-        hidePopup();
         if (running == 0) {
             ownMessage = false;
         }
@@ -276,7 +222,7 @@ public class AnswerCanvasPage extends CanvasPage {
         List<TextRun> runs = outcome.answerRuns;
         String error = outcome.error;
         if (!error.isEmpty()) {
-            // popup only, nothing drawn
+            // a message only, nothing drawn
             if (getSharedCanvas().isCurrent(capture.getId(), capture.getRevision())) {
                 ownMessage = true;
                 showMessage(error, true, ERROR_MESSAGE_MILLIS);

@@ -109,14 +109,20 @@ public class SharedCanvas implements GlassBackdrop {
         return canvas.hasGraph();
     }
 
-    /** The ink as it appears on screen, for pages that are not in front. */
+    /** The paper and ink as they appear on screen, for pages that are not in front. */
     void paintCanvasCopy(Graphics2D g2) {
+        canvas.paintPaper(g2);
         canvas.paintContent(g2);
     }
 
     /** The zoom of the infinite canvas: 1 = 100%. */
     public double getZoom() {
         return canvas.getZoom();
+    }
+
+    /** Zooms to {@code zoom} (1 = 100%) around the middle of the view. */
+    public void setZoom(double zoom) {
+        canvas.setZoom(zoom);
     }
 
     /** Back to 100%, with the ink in the middle. */
@@ -143,6 +149,15 @@ public class SharedCanvas implements GlassBackdrop {
     public void addToolListener(Consumer<DrawingCanvas.Tool> listener) {
         canvas.addPropertyChangeListener(DrawingCanvas.TOOL_PROPERTY,
                 e -> listener.accept((DrawingCanvas.Tool) e.getNewValue()));
+    }
+
+    public boolean isDrawingEnabled() {
+        return canvas.isDrawingEnabled();
+    }
+
+    /** Switches the tools on or off for every page; while off the canvas is a plain pointer. */
+    public void setDrawingEnabled(boolean enabled) {
+        canvas.setDrawingEnabled(enabled);
     }
 
     public DrawingCanvas.EraserMode getEraserMode() {

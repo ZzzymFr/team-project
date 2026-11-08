@@ -1,24 +1,24 @@
 package pdf_editor.use_case;
 
 import pdf_editor.domain.PdfDocument;
-import pdf_editor.domain.PdfPreviewPage;
+import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
 
-/** Application use case orchestrating preview and export through independently replaceable ports. */
+/** Application use case: exports the document through a replaceable output port. */
 public final class PdfExportInteractor {
     private final PdfExportGateway exporter;
-    private final PdfPreviewGateway previewer;
-    public PdfExportInteractor(PdfExportGateway exporter, PdfPreviewGateway previewer) {
+    public PdfExportInteractor(PdfExportGateway exporter) {
         this.exporter = Objects.requireNonNull(exporter);
-        this.previewer = Objects.requireNonNull(previewer);
     }
     public void export(PdfDocument document, Path destination) throws IOException {
         exporter.export(Objects.requireNonNull(document).copy(), Objects.requireNonNull(destination));
     }
-    public List<PdfPreviewPage> preview(PdfDocument document) throws IOException {
-        return List.copyOf(previewer.preview(Objects.requireNonNull(document).copy(), 90));
+    /** Exports with a picture drawn over each page, e.g. the handwriting on it; missing ones are skipped. */
+    public void export(PdfDocument document, List<BufferedImage> pageOverlays, Path destination) throws IOException {
+        exporter.export(Objects.requireNonNull(document).copy(), List.copyOf(pageOverlays),
+                Objects.requireNonNull(destination));
     }
 }

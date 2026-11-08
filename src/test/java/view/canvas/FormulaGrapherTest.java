@@ -29,7 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** The Graph button of the popup: pause -> popup -> Graph -> graph use case -> card or error message. */
+/** Graph on the Math tab: circle -> Graph -> graph use case -> card or error message. */
 class FormulaGrapherTest {
 
     /** Stands in for the graph use case: records the LaTeX and answers through the real presenter. */
@@ -59,6 +59,8 @@ class FormulaGrapherTest {
     private final SharedCanvas shared = new SharedCanvas(canvas);
     private final GraphViewModel viewModel = new GraphViewModel();
     private final FakeGraphUseCase useCase = new FakeGraphUseCase(new GraphPresenter(viewModel));
+    private final CanvasDriver driver = new CanvasDriver(canvas);
+    private final view.ribbon.Ribbon ribbon = new view.ribbon.Ribbon("Math Lab");
     private FormulaGrapher grapher;
     private AnswerCanvasPage page;
 
@@ -79,31 +81,28 @@ class FormulaGrapherTest {
         SwingUtilities.invokeAndWait(() -> {
             grapher = new FormulaGrapher(shared, new GraphController(useCase), viewModel);
             page = new AnswerCanvasPage(shared, evaluate, mathLab, (latex, result) -> { }, grapher);
-            page.setPopupDelay(100);
             canvas.setSize(900, 500);
             shared.attachTo(page);
             page.setSize(900, 500);
+            page.addMathTab(ribbon);
         });
     }
 
-    private void drag(int... xy) throws Exception {
-        SwingUtilities.invokeAndWait(() -> {
-            canvas.dispatchEvent(new MouseEvent(canvas, MouseEvent.MOUSE_PRESSED, 0, 0, xy[0], xy[1], 1, false, MouseEvent.BUTTON1));
-            for (int i = 2; i < xy.length; i += 2) {
-                canvas.dispatchEvent(new MouseEvent(canvas, MouseEvent.MOUSE_DRAGGED, 0, 0, xy[i], xy[i + 1], 1, false, MouseEvent.BUTTON1));
-            }
-            canvas.dispatchEvent(new MouseEvent(canvas, MouseEvent.MOUSE_RELEASED, 0, 0,
-                    xy[xy.length - 2], xy[xy.length - 1], 1, false, MouseEvent.BUTTON1));
-        });
-    }
-
-    private void writeAndWaitForPopup(String latex) throws Exception {
-        drag(100, 100, 200, 150);
-        waitFor(() -> page.visiblePopup() != null && latex.equals(page.visiblePopup().getLatex()), "the popup");
+    private void writeAndCircle(String latex) throws Exception {
+        driver.write(100, 100, 200, 150);
+        driver.lasso(80, 80, 220, 170);
+        CanvasDriver.waitForReading(page, latex);
     }
 
     private void clickGraph() throws Exception {
-        SwingUtilities.invokeAndWait(() -> page.visiblePopup().clickGraph());
+        SwingUtilities.invokeAndWait(() -> page.getGraphButton().doClick());
+    }
+
+    private boolean enabled(view.ribbon.RibbonButton button) throws Exception {
+        return CanvasDriver.check(() -> {
+            ribbon.refresh();
+            return button.isEnabled();
+        });
     }
 
     /** Waits (up to 5 s) for something the background work will make true, checking on the event thread. */
@@ -121,35 +120,36 @@ class FormulaGrapherTest {
     }
 
     @Test
-    void thePopupOffersBothGraphAndCalculate() throws Exception {
+    void theMathTabOffersBothGraphAndCalculate() throws Exception {
         shared.setFormulaRecognizer(image -> "y=x^2");
         openPage();
-        writeAndWaitForPopup("y=x^2");
-        assertTrue(page.visiblePopup().canGraph());
-        assertTrue(page.visiblePopup().hasCalculate());
+        writeAndCircle("y=x^2");
+        assertTrue(enabled(page.getGraphButton()));
+        assertTrue(enabled(page.getCalculateButton()));
     }
 
     @Test
-    void graphDrawsTheCardBesideTheFormulaAndClosesThePopup() throws Exception {
+    void graphDrawsTheCardBesideTheFormulaAndEndsTheSelection() throws Exception {
         shared.setFormulaRecognizer(image -> "y=x^2");
         openPage();
-        writeAndWaitForPopup("y=x^2");
+        writeAndCircle("y=x^2");
         clickGraph();
 
         waitFor(shared::hasGraph, "the graph card");
         assertEquals("y=x^2", useCase.received);
-        assertNull(page.visiblePopup());
+        assertFalse(CanvasDriver.check(canvas::hasSelection));
         assertTrue(canvas.getGraphCardOnScreen().getMinX() >= 200 + 40, "the card is beside the formula");
         waitFor(() -> !page.isMessageError() && "Graph of y=x^2".equals(page.currentMessage()), "the success message");
     }
 
     @Test
-    void graphGoesBesideTheFormulaJustWrittenNotBesideAllTheInk() throws Exception {
+    void graphGoesBesideTheCircledFormulaNotBesideAllTheInk() throws Exception {
         shared.setFormulaRecognizer(image -> "y=2x");
         openPage();
-        writeAndWaitForPopup("y=2x");            // formula A: (100,100)-(200,150)
-        drag(100, 380, 200, 420);                // formula B, far below it
-        waitFor(() -> page.visiblePopup() != null, "B's popup");
+        driver.write(100, 100, 200, 150);        // formula A
+        driver.write(100, 380, 200, 420);        // formula B, far below it
+        driver.lasso(80, 360, 220, 440);         // around B
+        CanvasDriver.waitForReading(page, "y=2x");
         clickGraph();
 
         waitFor(shared::hasGraph, "the graph card");
@@ -161,7 +161,7 @@ class FormulaGrapherTest {
     void emptyRangeBoxesMeanTheDefaults() throws Exception {
         shared.setFormulaRecognizer(image -> "y=x");
         openPage();
-        writeAndWaitForPopup("y=x");
+        writeAndCircle("y=x");
         clickGraph();
 
         waitFor(shared::hasGraph, "the graph card");
@@ -174,7 +174,7 @@ class FormulaGrapherTest {
     void typedRangesAreUsed() throws Exception {
         shared.setFormulaRecognizer(image -> "y=x^2");
         openPage();
-        writeAndWaitForPopup("y=x^2");
+        writeAndCircle("y=x^2");
         SwingUtilities.invokeAndWait(() -> grapher.setRangeText("[-3, 3]", "0 to 9"));
         clickGraph();
 
@@ -186,16 +186,16 @@ class FormulaGrapherTest {
     }
 
     @Test
-    void aTypoInARangeIsReportedAndThePopupStaysToTryAgain() throws Exception {
+    void aTypoInARangeIsReportedAndTheSelectionStaysToTryAgain() throws Exception {
         shared.setFormulaRecognizer(image -> "y=x");
         openPage();
-        writeAndWaitForPopup("y=x");
+        writeAndCircle("y=x");
         SwingUtilities.invokeAndWait(() -> grapher.setRangeText("5, -5", ""));
         clickGraph();
 
         waitFor(() -> errorShown("x range must go from a smaller number"), "the range error");
         assertNull(useCase.received, "nothing was sent to the use case");
-        assertNotNull(page.visiblePopup(), "still there, to press again once the box is fixed");
+        assertTrue(CanvasDriver.check(canvas::hasSelection), "still circled, to press again once the box is fixed");
 
         SwingUtilities.invokeAndWait(() -> grapher.setRangeText("-5, 5", ""));
         clickGraph();
@@ -208,7 +208,7 @@ class FormulaGrapherTest {
         shared.setFormulaRecognizer(image -> "8x+4=20");
         useCase.fail = true;
         openPage();
-        writeAndWaitForPopup("8x+4=20");
+        writeAndCircle("8x+4=20");
         clickGraph();
 
         waitFor(() -> errorShown("Cannot graph \"8x+4=20\""), "the error message");
@@ -219,7 +219,7 @@ class FormulaGrapherTest {
     void enterInARangeBoxGraphsTheLastFormulaAgain() throws Exception {
         shared.setFormulaRecognizer(image -> "y=x");
         openPage();
-        writeAndWaitForPopup("y=x");
+        writeAndCircle("y=x");
         clickGraph();
         waitFor(shared::hasGraph, "the graph card");
         assertEquals(10, useCase.input.getXMax());
@@ -239,13 +239,13 @@ class FormulaGrapherTest {
         shared.setFormulaRecognizer(image -> "1+1");
         SwingUtilities.invokeAndWait(() -> {
             page = new AnswerCanvasPage(shared, evaluate, mathLab);
-            page.setPopupDelay(100);
             canvas.setSize(900, 500);
             shared.attachTo(page);
             page.setSize(900, 500);
+            page.addMathTab(ribbon);
         });
-        writeAndWaitForPopup("1+1");
-        assertFalse(page.visiblePopup().canGraph());
-        assertTrue(page.visiblePopup().hasCalculate());
+        writeAndCircle("1+1");
+        assertFalse(enabled(page.getGraphButton()));
+        assertTrue(enabled(page.getCalculateButton()));
     }
 }

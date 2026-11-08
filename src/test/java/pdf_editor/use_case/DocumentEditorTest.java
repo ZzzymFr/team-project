@@ -19,29 +19,24 @@ class DocumentEditorTest {
         assertEquals(20f, editor.find(0, p.id()).x(), 0.001);
     }
 
-    @Test void moveResizeAndUndoRedoPreserveIdentity() {
+    @Test void moveResizeAndRestorePreserveIdentity() {
         var p = editor.place(0, materials.addFormula("x^2"), 10, 20, 300, 100);
-        editor.beginTransform(0, p.id());
+        PdfDocument before = editor.snapshot();
         var updated = editor.transform(0, p.id(), 50, 60, 200, 150);
         assertEquals(p.id(), updated.id());
         assertEquals(50f, editor.find(0, p.id()).x(), .001);
         assertEquals(200f, editor.find(0, p.id()).width(), .001);
-        assertTrue(editor.undo());
+        editor.restore(before);
         assertEquals(10f, editor.find(0, p.id()).x(), .001);
-        assertTrue(editor.redo());
-        assertEquals(50f, editor.find(0, p.id()).x(), .001);
     }
 
-    @Test void splitKeepsSingleEqualsAndIsUndoable() {
+    @Test void splitKeepsSingleEquals() {
         var p = editor.place(0, materials.addCalculation("1+1=", "=2"), 20, 30, 300, 90);
         var split = editor.splitCalculation(0, p.id());
         assertNotNull(split);
         assertEquals("1+1", split[0].material().formula());
         assertEquals("=2", split[1].material().result());
         assertEquals(2, editor.placements(0).size());
-        assertTrue(editor.undo());
-        assertEquals(1, editor.placements(0).size());
-        assertEquals(p.id(), editor.placements(0).get(0).id());
     }
 
     @Test void notesRichFormattingAndPageTransfer() {
@@ -52,11 +47,9 @@ class DocumentEditorTest {
         assertTrue(editor.moveToPage(0, page2, note.id()));
         assertEquals(0, editor.placements(0).size());
         assertEquals("nihao", editor.placements(page2).get(0).noteText());
-        assertTrue(editor.undo());
-        assertEquals(1, editor.placements(0).size());
     }
 
-    @Test void transactionIsAtomicAndOnlyOneUndo() {
+    @Test void transactionAppliesEveryEdit() {
         var material = materials.addFormula("y=x^2");
         editor.transaction(() -> {
             editor.place(0, material, 10, 10, 200, 80);
@@ -64,10 +57,8 @@ class DocumentEditorTest {
             editor.place(next, material, 10, 10, 200, 80);
         });
         assertEquals(2, editor.pageCount());
-        assertTrue(editor.undo());
-        assertEquals(1, editor.pageCount());
-        assertTrue(editor.placements(0).isEmpty());
-        assertFalse(editor.undo());
+        assertEquals(1, editor.placements(0).size());
+        assertEquals(1, editor.placements(1).size());
     }
 
     @Test void transactionRollsBackOnFailure() {
@@ -77,14 +68,12 @@ class DocumentEditorTest {
             editor.place(0, material, Float.NaN, 10, 200, 80);
         }));
         assertTrue(editor.placements(0).isEmpty());
-        assertFalse(editor.undo());
     }
 
     @Test void boundariesPreventMaterialFromLeavingPage() {
         var p = editor.place(0, materials.addFormula("a"), 4000, -50, 100, 50);
         assertEquals(PdfDocument.PAGE_WIDTH - 100, p.x(), .001);
         assertEquals(0f, p.y(), .001);
-        editor.beginTransform(0, p.id());
         var changed = editor.transform(0, p.id(), -40, 9999, 700, 40);
         assertEquals(PdfDocument.PAGE_WIDTH, changed.width(), .001);
         assertEquals(0f, changed.x(), .001);

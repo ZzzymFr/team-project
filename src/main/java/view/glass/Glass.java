@@ -38,7 +38,7 @@ public final class Glass {
     static final float DROP_SHADOW = 0.12f;
 
     /** Room around a glass shape for its shadow. */
-    static final int SHADOW = 3;
+    public static final int SHADOW = 3;
 
     private static final Color[] INK_COLORS = {new Color(0x1C1C1E), new Color(255, 59, 48), new Color(0x007AFF),
         new Color(52, 199, 89), new Color(255, 149, 0)};
@@ -51,9 +51,18 @@ public final class Glass {
         return INK_COLORS.clone();
     }
 
-    /** A capsule (fully rounded ends) filling the rectangle. */
-    static RoundRectangle2D capsule(double x, double y, double w, double h) {
-        return new RoundRectangle2D.Double(x, y, w, h, h, h);
+    /** A rounded rectangle filling the rectangle, its corners in proportion to its height. */
+    public static RoundRectangle2D rounded(double x, double y, double w, double h) {
+        double arc = 2 * cornerRadius(h);
+        return new RoundRectangle2D.Double(x, y, w, h, arc, arc);
+    }
+
+    /**
+     * How round the corners of glass this tall are: soft, never a pill (a 28 px button gets 8 px,
+     * the 52 px bar 14 px).
+     */
+    static double cornerRadius(double h) {
+        return Math.min(h / 2, Math.max(4, h * 0.27));
     }
 
     static void setUp(Graphics2D g2) {
@@ -72,7 +81,7 @@ public final class Glass {
      * @param press    0..1, darkens it while pressed
      * @param lift     0..1, a stronger shadow for glass that floats above other glass
      */
-    static void paint(Graphics2D g, RoundRectangle2D shape, Color tint, double tintAmount,
+    public static void paint(Graphics2D g, RoundRectangle2D shape, Color tint, double tintAmount,
                       double hover, double press, double lift) {
         Graphics2D g2 = (Graphics2D) g.create();
         setUp(g2);

@@ -97,7 +97,7 @@ public class GlassButton extends JButton {
         double s = Glass.SHADOW;
         double w = getWidth() - 2 * s - 2 * sink;
         double h = getHeight() - 2 * s - 2 * sink;
-        Glass.paint(g2, Glass.capsule(s + sink, s + sink * 0.5, w, h), null, 0, hover, press, 0);
+        Glass.paint(g2, Glass.rounded(s + sink, s + sink * 0.5, w, h), null, 0, hover, press, 0);
 
         g2.setFont(getFont());
         FontMetrics fm = g2.getFontMetrics();

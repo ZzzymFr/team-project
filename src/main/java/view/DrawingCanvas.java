@@ -17,6 +17,8 @@ import javax.swing.AbstractAction;
 import javax.swing.JComponent;
 import javax.swing.JPanel;
 import javax.swing.KeyStroke;
+import javax.swing.TransferHandler;
+import java.awt.datatransfer.DataFlavor;
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Cursor;
@@ -53,12 +55,16 @@ import java.util.function.LongConsumer;
 import java.util.function.UnaryOperator;
 
 /**
- * An infinite canvas the user writes on with the mouse or a pen; keeps the ink as strokes.
+ * A canvas of A4 sheets, like the pages of a Word document, that the user writes on with the mouse
+ * or a pen; keeps the ink as strokes.
  *
- * <p>The ink lives in an unbounded "world"; the panel is a window onto it that can be moved and
- * zoomed. Scroll to move up and down, Shift+scroll to move sideways, drag with the right or middle
- * button (or with Space held) to move freely, and Ctrl+scroll to zoom around the mouse pointer.
- * Strokes are stored in world coordinates, so moving or zooming never changes the ink.
+ * <p>The ink lives in a "world" where the sheets are laid out ({@link Paper}); the panel is a window
+ * onto it that can be moved and zoomed. Scroll to move up and down, Shift+scroll to move sideways,
+ * drag with the right or middle button (or with Space held) to move freely, and Ctrl+scroll to zoom
+ * around the mouse pointer. Strokes are stored in world coordinates, so moving or zooming never
+ * changes the ink. The pen only writes on paper: a stroke has to start on a sheet and ends at its
+ * edge if it runs off it, and a lasso selection can be moved or resized only as far as the edge of
+ * the sheet it lands on. When first shown, the first sheet is centred at 100%.
  * A picture such as the graph of the formula can be shown as a card beside the ink ({@link #showGraph}).
  *
  * <p>Three tools: the pen writes, the eraser removes ink, and the lasso selects the strokes it is
@@ -76,6 +82,8 @@ public class DrawingCanvas extends JPanel {
 
     /** Property fired when the tool changes, so toolbars can show the current tool. */
     public static final String TOOL_PROPERTY = "tool";
+    /** Property fired when drawing is switched on or off ({@link #setDrawingEnabled}). */
+    public static final String DRAWING_PROPERTY = "drawingEnabled";
     /** Property fired when the eraser mode changes. */
     public static final String ERASER_MODE_PROPERTY = "eraserMode";
     /** Property fired when the zoom changes (a double; 1 = 100%). */
@@ -107,10 +115,14 @@ public class DrawingCanvas extends JPanel {
     private static final int GRAPH_CARD_PADDING = 10;     // white border around the graph, on screen
     private static final int GRAPH_CARD_GAP = 48;         // space between the formula and the card, on screen
     private static final int GRAPH_CLOSE_RADIUS = 11;     // close button, on screen
+    private static final int GRAPH_CARD_PAPER_MARGIN = 24; // a card is at most the sheet's width less this each side
     private static final int VIEW_MARGIN_X = 16;          // keep a new card this far inside the view...
-    private static final int VIEW_MARGIN_TOP = 76;        // ...and clear of the glass bars at the top
+    private static final int VIEW_MARGIN_TOP = 76;        // ...and clear of the glass bars at the top (by default)
     private static final int VIEW_MARGIN_BOTTOM = 60;     // ...and mostly clear of those at the bottom
+    private static final int PAPER_MARGIN_BOTTOM = 110;   // the last sheet can scroll up to here, above the tools
     private static final Color ANSWER_ERROR = new Color(220, 38, 38);
+    private static final Color PAPER_SHADOW = new Color(15, 23, 42, 9);
+    private static final Color PAPER_EDGE = new Color(0, 0, 0, 28);
     private static final int[] HANDLE_CURSORS = {Cursor.NW_RESIZE_CURSOR, Cursor.NE_RESIZE_CURSOR,
         Cursor.SE_RESIZE_CURSOR, Cursor.SW_RESIZE_CURSOR};
 
@@ -124,9 +136,11 @@ public class DrawingCanvas extends JPanel {
     private final List<Runnable> viewListeners = new ArrayList<>();    // pan / zoom
     private final List<Runnable> selectionListeners = new ArrayList<>();  // a lasso closed around ink
     private Tool tool = Tool.PEN;
+    private boolean drawingEnabled = true;  // off: a plain pointer, the tools leave no ink
     private EraserMode eraserMode = EraserMode.PRECISE;
     private Color inkColor = INK_COLOR;
     private Stroke currentStroke;
+    private int strokePage = -1;      // the sheet the stroke being written is on; -1 once it ran off it
 
     // view: screen = world * scale + origin
     private double scale = 1;
@@ -134,6 +148,14 @@ public class DrawingCanvas extends JPanel {
     private double originY;
     private Point panFrom;            // last mouse position of a pan drag; null when not panning
     private boolean spaceDown;        // Space held: left drag pans
+    private boolean placeOnShow;      // shown, but not sized yet: centre the paper once it is
+    private boolean placed;           // the paper was centred on screen; keep it centred when resized
+    private int viewMarginTop = VIEW_MARGIN_TOP;  // what floats over the top of the canvas ends about here
+    private boolean keepPaperInView;  // like Word: no scrolling past the paper; on once shown on screen
+
+    // things placed on the paper besides the ink (a PDF document's items), or null
+    private PaperLayer layer;
+    private boolean layerDragging;    // the lasso press went to the layer; so do its drags
 
     // eraser
     private Point eraserAt;           // where the eraser outline is drawn (screen); null when the mouse is away
@@ -169,14 +191,22 @@ public class DrawingCanvas extends JPanel {
         setBackground(Glass.CANVAS);
         setPreferredSize(new Dimension(900, 500));
         setFocusable(true);
-        setCursor(Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR));
+        setCursor(idleCursor());
         MouseAdapter mouse = new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent e) {
                 requestFocusInWindow();  // so Delete, Ctrl+Z and Space reach the canvas
+                layerDragging = false;
                 if (e.getButton() == MouseEvent.BUTTON1 && graphCloseContains(e.getPoint())) {
                     removeGraph();
                     return;
+                }
+                if (e.getButton() == MouseEvent.BUTTON3 && !spaceDown && layer != null) {
+                    if (layer.showMenu(DrawingCanvas.this, e.getPoint(), toWorld(e.getPoint()))) {
+                        clearInkSelection();
+                        repaint();
+                        return;  // right-click on an item: its menu, no pan
+                    }
                 }
                 if (spaceDown || e.getButton() != MouseEvent.BUTTON1) {
                     panFrom = e.getPoint();
@@ -184,6 +214,10 @@ public class DrawingCanvas extends JPanel {
                     return;
                 }
                 fire(actionListeners);
+                if (!drawingEnabled) {
+                    grab(e);  // no tool: only move what is already there
+                    return;
+                }
                 switch (tool) {
                     case PEN:
                         startStroke(e);
@@ -206,6 +240,14 @@ public class DrawingCanvas extends JPanel {
                     panFrom = e.getPoint();
                     return;
                 }
+                if (layerDragging) {
+                    layer.drag(toWorld(e.getPoint()));
+                    return;
+                }
+                if (!drawingEnabled) {
+                    dragLasso(e);  // moves or resizes a grabbed selection; draws no loop
+                    return;
+                }
                 switch (tool) {
                     case PEN:
                         if (currentStroke != null) {
@@ -226,7 +268,12 @@ public class DrawingCanvas extends JPanel {
             public void mouseReleased(MouseEvent e) {
                 if (panFrom != null) {
                     panFrom = null;
-                    setCursor(Cursor.getPredefinedCursor(spaceDown ? Cursor.MOVE_CURSOR : Cursor.CROSSHAIR_CURSOR));
+                    setCursor(spaceDown ? Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR) : idleCursor());
+                    return;
+                }
+                if (layerDragging) {
+                    layerDragging = false;
+                    layer.release();
                     return;
                 }
                 if (currentStroke != null) {
@@ -238,7 +285,7 @@ public class DrawingCanvas extends JPanel {
                     }
                 }
                 lastErasePoint = null;
-                if (tool == Tool.LASSO) {
+                if (tool == Tool.LASSO || !drawingEnabled) {
                     finishLasso();
                 }
             }
@@ -248,22 +295,19 @@ public class DrawingCanvas extends JPanel {
                 boolean onClose = graphCloseContains(e.getPoint());
                 if (onClose != overGraphClose) {
                     overGraphClose = onClose;
-                    setCursor(Cursor.getPredefinedCursor(onClose ? Cursor.HAND_CURSOR : Cursor.CROSSHAIR_CURSOR));
+                    setCursor(onClose ? Cursor.getPredefinedCursor(Cursor.HAND_CURSOR) : idleCursor());
                     repaint();
                 }
                 if (onClose) {
                     return;
                 }
-                if (tool == Tool.ERASER) {
+                if (!drawingEnabled || tool == Tool.LASSO) {
+                    if (!spaceDown) {
+                        setCursor(grabCursorAt(e.getPoint()));
+                    }
+                } else if (tool == Tool.ERASER) {
                     eraserAt = e.getPoint();
                     repaintEraserOutline();
-                } else if (tool == Tool.LASSO && !spaceDown) {
-                    int handle = handleAt(e.getPoint());
-                    Rectangle bounds = selectionBounds();
-                    boolean overSelection = bounds != null && bounds.contains(toWorld(e.getPoint()));
-                    int cursor = handle >= 0 ? HANDLE_CURSORS[handle]
-                            : overSelection ? Cursor.MOVE_CURSOR : Cursor.CROSSHAIR_CURSOR;
-                    setCursor(Cursor.getPredefinedCursor(cursor));
                 }
             }
 
@@ -314,7 +358,7 @@ public class DrawingCanvas extends JPanel {
     private void setSpaceDown(boolean down) {
         spaceDown = down;
         if (panFrom == null) {
-            setCursor(Cursor.getPredefinedCursor(down ? Cursor.MOVE_CURSOR : Cursor.CROSSHAIR_CURSOR));
+            setCursor(down ? Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR) : idleCursor());
         }
     }
 
@@ -325,10 +369,63 @@ public class DrawingCanvas extends JPanel {
         return scale;
     }
 
-    /** Moves the view by (dx, dy) screen pixels; the ink moves with it. */
+    /** Moves the view by (dx, dy) screen pixels; the ink moves with it (only as far as the paper allows, if kept in view). */
     public void panBy(double dx, double dy) {
         originX += dx;
         originY += dy;
+        clampView();
+        repaint();
+        fire(viewListeners);
+    }
+
+    /**
+     * Keeps the paper in view like Word does: centred across while it is narrower than the view
+     * (no sideways scrolling), its edges never pulled inside the view when wider, and no scrolling
+     * above the first sheet or below the last. On by itself once the canvas is shown on screen.
+     */
+    public void setKeepPaperInView(boolean keep) {
+        keepPaperInView = keep;
+        clampView();
+        repaint();
+    }
+
+    private void clampView() {
+        if (!keepPaperInView || getWidth() <= 0 || getHeight() <= 0) {
+            return;
+        }
+        double paperWidth = Paper.PAGE_WIDTH * scale;
+        double paperHeight = Paper.stackHeight(getPageCount()) * scale;
+        double left = VIEW_MARGIN_X;
+        double right = getWidth() - VIEW_MARGIN_X;
+        originX = paperWidth <= right - left ? (getWidth() - paperWidth) / 2
+                : Math.max(right - paperWidth, Math.min(left, originX));
+        double top = viewMarginTop;
+        double bottom = getHeight() - PAPER_MARGIN_BOTTOM;
+        originY = paperHeight <= bottom - top ? top : Math.max(bottom - paperHeight, Math.min(top, originY));
+    }
+
+    // ---------------------------------------------------------------- view: scrolling up and down
+
+    /** The height of the view the paper scrolls through: below what floats at the top, above the tools. */
+    public int getScrollExtentY() {
+        return Math.max(0, getHeight() - PAPER_MARGIN_BOTTOM - viewMarginTop);
+    }
+
+    /** How far down the view can scroll, in screen pixels; 0 when all the paper fits. */
+    public int getScrollMaxY() {
+        double paperHeight = Paper.stackHeight(getPageCount()) * scale;
+        return (int) Math.max(0, Math.round(paperHeight - getScrollExtentY()));
+    }
+
+    /** How far down the view is scrolled: 0 with the top of the first sheet at the top of the view. */
+    public int getScrollY() {
+        return (int) Math.max(0, Math.min(getScrollMaxY(), Math.round(viewMarginTop - originY)));
+    }
+
+    /** Scrolls so the view is {@code y} pixels down the paper (kept within 0..{@link #getScrollMaxY()}). */
+    public void setScrollY(int y) {
+        originY = viewMarginTop - Math.max(0, Math.min(getScrollMaxY(), y));
+        clampView();
         repaint();
         fire(viewListeners);
     }
@@ -345,26 +442,171 @@ public class DrawingCanvas extends JPanel {
         scale = zoom;
         originX = screenX - worldX * zoom;
         originY = screenY - worldY * zoom;
+        clampView();
         repaint();
         firePropertyChange(ZOOM_PROPERTY, old, zoom);
         fire(viewListeners);
     }
 
-    /** Back to 100%, with the ink (if any) in the middle of the view. */
+    /**
+     * How far down from the top the controls floating over the canvas reach: new answers and graph
+     * cards are kept below this, and the first sheet starts below it.
+     */
+    public void setViewMarginTop(int margin) {
+        viewMarginTop = margin;
+    }
+
+    /** Zooms to {@code zoom} (1 = 100%, kept within MIN_ZOOM..MAX_ZOOM) around the middle of the view. */
+    public void setZoom(double zoom) {
+        zoomAt(getWidth() / 2.0, getHeight() / 2.0, zoom / scale);
+    }
+
+    /** Back to 100%, the paper centred across the view and the ink (if any) in the middle of it. */
     public void resetView() {
         double old = scale;
-        scale = 1;
-        Rectangle ink = inkBounds();
-        if (ink == null) {
-            originX = 0;
-            originY = 0;
-        } else {
-            originX = getWidth() / 2.0 - ink.getCenterX();
-            originY = getHeight() / 2.0 - ink.getCenterY();
-        }
+        placeView();
         repaint();
         firePropertyChange(ZOOM_PROPERTY, old, scale);
         fire(viewListeners);
+    }
+
+    // 100%, paper centred across; the ink in the middle, or the top of the first sheet below the glass bars
+    private void placeView() {
+        scale = 1;
+        originX = (getWidth() - Paper.PAGE_WIDTH) / 2.0;
+        Rectangle ink = inkBounds();
+        originY = ink == null ? viewMarginTop : getHeight() / 2.0 - ink.getCenterY();
+        clampView();
+    }
+
+    @Override
+    public void addNotify() {
+        super.addNotify();
+        if (!placed) {
+            placeOnShow = true;
+        }
+    }
+
+    /** Centres the paper the first time the canvas is shown with a size, and keeps it centred across when resized. */
+    @Override
+    public void setBounds(int x, int y, int width, int height) {
+        int oldWidth = getWidth();
+        int oldHeight = getHeight();
+        super.setBounds(x, y, width, height);
+        if (width <= 0 || height <= 0) {
+            return;
+        }
+        if (placeOnShow) {
+            placeOnShow = false;
+            placed = true;
+            keepPaperInView = true;
+            placeView();
+            repaint();
+            fire(viewListeners);
+        } else if (placed && (width != oldWidth || height != oldHeight)) {
+            panBy((width - oldWidth) / 2.0, 0);  // keeps the paper centred, and in view
+        }
+    }
+
+    /** How many A4 sheets there are now: always a blank one after the last with ink or items on it. */
+    public int getPageCount() {
+        int count = Paper.pageCount(inkBounds());
+        return layer == null ? count : Math.max(count, layer.pagesUsed() + 1);
+    }
+
+    /** How many sheets have ink on them, counting from the first: 0 when there is none. */
+    public int getInkPageCount() {
+        Rectangle ink = inkBounds();
+        return ink == null ? 0 : Paper.pageCount(ink) - 1;
+    }
+
+    // ---------------------------------------------------------------- items on the paper
+
+    /**
+     * Puts things other than ink on the paper (a PDF document's items). The lasso tool selects,
+     * moves and resizes them, Delete removes them, Undo steps back through their changes, and
+     * text dropped on the paper goes to the layer.
+     */
+    public void setPaperLayer(PaperLayer paperLayer) {
+        this.layer = paperLayer;
+        paperLayer.setHost(new PaperLayer.Host() {
+            @Override
+            public void beforeChange() {
+                fire(actionListeners);
+                saveForUndo();
+            }
+
+            @Override
+            public void changed() {
+                repaint();
+            }
+
+            @Override
+            public double zoom() {
+                return scale;
+            }
+
+            @Override
+            public int pageCount() {
+                return getPageCount();
+            }
+
+            @Override
+            public Point2D viewCenter() {
+                return toWorld(new Point(getWidth() / 2, getHeight() / 2));
+            }
+
+            @Override
+            public void useSelectTool() {
+                if (drawingEnabled) {  // with drawing off, items can be moved already
+                    setTool(Tool.LASSO);
+                }
+            }
+
+            @Override
+            public java.awt.Component component() {
+                return DrawingCanvas.this;
+            }
+        });
+        setTransferHandler(new TransferHandler() {
+            @Override
+            public boolean canImport(TransferSupport support) {
+                return support.isDrop() && support.isDataFlavorSupported(DataFlavor.stringFlavor);
+            }
+
+            @Override
+            public boolean importData(TransferSupport support) {
+                if (!canImport(support)) {
+                    return false;
+                }
+                try {
+                    String data = (String) support.getTransferable().getTransferData(DataFlavor.stringFlavor);
+                    return layer.drop(data, toWorld(support.getDropLocation().getDropPoint()));
+                } catch (java.awt.datatransfer.UnsupportedFlavorException | java.io.IOException e) {
+                    return false;
+                }
+            }
+        });
+        repaint();
+    }
+
+    /**
+     * The ink and answers on one sheet, in colour on a clear background, {@code pixelsPerUnit}
+     * pixels per world unit: what a PDF page shows over its items.
+     */
+    public BufferedImage renderSheetInk(int page, double pixelsPerUnit) {
+        Rectangle sheet = Paper.page(page);
+        int w = (int) Math.ceil(sheet.width * pixelsPerUnit);
+        int h = (int) Math.ceil(sheet.height * pixelsPerUnit);
+        BufferedImage image = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = image.createGraphics();
+        g.scale(pixelsPerUnit, pixelsPerUnit);
+        g.translate(-sheet.x, -sheet.y);
+        g.clip(sheet);
+        drawStrokes(g);
+        paintAnswers(g);
+        g.dispose();
+        return image;
     }
 
     // ---------------------------------------------------------------- graph card
@@ -385,25 +627,42 @@ public class DrawingCanvas extends JPanel {
      */
     public void showGraph(BufferedImage image, Rectangle formula) {
         double viewWidth = (getWidth() > 0 ? getWidth() : getPreferredSize().width) / scale;
-        double imageWidth = viewWidth * GRAPH_CARD_WIDTH;
+        graphPadding = GRAPH_CARD_PADDING / scale;
+        double imageWidth = Math.min(viewWidth * GRAPH_CARD_WIDTH,
+                Paper.PAGE_WIDTH - 2 * GRAPH_CARD_PAPER_MARGIN - 2 * graphPadding);  // never wider than the sheet
         double imageHeight = imageWidth * image.getHeight() / image.getWidth();
         graphImage = downscaled(image, (int) Math.ceil(imageWidth * 2));  // sharp up to 200% (and on HiDPI)
-        graphPadding = GRAPH_CARD_PADDING / scale;
         double w = imageWidth + 2 * graphPadding;
         double h = imageHeight + 2 * graphPadding;
-
-        double x;
-        double y;
-        if (formula != null) {
-            x = formula.getMaxX() + GRAPH_CARD_GAP / scale;
-            y = formula.getCenterY() - h / 2;
-        } else {
-            x = (getWidth() / 2.0 - originX) / scale - w / 2;
-            y = (getHeight() / 2.0 - originY) / scale - h / 2;
-        }
-        graphCard = new Rectangle2D.Double(x, y, w, h);
+        graphCard = cardSpot(formula, w, h);
         bringIntoView(formula == null ? graphCard : graphCard.createUnion(formula), graphCard);
         repaint();
+    }
+
+    /**
+     * Where a graph card of this size goes: right of the formula, else below it, else above it,
+     * whichever first lies on one sheet; failing all, the right-hand spot moved onto the sheet.
+     */
+    private Rectangle2D cardSpot(Rectangle formula, double w, double h) {
+        int pages = getPageCount();
+        Rectangle2D fallback;
+        if (formula != null) {
+            double gap = GRAPH_CARD_GAP / scale;
+            fallback = new Rectangle2D.Double(formula.getMaxX() + gap, formula.getCenterY() - h / 2, w, h);
+            double x = Math.max(0, Math.min(formula.getX(), Paper.PAGE_WIDTH - 1 - w));  // lined up, but on the sheet
+            Rectangle2D below = new Rectangle2D.Double(x, formula.getMaxY() + gap, w, h);
+            Rectangle2D above = new Rectangle2D.Double(x, formula.getY() - gap - h, w, h);
+            for (Rectangle2D spot : List.of(fallback, below, above)) {
+                if (onOneSheet(spot, pages)) {
+                    return spot;
+                }
+            }
+        } else {
+            fallback = new Rectangle2D.Double((getWidth() / 2.0 - originX) / scale - w / 2,
+                    (getHeight() / 2.0 - originY) / scale - h / 2, w, h);
+        }
+        int[] move = Paper.keepOnPaper(fallback.getBounds(), 0, 0, pages);
+        return new Rectangle2D.Double(fallback.getX() + move[0], fallback.getY() + move[1], w, h);
     }
 
     public void removeGraph() {
@@ -413,7 +672,7 @@ public class DrawingCanvas extends JPanel {
         graphImage = null;
         graphCard = null;
         overGraphClose = false;
-        setCursor(Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR));
+        setCursor(idleCursor());
         repaint();
     }
 
@@ -447,7 +706,7 @@ public class DrawingCanvas extends JPanel {
         }
         double left = VIEW_MARGIN_X;
         double right = getWidth() - VIEW_MARGIN_X;
-        double top = VIEW_MARGIN_TOP;
+        double top = viewMarginTop;
         double bottom = getHeight() - VIEW_MARGIN_BOTTOM;
         Rectangle2D target = toScreen(world);
         if (target.getWidth() > right - left || target.getHeight() > bottom - top) {
@@ -516,10 +775,52 @@ public class DrawingCanvas extends JPanel {
         lassoPath = null;
         eraserAt = null;
         clearSelection();
-        setCursor(Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR));
+        setCursor(idleCursor());
         repaint();
         firePropertyChange(TOOL_PROPERTY, old, tool);
         fire(actionListeners);
+    }
+
+    /** Whether the tools write, erase and circle; on unless switched off. */
+    public boolean isDrawingEnabled() {
+        return drawingEnabled;
+    }
+
+    /**
+     * Switches the tools on or off. While off the cursor is the plain arrow and pressing on the
+     * paper leaves no ink: it only moves what is already selected, or an item on the paper. The
+     * selection is kept, so what was circled can still be calculated.
+     */
+    public void setDrawingEnabled(boolean enabled) {
+        if (drawingEnabled == enabled) {
+            return;
+        }
+        drawingEnabled = enabled;
+        currentStroke = null;
+        lassoPath = null;
+        eraserAt = null;
+        setCursor(idleCursor());
+        repaint();
+        firePropertyChange(DRAWING_PROPERTY, !enabled, enabled);
+    }
+
+    /** The cursor over plain paper: a crosshair to write with, or the arrow while drawing is off. */
+    private Cursor idleCursor() {
+        return Cursor.getPredefinedCursor(drawingEnabled ? Cursor.CROSSHAIR_CURSOR : Cursor.DEFAULT_CURSOR);
+    }
+
+    /** The cursor where a press would grab: a selection's corner or body, an item, or else plain paper. */
+    private Cursor grabCursorAt(Point screen) {
+        int handle = handleAt(screen);
+        if (handle >= 0) {
+            return Cursor.getPredefinedCursor(HANDLE_CURSORS[handle]);
+        }
+        Rectangle bounds = selectionBounds();
+        if (bounds != null && bounds.contains(toWorld(screen))) {
+            return Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR);
+        }
+        Cursor overItem = layer == null ? null : layer.cursorAt(toWorld(screen));
+        return overItem != null ? overItem : idleCursor();
     }
 
     public EraserMode getEraserMode() {
@@ -553,14 +854,31 @@ public class DrawingCanvas extends JPanel {
 
     private void startStroke(MouseEvent e) {
         clearSelection();
+        InkPoint start = worldPoint(e);
+        int page = Paper.pageAt(start.getX(), start.getY(), getPageCount());
+        if (page < 0) {
+            return;  // only on the paper
+        }
         saveForUndo();
+        strokePage = page;
         currentStroke = new Stroke(inkColor.getRGB() & 0xFFFFFF);
         strokes.add(currentStroke);
-        record(e);
+        currentStroke.addPoint(start);
+        repaint();
     }
 
+    // a point off the stroke's sheet ends the stroke at the edge; later points are dropped
     private void record(MouseEvent e) {
-        currentStroke.addPoint(worldPoint(e));
+        if (strokePage < 0) {
+            return;
+        }
+        InkPoint p = worldPoint(e);
+        if (Paper.pageAt(p.getX(), p.getY(), Integer.MAX_VALUE) != strokePage) {
+            int[] edge = Paper.clampTo(strokePage, p.getX(), p.getY());
+            p = new InkPoint(edge[0], edge[1], p.getTimeMillis());
+            strokePage = -1;
+        }
+        currentStroke.addPoint(p);
         repaint();
     }
 
@@ -598,6 +916,16 @@ public class DrawingCanvas extends JPanel {
     }
 
     private void startLasso(MouseEvent e) {
+        if (grab(e)) {
+            return;
+        }
+        clearSelection();
+        lassoPath = new ArrayList<>();
+        lassoPath.add(worldPoint(e));
+    }
+
+    /** Takes hold of a corner of the selection, the selection, or an item on the paper; false if none is there. */
+    private boolean grab(MouseEvent e) {
         Rectangle bounds = selectionBounds();
         Point2D p = toWorld(e.getPoint());
         int handle = handleAt(e.getPoint());
@@ -606,17 +934,21 @@ public class DrawingCanvas extends JPanel {
             resizeCorner = corner(bounds, handle);
             resizeAnchor = corner(bounds, (handle + 2) % 4);
             resizeFactor = 1;
-            return;
+            return true;
         }
         if (bounds != null && bounds.contains(p)) {
             moveStart = p;
             moveDx = 0;
             moveDy = 0;
-            return;
+            return true;
         }
-        clearSelection();
-        lassoPath = new ArrayList<>();
-        lassoPath.add(worldPoint(e));
+        if (layer != null && layer.press(p, e.getClickCount())) {
+            clearInkSelection();
+            layerDragging = true;  // an item on the paper: the layer moves it
+            repaint();
+            return true;
+        }
+        return false;
     }
 
     private void dragLasso(MouseEvent e) {
@@ -627,11 +959,14 @@ public class DrawingCanvas extends JPanel {
             double vy = resizeCorner.getY() - resizeAnchor.getY();
             double along = ((p.getX() - resizeAnchor.getX()) * vx + (p.getY() - resizeAnchor.getY()) * vy)
                     / (vx * vx + vy * vy);
-            resizeFactor = Math.max(MIN_RESIZE, Math.min(MAX_RESIZE, along));
+            resizeFactor = Paper.keepOnPaper(selectedBounds(), resizeAnchor.getX(), resizeAnchor.getY(),
+                    Math.max(MIN_RESIZE, Math.min(MAX_RESIZE, along)), getPageCount());
         } else if (moveStart != null) {
             Point2D p = toWorld(e.getPoint());
-            moveDx = (int) Math.round(p.getX() - moveStart.getX());
-            moveDy = (int) Math.round(p.getY() - moveStart.getY());
+            int[] kept = Paper.keepOnPaper(selectedBounds(), (int) Math.round(p.getX() - moveStart.getX()),
+                    (int) Math.round(p.getY() - moveStart.getY()), getPageCount());
+            moveDx = kept[0];
+            moveDy = kept[1];
         } else if (lassoPath != null) {
             lassoPath.add(worldPoint(e));
         }
@@ -777,13 +1112,17 @@ public class DrawingCanvas extends JPanel {
         return -1;
     }
 
+    /** True if ink, answers or an item on the paper is selected. */
     public boolean hasSelection() {
-        return !nothingSelected();
+        return !nothingSelected() || layer != null && layer.hasSelection();
     }
 
-    /** Removes the strokes and answers selected with the lasso. */
+    /** Removes the strokes and answers selected with the lasso, or else the selected item on the paper. */
     public void deleteSelection() {
         if (nothingSelected()) {
+            if (layer != null && layer.hasSelection()) {
+                layer.deleteSelection();
+            }
             return;
         }
         fire(actionListeners);
@@ -800,12 +1139,26 @@ public class DrawingCanvas extends JPanel {
         repaint();
     }
 
+    /** Unselects ink, answers and any item on the paper. */
     public void clearSelection() {
-        if (!selection.isEmpty() || !selectedAnswers.isEmpty()) {
-            selection.clear();
-            selectedAnswers.clear();
+        boolean changed = clearInkSelection();
+        if (layer != null && layer.clearSelection()) {
+            changed = true;
+        }
+        if (changed) {
             repaint();
         }
+    }
+
+    // true if something was selected
+    private boolean clearInkSelection() {
+        if (selection.isEmpty() && selectedAnswers.isEmpty()) {
+            return false;
+        }
+        selection.clear();
+        selectedAnswers.clear();
+        repaint();
+        return true;
     }
 
     /** The selection's outline in world coordinates (including a drag in progress), or null. */
@@ -823,6 +1176,23 @@ public class DrawingCanvas extends JPanel {
         }
         int pad = (int) INK_WIDTH + 4;
         bounds.grow(pad, pad);
+        return bounds;
+    }
+
+    /** The selected strokes and answers as they are (no drag, no padding), in world coordinates. */
+    private Rectangle selectedBounds() {
+        Rectangle bounds = selection.isEmpty() ? null : boundsOf(selection);
+        for (long id : selectedAnswers) {
+            Formula f = book.get(id);
+            if (f != null && f.getAnswer() != null) {
+                Rectangle box = f.getAnswer().getBox().getBounds();
+                if (bounds == null) {
+                    bounds = box;
+                } else {
+                    bounds.add(box);
+                }
+            }
+        }
         return bounds;
     }
 
@@ -856,6 +1226,9 @@ public class DrawingCanvas extends JPanel {
             Snapshot back = history.pop();
             replaceStrokes(back.strokes);
             book = back.book;  // answers come back as they were, no recalc
+            if (layer != null && back.layerState != null) {
+                layer.restoreState(back.layerState);
+            }
             currentStroke = null;
             selection.clear();
             selectedAnswers.clear();
@@ -886,7 +1259,7 @@ public class DrawingCanvas extends JPanel {
     }
 
     private void saveForUndo() {
-        history.push(new Snapshot(new ArrayList<>(strokes), book.copy()));
+        history.push(new Snapshot(new ArrayList<>(strokes), book.copy(), layer == null ? null : layer.saveState()));
         if (history.size() > HISTORY_LIMIT) {
             history.removeLast();
         }
@@ -940,7 +1313,7 @@ public class DrawingCanvas extends JPanel {
     // mid-gesture a pan would shift the ink under the pen
     private boolean busy() {
         return currentStroke != null || moveStart != null || resizeHandle >= 0 || lassoPath != null
-                || lastErasePoint != null || panFrom != null;
+                || lastErasePoint != null || panFrom != null || layerDragging;
     }
 
     private long nextRevision() {
@@ -950,10 +1323,12 @@ public class DrawingCanvas extends JPanel {
     private static final class Snapshot {
         final List<Stroke> strokes;
         final FormulaBook book;
+        final Object layerState;  // the items on the paper, or null without a layer
 
-        Snapshot(List<Stroke> strokes, FormulaBook book) {
+        Snapshot(List<Stroke> strokes, FormulaBook book, Object layerState) {
             this.strokes = strokes;
             this.book = book;
+            this.layerState = layerState;
         }
     }
 
@@ -1106,14 +1481,25 @@ public class DrawingCanvas extends JPanel {
         if (f == null || f.getRevision() != revision) {
             return false;
         }
+        int pages = getPageCount();
         CanvasAnswer answer = AnswerPlacer.place(inDrawingOrder(f), kind, text, runs, error,
-                box -> hitsOtherInk(box, f));
+                box -> hitsOtherInk(box, f), box -> onOneSheet(box, pages));
+        int[] onPaper = Paper.keepOnPaper(answer.getBox().getBounds(), 0, 0, pages);
+        if (onPaper[0] != 0 || onPaper[1] != 0) {
+            answer = answer.translated(onPaper[0], onPaper[1]);  // no spot fits: pull it onto the sheet
+        }
         book.put(f.withAnswer(answer));
         if (!busy()) {
             bringIntoView(answer.getBox(), answer.getBox());
         }
         repaint();
         return true;
+    }
+
+    // the box lies on one sheet, so it shows (and prints) whole
+    private static boolean onOneSheet(Rectangle2D box, int pages) {
+        int[] move = Paper.keepOnPaper(box.getBounds(), 0, 0, pages);
+        return move[0] == 0 && move[1] == 0;
     }
 
     private boolean hitsOtherInk(Rectangle2D box, Formula f) {
@@ -1250,6 +1636,7 @@ public class DrawingCanvas extends JPanel {
     public void paintBackdrop(Graphics2D g2) {
         g2.setColor(getBackground());
         g2.fillRect(0, 0, getWidth(), getHeight());
+        paintPaper(g2);
 
         Graphics2D world = (Graphics2D) g2.create();
         world.translate(originX, originY);
@@ -1275,6 +1662,41 @@ public class DrawingCanvas extends JPanel {
         world.dispose();
 
         paintGraphClose(g2);
+    }
+
+    /**
+     * The A4 sheets (no background, no ink) where they appear on screen: white, with a soft shadow,
+     * and the items placed on them by the {@link PaperLayer}, if there is one.
+     */
+    public void paintPaper(Graphics2D g2) {
+        Graphics2D world = (Graphics2D) g2.create();
+        world.translate(originX, originY);
+        world.scale(scale, scale);
+        world.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        double unit = 1 / scale;  // one screen pixel in world units
+        double top = -originY / scale - 8 * unit;
+        double bottom = (getHeight() - originY) / scale + 8 * unit;
+        int count = getPageCount();
+        for (int i = 0; i < count; i++) {
+            Rectangle page = Paper.page(i);
+            if (getHeight() > 0 && (page.getMaxY() < top || page.getMinY() > bottom)) {
+                continue;  // off screen
+            }
+            world.setColor(PAPER_SHADOW);
+            for (int s = 1; s <= 4; s++) {
+                world.fill(new Rectangle2D.Double(page.x - s * unit, page.y - s * 0.5 * unit,
+                        page.width + 2 * s * unit, page.height + s * 2 * unit));
+            }
+            world.setColor(Color.WHITE);
+            world.fill(page);
+            world.setStroke(new BasicStroke((float) unit));
+            world.setColor(PAPER_EDGE);
+            world.draw(new Rectangle2D.Double(page.x, page.y, page.width, page.height));
+        }
+        if (layer != null) {
+            layer.paint(world);  // on the paper, under the ink
+        }
+        world.dispose();
     }
 
     /** Changes whenever {@link #paintBackdrop} may paint something new. */
@@ -1324,7 +1746,7 @@ public class DrawingCanvas extends JPanel {
         Graphics2D g2 = (Graphics2D) g.create();
         double renderScale = g2.getTransform().getScaleX();
         g2.drawImage(sceneImage(renderScale), AffineTransform.getScaleInstance(1 / renderScale, 1 / renderScale), null);
-        if (tool == Tool.ERASER && eraserAt != null) {
+        if (drawingEnabled && tool == Tool.ERASER && eraserAt != null) {
             int r = eraserRadius();
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             g2.setStroke(new BasicStroke(1.2f));

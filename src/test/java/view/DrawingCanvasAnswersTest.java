@@ -59,6 +59,17 @@ class DrawingCanvasAnswersTest {
     }
 
     @Test
+    void anAnswerWithNoRoomOnTheRightOfTheSheetGoesBelowTheFormula() {
+        drag(700, 100, 700, 140);   // "1=" right at the edge of the sheet
+        drag(730, 115, 770, 115);
+        drag(730, 125, 770, 125);
+        CanvasAnswer a = answer(AnswerKind.AFTER_EQUALS, "123456");
+        Rectangle2D box = a.getBox();
+        assertTrue(box.getMaxX() <= Paper.PAGE_WIDTH, "on the sheet, so it prints whole");
+        assertTrue(box.getMinY() > 140, "below the formula instead of beside it");
+    }
+
+    @Test
     void calculatingBindsTheInk() {
         writeOneEquals();
         calculateOne();
@@ -328,7 +339,7 @@ class DrawingCanvasAnswersTest {
     void answerArrivingMidStrokeDoesNotPanUnderThePen() {
         writeOneEquals();
         FormulaCapture c = calculateOne();
-        canvas.panBy(-2000, 0);  // formula far off screen
+        canvas.panBy(0, -1000);  // formula far off screen, the pen on the second sheet
         send(MouseEvent.MOUSE_PRESSED, 300, 300);
         send(MouseEvent.MOUSE_DRAGGED, 310, 300);
         assertTrue(canvas.showAnswer(c.getId(), c.getRevision(), AnswerKind.AFTER_EQUALS, "2", false));

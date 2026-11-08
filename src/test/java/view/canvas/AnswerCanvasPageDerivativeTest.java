@@ -35,7 +35,7 @@ class AnswerCanvasPageDerivativeTest {
                 new InMemoryFunctionDataAccessObject(), new EvaluatePresenter(viewModel)));
         SwingUtilities.invokeAndWait(() -> {
             page = new AnswerCanvasPage(shared, controller, viewModel, (l, result) -> pdfResult.set(result));
-            page.setPopupDelay(100);
+            page.addMathTab(new view.ribbon.Ribbon("Math Lab"));
             shared.attachTo(page);
             page.setSize(900, 560);
             layout(page);
@@ -72,8 +72,9 @@ class AnswerCanvasPageDerivativeTest {
     private CanvasAnswer calculate(String latex) throws Exception {
         openPage(latex);
         write();
-        waitFor(() -> page.visiblePopup() != null && latex.equals(page.visiblePopup().getLatex()), "popup");
-        SwingUtilities.invokeAndWait(() -> page.visiblePopup().clickCalculate());
+        new CanvasDriver(canvas).lasso(80, 80, 220, 170);
+        CanvasDriver.waitForReading(page, latex);
+        SwingUtilities.invokeAndWait(() -> page.getCalculateButton().doClick());
         waitFor(() -> canvas.getAnswers().size() == 1, "answer");
         return canvas.getAnswers().get(0);
     }

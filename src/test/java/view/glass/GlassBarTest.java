@@ -147,7 +147,7 @@ class GlassBarTest {
         g.fillRect(100, 0, 100, 60);
         g.dispose();
 
-        BufferedImage flat = GlassOptics.refract(src, 1, Glass.capsule(10, 10, 180, 40), 0f, 0, 0);
+        BufferedImage flat = GlassOptics.refract(src, 1, Glass.rounded(10, 10, 180, 40), 0f, 0, 0);
         assertEquals(0, flat.getRGB(2, 30) >>> 24, "nothing outside the capsule");
         assertEquals(Color.WHITE.getRGB(), flat.getRGB(60, 30));
         assertEquals(Color.BLACK.getRGB(), flat.getRGB(140, 30));
@@ -160,8 +160,32 @@ class GlassBarTest {
         g.setColor(Color.BLACK);
         g.fillRect(0, 0, 60, 8);
         g.dispose();
-        BufferedImage lensed = GlassOptics.refract(outside, 1, Glass.capsule(0, 10, 60, 40), 1f, 0, 0);
+        BufferedImage lensed = GlassOptics.refract(outside, 1, Glass.rounded(0, 10, 60, 40), 1f, 0, 0);
         assertEquals(Color.BLACK.getRGB(), lensed.getRGB(30, 11), "the rim shows what is beyond it");
         assertEquals(Color.WHITE.getRGB(), lensed.getRGB(30, 30), "the middle is left alone");
+    }
+
+    @Test
+    void glassHasSoftCornersNotPillEnds() {
+        java.awt.geom.RoundRectangle2D bar = Glass.rounded(0, 0, 200, GlassBar.CAPSULE_HEIGHT);
+        assertTrue(bar.getArcHeight() < bar.getHeight() * 0.6, "a rounded rectangle, not a capsule");
+        assertTrue(bar.contains(5, 5), "the corner is only slightly rounded");
+        assertTrue(!bar.contains(1, 1), "but it is rounded");
+        java.awt.geom.RoundRectangle2D tiny = Glass.rounded(0, 0, 40, 6);
+        assertEquals(6, tiny.getArcHeight(), 1e-9, "very small glass is never rounder than half its height");
+    }
+
+    @Test
+    void edgeDistanceFollowsTheRoundedCorner() {
+        double[] normal = new double[2];
+        // 100 x 40 centred on the origin, corners of radius 10
+        assertEquals(-20, GlassOptics.edgeDistance(0, 0, 50, 20, 10, normal), 1e-9);
+        assertEquals(0, normal[0], 1e-9);
+        assertEquals(1, normal[1], 1e-9);
+        assertEquals(-2, GlassOptics.edgeDistance(-48, 0, 50, 20, 10, normal), 1e-9);
+        assertEquals(-1, normal[0], 1e-9);
+        double corner = GlassOptics.edgeDistance(50, 20, 50, 20, 10, normal);
+        assertEquals(Math.sqrt(200) - 10, corner, 1e-9, "the square corner lies outside the arc");
+        assertEquals(Math.sqrt(0.5), normal[0], 1e-9);
     }
 }

@@ -75,8 +75,8 @@ public class GlassDock extends JPanel {
         Graphics2D out = result.createGraphics();
         for (Component child : getComponents()) {
             if (child.isVisible() && child.getWidth() > 2 * Glass.SHADOW && child.getHeight() > 2 * Glass.SHADOW) {
-                // the same capsule the control paints its glass in
-                RoundRectangle2D glass = Glass.capsule(child.getX() + Glass.SHADOW, child.getY() + Glass.SHADOW,
+                // the same shape the control paints its glass in
+                RoundRectangle2D glass = Glass.rounded(child.getX() + Glass.SHADOW, child.getY() + Glass.SHADOW,
                         child.getWidth() - 2.0 * Glass.SHADOW, child.getHeight() - 2.0 * Glass.SHADOW);
                 out.drawImage(GlassOptics.refract(frosted, scale, glass, 1f, 0, 0), 0, 0, null);
             }

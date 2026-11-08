@@ -1,6 +1,7 @@
 package view.glass;
 
 import java.awt.BasicStroke;
+import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.Shape;
 import java.awt.Stroke;
@@ -124,6 +125,69 @@ public final class GlassIcons {
         g.draw(head);
     }
 
+    /** Three books on a shelf, for the material library. */
+    public static void books(Graphics2D g) {
+        prepare(g);
+        g.draw(new RoundRectangle2D.Double(-8.5, -7.5, 4.5, 15.5, 1.5, 1.5));
+        g.draw(new RoundRectangle2D.Double(-2.5, -5.5, 4.5, 13.5, 1.5, 1.5));
+        g.draw(new Line2D.Double(-8.5, 3.5, -4, 3.5));
+        g.draw(new Line2D.Double(-2.5, 3.5, 2, 3.5));
+        AffineTransform t = g.getTransform();
+        g.translate(6, 0.5);
+        g.rotate(Math.toRadians(-14));
+        g.draw(new RoundRectangle2D.Double(-2.2, -7.5, 4.4, 15, 1.5, 1.5));
+        g.setTransform(t);
+    }
+
+    /** A text box with a T, for a note. */
+    public static void note(Graphics2D g) {
+        prepare(g);
+        g.draw(new RoundRectangle2D.Double(-8.5, -7.5, 17, 15, 4, 4));
+        g.draw(new Line2D.Double(-4, -3.5, 4, -3.5));
+        g.draw(new Line2D.Double(0, -3.5, 0, 4));
+    }
+
+    /** Stacked blocks on a page, for laying items out automatically. */
+    public static void layout(Graphics2D g) {
+        prepare(g);
+        g.draw(new RoundRectangle2D.Double(-8.5, -8.5, 17, 17, 3, 3));
+        g.draw(new RoundRectangle2D.Double(-5, -5, 10, 4, 1.5, 1.5));
+        g.draw(new RoundRectangle2D.Double(-5, 2, 4, 3.5, 1.5, 1.5));
+        g.draw(new RoundRectangle2D.Double(1, 2, 4, 3.5, 1.5, 1.5));
+    }
+
+    /** Two overlapping squares, the front one filled: bring to front. */
+    public static void bringFront(Graphics2D g) {
+        prepare(g);
+        g.draw(new RoundRectangle2D.Double(-8, -8, 10, 10, 2.5, 2.5));
+        RoundRectangle2D front = new RoundRectangle2D.Double(-2, -2, 10, 10, 2.5, 2.5);
+        g.fill(front);
+        g.draw(front);
+    }
+
+    /** Two overlapping squares, the back one filled: send to back. */
+    public static void sendBack(Graphics2D g) {
+        prepare(g);
+        RoundRectangle2D back = new RoundRectangle2D.Double(-8, -8, 10, 10, 2.5, 2.5);
+        g.fill(back);
+        g.draw(back);
+        RoundRectangle2D front = new RoundRectangle2D.Double(-2, -2, 10, 10, 2.5, 2.5);
+        Color ink = g.getColor();
+        g.setColor(new Color(255, 255, 255, 235));
+        g.fill(front);
+        g.setColor(ink);
+        g.draw(front);
+    }
+
+    /** Scissors, for splitting a calculation into its formula and its result. */
+    public static void scissors(Graphics2D g) {
+        prepare(g);
+        g.draw(new Ellipse2D.Double(-8.5, 3, 5.5, 5.5));
+        g.draw(new Ellipse2D.Double(3, 3, 5.5, 5.5));
+        g.draw(new Line2D.Double(-4.2, 3.6, 5.5, -8.5));
+        g.draw(new Line2D.Double(4.2, 3.6, -5.5, -8.5));
+    }
+
     public static void trash(Graphics2D g) {
         prepare(g);
         g.draw(new Line2D.Double(-7.5, -5.5, 7.5, -5.5));
@@ -141,5 +205,70 @@ public final class GlassIcons {
         g.draw(can);
         g.draw(new Line2D.Double(-1.8, -2, -1.5, 5.5));
         g.draw(new Line2D.Double(1.8, -2, 1.5, 5.5));
+    }
+
+    /** A floppy disk. */
+    public static void save(Graphics2D g) {
+        prepare(g);
+        Path2D body = new Path2D.Double();
+        body.moveTo(-8, -8);
+        body.lineTo(4.5, -8);
+        body.lineTo(8, -4.5);
+        body.lineTo(8, 8);
+        body.lineTo(-8, 8);
+        body.closePath();
+        g.draw(body);
+        g.draw(new RoundRectangle2D.Double(-4.5, -8, 8, 5, 1, 1));
+        g.draw(new RoundRectangle2D.Double(-5, 1.5, 10, 6.5, 1.5, 1.5));
+    }
+
+    /** An open tray with an arrow coming down into it. */
+    public static void importFile(Graphics2D g) {
+        prepare(g);
+        g.draw(new Line2D.Double(0, -8.5, 0, 3));
+        Path2D head = new Path2D.Double();
+        head.moveTo(-4, -1);
+        head.lineTo(0, 3);
+        head.lineTo(4, -1);
+        g.draw(head);
+        Path2D tray = new Path2D.Double();
+        tray.moveTo(-8.5, 1.5);
+        tray.lineTo(-8.5, 8);
+        tray.lineTo(8.5, 8);
+        tray.lineTo(8.5, 1.5);
+        g.draw(tray);
+    }
+
+    /** A small chart: two axes and a rising curve. */
+    public static void chart(Graphics2D g) {
+        prepare(g);
+        Path2D axes = new Path2D.Double();
+        axes.moveTo(-8.5, -8.5);
+        axes.lineTo(-8.5, 8.5);
+        axes.lineTo(8.5, 8.5);
+        g.draw(axes);
+        Path2D curve = new Path2D.Double();
+        curve.moveTo(-5.5, 5);
+        curve.curveTo(-1, 4.5, 1, -6, 7.5, -6.5);
+        g.draw(curve);
+    }
+
+    /** A PDF file: a page with a folded corner and a solid label across it. */
+    public static void pdf(Graphics2D g) {
+        prepare(g);
+        Path2D page = new Path2D.Double();
+        page.moveTo(-5, -8.5);
+        page.lineTo(2.5, -8.5);
+        page.lineTo(7, -4);
+        page.lineTo(7, 8.5);
+        page.lineTo(-5, 8.5);
+        page.closePath();
+        g.draw(page);
+        Path2D fold = new Path2D.Double();
+        fold.moveTo(2.5, -8.5);
+        fold.lineTo(2.5, -4);
+        fold.lineTo(7, -4);
+        g.draw(fold);
+        g.fill(new RoundRectangle2D.Double(-9, -0.5, 13, 6.5, 2, 2));
     }
 }

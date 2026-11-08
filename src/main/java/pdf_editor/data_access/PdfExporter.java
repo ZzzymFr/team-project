@@ -15,15 +15,24 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 public final class PdfExporter {
     public void export(PdfDocument document, Path target) throws IOException {
-        try (PDDocument pdf = build(document)) { pdf.save(target.toFile()); }
+        export(document, List.of(), target);
+    }
+    /** Saves with {@code pageOverlays.get(i)} (if there is one) drawn over the whole of page i, above its items. */
+    public void export(PdfDocument document, List<BufferedImage> pageOverlays, Path target) throws IOException {
+        try (PDDocument pdf = build(document, pageOverlays)) { pdf.save(target.toFile()); }
     }
     public PDDocument build(PdfDocument document) throws IOException {
+        return build(document, List.of());
+    }
+    public PDDocument build(PdfDocument document, List<BufferedImage> pageOverlays) throws IOException {
         PDDocument pdf = new PDDocument();
         try {
+            int index = 0;
             for (java.util.List<PdfDocument.Placement> pageItems : document.pages()) {
                 PDPage page = new PDPage(PDRectangle.A4); pdf.addPage(page);
                 try (PDPageContentStream stream = new PDPageContentStream(pdf, page)) {
@@ -35,7 +44,13 @@ public final class PdfExporter {
                         PDImageXObject xobj = LosslessFactory.createFromImage(pdf, image);
                         stream.drawImage(xobj, p.x(), PdfDocument.PAGE_HEIGHT - p.y() - p.height(), p.width(), p.height());
                     }
+                    BufferedImage overlay = index < pageOverlays.size() ? pageOverlays.get(index) : null;
+                    if (overlay != null) {
+                        stream.drawImage(LosslessFactory.createFromImage(pdf, overlay), 0, 0,
+                                PdfDocument.PAGE_WIDTH, PdfDocument.PAGE_HEIGHT);
+                    }
                 }
+                index++;
             }
             addAppendix(pdf, document);
             return pdf;

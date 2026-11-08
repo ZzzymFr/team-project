@@ -18,6 +18,7 @@ import view.canvas.CanvasShell;
 import view.canvas.FormulaGrapher;
 import view.canvas.SharedCanvas;
 import view.glass.GlassBar;
+import view.ribbon.Ribbon;
 import view.stack.Fonts;
 import pdf_editor.PdfStudioLauncher;
 
@@ -25,18 +26,20 @@ import javax.swing.JFrame;
 import javax.swing.WindowConstants;
 import java.awt.Dimension;
 import java.awt.Font;
+import java.awt.Frame;
 
 /**
- * Builds the window: one handwriting canvas filling it. Pausing after writing offers Graph and
- * Calculate on the formula; calculated formulas and graphs are collected for the PDF editor.
+ * Builds the window: a Word-like ribbon across the top and one handwriting canvas of A4 sheets
+ * under it. The drawing tools are on the Draw tab and work only while it is chosen; on the other
+ * tabs the canvas is a plain pointer. Circling a formula with the lasso opens the Math tab, with Calculate and Graph;
+ * calculated formulas and graphs are collected in the library, to be placed on the sheets beside
+ * the ink and exported as a PDF from the title row of the ribbon.
  */
 public class AppBuilder {
     private static final Dimension MINIMUM_SIZE = new Dimension(900, 520);
 
     private final SharedCanvas sharedCanvas = new SharedCanvas(new DrawingCanvas());
     private final PdfStudioLauncher pdfStudio = new PdfStudioLauncher();
-
-    { pdfStudio.setSourceCanvas(sharedCanvas); }
 
     /** The graph use case: LaTeX -> parse and sample -> QuickChart -> graph card, and on to the PDF editor. */
     private FormulaGrapher buildGrapher() {
@@ -74,7 +77,13 @@ public class AppBuilder {
     }
 
     public JFrame build() {
-        CanvasShell shell = new CanvasShell(sharedCanvas, buildPage(), pdfStudio::openEditor);
+        AnswerCanvasPage page = buildPage();
+        CanvasShell shell = new CanvasShell(sharedCanvas, page);
+        Ribbon ribbon = new Ribbon("Math Lab", sharedCanvas);  // frosted glass over the canvas
+        pdfStudio.install(shell, sharedCanvas, ribbon);  // file commands and the Edit tab
+        shell.addDrawTab(ribbon);  // pen, eraser and lasso: they only work while it is chosen
+        page.addMathTab(ribbon);
+        shell.setHeader(ribbon);
 
         JFrame frame = new JFrame("Math Lab");
         frame.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
@@ -82,6 +91,7 @@ public class AppBuilder {
         frame.setMinimumSize(MINIMUM_SIZE);
         frame.setSize(980, 660);
         frame.setLocationRelativeTo(null);
+        frame.setExtendedState(frame.getExtendedState() | Frame.MAXIMIZED_BOTH);
         GlassBar.warmUp(Fonts.ui(Font.PLAIN, 15f));
         return frame;
     }

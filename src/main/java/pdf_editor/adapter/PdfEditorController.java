@@ -7,7 +7,7 @@ import pdf_editor.use_case.AutoLayoutInteractor;
 import pdf_editor.use_case.DocumentEditor;
 import pdf_editor.use_case.PdfExportInteractor;
 
-import pdf_editor.domain.PdfPreviewPage;
+import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
@@ -36,26 +36,9 @@ public final class PdfEditorController {
     public PdfDocument.Placement selected() { return editor.find(page, selectedId); }
     public void select(String id) { selectedId = editor.find(page, id) == null ? null : id; }
     public void clearSelection() { selectedId = null; }
-    public void selectAt(float x, float y) {
-        selectedId = null;
-        List<PdfDocument.Placement> items = placements();
-        for (int i=items.size()-1; i>=0; i--) {
-            PdfDocument.Placement p = items.get(i);
-            if (x >= p.x() && x <= p.x() + p.width() && y >= p.y() && y <= p.y() + p.height()) {
-                selectedId = p.id(); break;
-            }
-        }
-    }
     public void switchPage(int target) {
         if (target < 0 || target >= pageCount()) return;
         page = target; selectedId = null;
-    }
-    public void addPage() { switchPage(editor.addPage()); }
-    public boolean deletePage() {
-        if (pageCount() <= 1) return false;
-        editor.removePage(page);
-        switchPage(Math.min(page, pageCount()-1));
-        return true;
     }
     public PdfDocument.Placement place(PdfMaterial material, float x, float y, float width, float height) {
         PdfDocument.Placement placed = editor.place(page, material, x, y, width, height);
@@ -79,9 +62,6 @@ public final class PdfEditorController {
         PdfDocument.Placement[] split = editor.splitCalculation(page, selectedId);
         if (split == null) return false;
         selectedId = split[0].id(); return true;
-    }
-    public void beginTransform() {
-        if (selected() != null) editor.beginTransform(page, selectedId);
     }
     public void transform(float x, float y, float width, float height) {
         if (selected() != null) editor.transform(page, selectedId, x, y, width, height);
@@ -107,15 +87,19 @@ public final class PdfEditorController {
         switchPage(layout.importMaterials(page, library.items()));
         return count;
     }
-    public boolean undo() {
-        if (!editor.undo()) return false;
-        switchPage(Math.min(page, pageCount()-1)); return true;
+    /** Exports {@code document} with a picture drawn over each page (e.g. the handwriting on it). */
+    public void export(PdfDocument document, List<BufferedImage> pageOverlays, Path destination) throws IOException {
+        output.export(document, pageOverlays, destination);
     }
-    public boolean redo() {
-        if (!editor.redo()) return false;
-        switchPage(Math.min(page, pageCount()-1)); return true;
-    }
-    public List<PdfPreviewPage> preview() throws IOException { return output.preview(editor.snapshot()); }
-    public void export(Path destination) throws IOException { output.export(editor.snapshot(), destination); }
     public PdfDocument documentSnapshot() { return editor.snapshot(); }
+    /** Puts the document back as it was (an undo kept elsewhere); nothing stays selected. */
+    public void restore(PdfDocument snapshot) {
+        editor.restore(snapshot);
+        page = Math.min(page, pageCount() - 1);
+        selectedId = null;
+    }
+    /** Adds blank pages at the end until there are at least {@code count}. */
+    public void ensurePages(int count) {
+        while (pageCount() < count) editor.addPage();
+    }
 }
