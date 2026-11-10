@@ -9,6 +9,7 @@ import interface_adapter.MathLabViewModel;
 import interface_adapter.TextRun;
 import use_case.evaluate.FormulaShape;
 import use_case.evaluate.OutputDataMapper;
+import use_case.evaluate.ValueOutputData;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -97,6 +98,17 @@ class EvaluatePresenterTest {
                 viewModel.getState().getAnswerRuns());
         presenter.prepareValuesView(List.of(OutputDataMapper.of(new NumberValue(7))));
         assertEquals(null, viewModel.getState().getAnswerRuns());
+    }
+
+    @Test
+    void approximateOnesOnlyShowTheirOwnDigits() {
+        assertEquals("5.32048241×10^11", AnswerFormatter.format(
+                new ValueOutputData(ValueOutputData.Kind.NUMBER, List.of(532048241000.0), false, 9)));
+        assertEquals("-200000000", AnswerFormatter.format(
+                new ValueOutputData(ValueOutputData.Kind.NUMBER, List.of(-200000000.0), false, 9)));
+        assertEquals("(1.5, 7.66906545×10^11)", AnswerFormatter.format(
+                new ValueOutputData(ValueOutputData.Kind.VECTOR, List.of(1.5, 766906545000.0), false, 9)));
+        assertEquals("532048241000", AnswerFormatter.format(OutputDataMapper.of(new NumberValue(532048241000.0))));
     }
 
     @Test

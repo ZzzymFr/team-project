@@ -14,7 +14,7 @@ import java.util.List;
 
 // approx answers cut to 9 sig so noise doesnt show
 final class ValueRounder implements ValueVisitor<Value> {
-    private static final int APPROXIMATE_DIGITS = 9;
+    static final int APPROXIMATE_DIGITS = 9;
 
     @Override
     public Value visitNumber(NumberValue value) {
@@ -49,7 +49,7 @@ final class ValueRounder implements ValueVisitor<Value> {
         return rounded;
     }
 
-    private static double round(double number) {
+    static double round(double number) {
         return Rounding.toSignificant(number, APPROXIMATE_DIGITS);
     }
 }

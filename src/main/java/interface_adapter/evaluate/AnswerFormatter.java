@@ -113,6 +113,10 @@ public final class AnswerFormatter {
     }
 
     public static String format(double value) {
+        return format(value, ValueOutputData.ALL_DIGITS);
+    }
+
+    private static String format(double value, int significantDigits) {
         if (Double.isNaN(value)) {
             return "undefined";
         }
@@ -128,9 +132,9 @@ public final class AnswerFormatter {
             return PowerOfTen.write(exact, SHOWN_DECIMALS);
         }
         int wholeDigits = exact.precision() - exact.scale();
-        if (wholeDigits > MAX_DIGITS) {
-            // past what a double holds, zeros would be made up
-            return PowerOfTen.write(exact, CLEAN_DIGITS);
+        if (wholeDigits > Math.min(MAX_DIGITS, significantDigits)) {
+            // past what a double holds / what was worked out, zeros would be made up
+            return PowerOfTen.write(exact, Math.min(CLEAN_DIGITS, significantDigits));
         }
         // 10 sig first so 0.1+0.2 noise is gone, big ones need more or their own digits get cut
         int digits = Math.max(CLEAN_DIGITS, Math.min(wholeDigits + SHOWN_DECIMALS, MAX_DIGITS));
@@ -166,13 +170,13 @@ public final class AnswerFormatter {
     public static String format(ValueOutputData value) {
         switch (value.getKind()) {
             case NUMBER:
-                return format(value.getNumbers().get(0));
+                return format(value.getNumbers().get(0), value.getSignificantDigits());
             case BOOLEAN:
                 return value.isTrue() ? "true" : "false";
             case SET:
-                return "{" + formatList(value.getNumbers()) + "}";
+                return "{" + formatList(value) + "}";
             case VECTOR:
-                return "(" + formatList(value.getNumbers()) + ")";
+                return "(" + formatList(value) + ")";
             default:
                 // a set alone has no value to show
                 return "Uncalculable";
@@ -251,13 +255,14 @@ public final class AnswerFormatter {
         return rest == 1;
     }
 
-    private static String formatList(List<Double> numbers) {
+    private static String formatList(ValueOutputData value) {
+        List<Double> numbers = value.getNumbers();
         String text = "";
         for (int i = 0; i < numbers.size(); i++) {
             if (i > 0) {
                 text = text + ", ";
             }
-            text = text + format(numbers.get(i));
+            text = text + format(numbers.get(i), value.getSignificantDigits());
         }
         return text;
     }

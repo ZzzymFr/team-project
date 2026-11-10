@@ -15,6 +15,23 @@ class HardeningTest {
     }
 
     @Test
+    void bigApproximateAnswersDontMakeUpDigits() {
+        assertEquals("= 5.32048241×10^11", Calc.once("\\lim_{x\\to 3}e^{x^3}"));
+        Calc calc = new Calc();
+        calc.show("g(x)=|x|x^{25}");
+        assertEquals("= 2.20295038×10^13", calc.show("g'(3)"));
+        // all digits known, same as before
+        assertEquals("= 338350", Calc.once("\\sum_{n=1}^{100}n^2"));
+        assertEquals("= 1000000", Calc.once("\\lim_{x\\to 10^6}x"));
+        assertEquals("= 200000000", Calc.once("\\lim_{x\\to 10^8}\\frac{x^2-10^{16}}{x-10^8}"));
+        assertEquals("= 1000", Calc.once("\\sum_{n=0}^{\\infty}0.999^n"));
+        assertEquals("= 999000", Calc.once("\\sum_{n=0}^{\\infty}n\\cdot 0.999^n"));
+        assertEquals("= 1.11335096×10^174", Calc.once("\\sum_{n=1}^{\\infty}\\frac{n^{100}}{2^n}"));
+        assertEquals("= 123456789012345", Calc.once("123456789012345"));
+        assertEquals("x = -10000000000 or x = 10000000000", Calc.once("x^2=10^{20}"));
+    }
+
+    @Test
     void realTinyValuesAreNotZero() {
         assertEquals("= 1×10^-13", Calc.once("10^{-13}"));
         assertEquals("= 9.4×10^-14", Calc.once("e^{-30}"));

@@ -27,6 +27,7 @@ import java.util.Set;
 public class EvaluateInteractor implements EvaluateInputBoundary {
     private static final int MAX_PLUS_MINUS = 4;
     private static final ValueVisitor<Value> ROUNDER = new ValueRounder();
+    private static final ValueVisitor<Integer> APPROXIMATE_DIGITS = new ApproximateDigits();
 
     private final FunctionDataAccessInterface functionDataAccess;
     private final EvaluateOutputBoundary presenter;
@@ -88,7 +89,7 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
         List<String> unknowns = new ArrayList<>(freeVariables);
 
         if (unknowns.isEmpty()) {
-            presenter.prepareValuesView(toOutput(calculateAll(node, functions, masks)));
+            presenter.prepareValuesView(calculateAll(node, functions, masks));
         } else if (countEquals(node) > 1) {
             presenter.prepareFailView("Please use only one \"=\".");
         } else if (!node.isCondition() && node.containsDerivative()) {
@@ -129,12 +130,15 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
     }
 
     // one value per \pm sign choice, dupes dropped
-    private List<Value> calculateAll(Node node, Map<String, UserFunction> functions, int masks) {
+    private List<ValueOutputData> calculateAll(Node node, Map<String, UserFunction> functions, int masks) {
         List<Value> values = new ArrayList<>();
+        List<ValueOutputData> output = new ArrayList<>();
         for (int mask = 0; mask < masks; mask++) {
             Context context = new Context(functions).withSigns(mask);
             Value value = calculate(node, context).accept(new NoiseFilter(node, context));
+            int digits = ValueOutputData.ALL_DIGITS;
             if (node.isApproximate(context)) {
+                digits = value.accept(APPROXIMATE_DIGITS);
                 value = value.accept(ROUNDER);
             }
             boolean seen = false;
@@ -145,15 +149,8 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
             }
             if (!seen) {
                 values.add(value);
+                output.add(OutputDataMapper.of(value, digits));
             }
-        }
-        return values;
-    }
-
-    private static List<ValueOutputData> toOutput(List<Value> values) {
-        List<ValueOutputData> output = new ArrayList<>();
-        for (Value value : values) {
-            output.add(OutputDataMapper.of(value));
         }
         return output;
     }
