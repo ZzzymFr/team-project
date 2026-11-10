@@ -67,6 +67,14 @@ class SetTest {
     }
 
     @Test
+    void subsetOfNumberSetDespiteFloatNoise() {
+        assertEquals("true", Calc.once("\\{\\sqrt{2}^2\\}\\subset\\mathbb{Z}"));
+        assertEquals("true", Calc.once("\\{\\sqrt{2}^2, 3\\}\\subset\\mathbb{N}"));
+        assertEquals("false", Calc.once("\\{1,2.5\\}\\subset\\mathbb{Z}"));
+        assertEquals("false", Calc.once("\\{-1\\}\\subset\\mathbb{N}"));
+    }
+
+    @Test
     void uncalculableCases() {
         assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\{1\\}+1")));
         assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\mathbb{R}")));

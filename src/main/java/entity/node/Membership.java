@@ -62,7 +62,7 @@ final class Membership {
         }
         if (left instanceof FiniteSetValue && right instanceof NumberSetValue) {
             for (double element : ((FiniteSetValue) left).getElements()) {
-                if (!((NumberSetValue) right).containsNumber(element)) {
+                if (!containsElement((NumberSetValue) right, element)) {
                     return false;
                 }
             }
@@ -75,5 +75,14 @@ final class Membership {
             return false;
         }
         throw new UncalculableException(UncalculableReason.WRONG_KIND);
+    }
+
+    // no formula to go on, same tol the set used to dedupe
+    private static boolean containsElement(NumberSetValue numbers, double element) {
+        double nearest = Math.rint(element);
+        if (numbers.getDimension() == 1 && Values.areAlmostEqual(element, nearest)) {
+            return numbers.containsNumber(nearest, true, true);
+        }
+        return numbers.containsNumber(element);
     }
 }
