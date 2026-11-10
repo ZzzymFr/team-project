@@ -155,10 +155,14 @@ public final class LimitCalculator {
                 richardson.forget();
             }
             if (samples.size() >= MIN_SAMPLES && isSettled(samples, richardson)) {
-                if (sinceBlind < MIN_SAMPLES && FarLimit.canGoFrom(side, h)) {
+                double value = snapped(richardson.value, richardson.error, y);
+                if (FarLimit.canGoFrom(side, h) && sinceBlind < MIN_SAMPLES) {
                     return FarLimit.limit(side, h, y);
                 }
-                return snapped(richardson.value, richardson.error, y);
+                if (FarLimit.canGoFrom(side, h) && isStaircase(samples, value)) {
+                    return farOr(side, h, y, value);
+                }
+                return value;
             }
             if (!farChecked && samples.size() >= EARLY_FAR && steadyGrowth(samples) != 0
                     && FarLimit.canGoFrom(side, h)) {
@@ -195,6 +199,35 @@ public final class LimitCalculator {
             return FarLimit.limit(side, h, nearest);
         } catch (UncalculableException e) {
             return Double.NaN;
+        }
+    }
+
+    // exact repeats in a moving run = floor/ceil steps, can look settled long before it is
+    private static boolean isStaircase(List<Double> samples, double value) {
+        int n = samples.size();
+        double gap = 0;
+        for (int i = n - MIN_SAMPLES; i < n; i++) {
+            gap = Math.max(gap, Math.abs(samples.get(i) - value));
+        }
+        if (gap <= CLEAN * Math.max(1, Math.abs(value))) {
+            // repeats from rounding right at the answer, (x+t)-x etc
+            return false;
+        }
+        boolean repeats = false;
+        boolean moves = false;
+        for (int i = 1; i < samples.size(); i++) {
+            boolean same = (double) samples.get(i) == samples.get(i - 1);
+            repeats = repeats || same;
+            moves = moves || !same;
+        }
+        return repeats && moves;
+    }
+
+    private static double farOr(LimitSide side, double h, double nearest, double value) {
+        try {
+            return FarLimit.check(side, h, nearest);
+        } catch (UncalculableException e) {
+            return value;
         }
     }
 

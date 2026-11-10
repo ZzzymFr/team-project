@@ -123,6 +123,13 @@ class LimitCalculatorTest {
     }
 
     @Test
+    void staircaseSamplesGetCheckedFarOut() {
+        double inf = Double.POSITIVE_INFINITY;
+        assertEquals(1, LimitCalculator.limit(x -> Math.floor(x) / x, inf, 0), 1e-9);
+        assertEquals(1, LimitCalculator.limit(x -> Math.ceil(x) / x, inf, 0), 1e-9);
+    }
+
+    @Test
     void growthOnlyCountsIfItKeepsGrowing() {
         double inf = Double.POSITIVE_INFINITY;
         assertEquals(inf, LimitCalculator.limit(x -> Math.pow(x, 0.001), inf, 0));

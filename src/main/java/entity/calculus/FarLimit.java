@@ -14,6 +14,7 @@ final class FarLimit {
     private static final int SETTLED_RUN = 3;
     private static final int GROWTH_STEPS = 3;
     private static final double STEADY_GROWTH = 0.999;
+    private static final int CHECK_TRIES = 8;
 
     private FarLimit() {
     }
@@ -24,6 +25,15 @@ final class FarLimit {
 
     // nearest = last sample of the normal run
     static double limit(LimitSide side, double h, double nearest) {
+        return limit(side, h, nearest, Integer.MAX_VALUE);
+    }
+
+    // quick second opinion, gives up if the far end wont give clean samples soon
+    static double check(LimitSide side, double h, double nearest) {
+        return limit(side, h, nearest, CHECK_TRIES);
+    }
+
+    private static double limit(LimitSide side, double h, double nearest, int tries) {
         int outermost = 0;
         while (side.reaches(h / Math.pow(SHRINK, outermost + 1))) {
             outermost++;
@@ -32,7 +42,7 @@ final class FarLimit {
         List<Double> values = new ArrayList<>();
         double stop = Double.NaN;
         int k = outermost;
-        for (; k >= 1 && values.size() <= GROWTH_STEPS; k--) {
+        for (; k >= 1 && values.size() <= GROWTH_STEPS && outermost - k < tries; k--) {
             double at = h / Math.pow(SHRINK, k);
             double y = side.valueAt(at);
             if (Double.isFinite(y) && isClean(side, at, y)) {
@@ -45,6 +55,9 @@ final class FarLimit {
         }
         if (k == 0) {
             values.add(0, nearest);
+        }
+        if (values.isEmpty()) {
+            throw new UncalculableException(UncalculableReason.LIMIT);
         }
         if (Double.isInfinite(stop) && headsTo(values, stop)) {
             return stop;

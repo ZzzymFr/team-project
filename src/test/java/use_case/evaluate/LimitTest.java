@@ -128,6 +128,15 @@ class LimitTest {
     }
 
     @Test
+    void floorStepsDontFakeALimit() {
+        assertEquals("= 1", Calc.once("\\lim_{x\\to\\infty}\\frac{\\lfloor x\\rfloor}{x}"));
+        assertEquals("= 1", Calc.once("\\lim_{x\\to\\infty}\\frac{\\lceil x\\rceil}{x}"));
+        assertEquals("= 1", Calc.once("\\lim_{x\\to 0^+}x\\lfloor\\frac{1}{x}\\rfloor"));
+        assertEquals("= 1.57", Calc.once("\\lim_{x\\to\\infty}\\arctan x"));
+        assertEquals("= undefined", Calc.once("\\lim_{x\\to\\infty}(x-\\lfloor x\\rfloor)"));
+    }
+
+    @Test
     void tinyConstantsAtZero() {
         assertEquals("= 0", Calc.once("\\lim_{x\\to 0}\\frac{x^2}{x^2+10^{-20}}"));
         assertEquals("= 0", Calc.once("\\lim_{x\\to 0}\\frac{x}{x+10^{-12}}"));
