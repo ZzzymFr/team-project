@@ -4,6 +4,7 @@ import entity.Context;
 import entity.UncalculableException;
 import entity.UncalculableReason;
 import entity.UndefinedException;
+import entity.symbolic.Rational;
 import entity.value.FiniteSetValue;
 import entity.value.NumberSetValue;
 import entity.value.NumberValue;
@@ -37,6 +38,14 @@ final class Membership {
         if (numbers.getDimension() != 1 || !Double.isFinite(number)) {
             return numbers.containsNumber(number);
         }
+        Rationality rationality = RationalityCheck.of(node);
+        if (rationality.isExact()) {
+            Rational exact = rationality.getValue();
+            return numbers.containsNumber(exact.toDouble(), exact.isInteger(), true);
+        }
+        if (rationality.isIrrational()) {
+            return numbers.containsNumber(number, false, false);
+        }
         double nearest = Math.rint(number);
         if (isWhole(number, nearest, node, context)) {
             return numbers.containsNumber(nearest, true, true);
@@ -44,6 +53,7 @@ final class Membership {
         if (SignedNumber.is(node)) {
             return numbers.containsNumber(number, false, true);
         }
+        // Q here = cant tell
         return numbers.containsNumber(number);
     }
 

@@ -24,8 +24,8 @@ class SetTest {
         assertEquals("true", Calc.once("\\pi\\in\\mathbb{R}"));
         assertEquals("false", Calc.once("\\infty\\in\\mathbb{R}"));
         assertEquals("true", Calc.once("0.5\\in\\mathbb{Q}"));
-        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\pi\\in\\mathbb{Q}")));
-        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\sqrt{2}\\in\\mathbb{Q}")));
+        assertEquals("false", Calc.once("\\pi\\in\\mathbb{Q}"));
+        assertEquals("false", Calc.once("\\sqrt{2}\\in\\mathbb{Q}"));
     }
 
     @Test
@@ -54,6 +54,50 @@ class SetTest {
         assertEquals("true", Calc.once("\\cos(\\pi)\\in\\mathbb{Z}"));
         assertEquals("true", Calc.once("\\pi/\\pi\\in\\mathbb{Z}"));
         assertEquals("false", Calc.once("\\sqrt{2}\\in\\mathbb{Z}"));
+    }
+
+    @Test
+    void rationalFormulas() {
+        assertEquals("true", Calc.once("1/3\\in\\mathbb{Q}"));
+        assertEquals("false", Calc.once("1/3\\notin\\mathbb{Q}"));
+        assertEquals("true", Calc.once("\\frac{22}{7}\\in\\mathbb{Q}"));
+        assertEquals("true", Calc.once("0.1+0.2\\in\\mathbb{Q}"));
+        assertEquals("true", Calc.once("0.1\\cdot 3\\in\\mathbb{Q}"));
+        assertEquals("true", Calc.once("\\sqrt{0.25}\\in\\mathbb{Q}"));
+        assertEquals("true", Calc.once("\\sqrt{2.25}\\in\\mathbb{Q}"));
+        assertEquals("true", Calc.once("\\sqrt{2}^2\\in\\mathbb{Q}"));
+        assertEquals("true", Calc.once("\\sqrt{8}/\\sqrt{2}\\in\\mathbb{Q}"));
+        assertEquals("true", Calc.once("\\pi-\\pi\\in\\mathbb{Q}"));
+        assertEquals("true", Calc.once("1.41421356237\\in\\mathbb{Q}"));
+    }
+
+    @Test
+    void irrationalFormulas() {
+        assertEquals("false", Calc.once("e\\in\\mathbb{Q}"));
+        assertEquals("false", Calc.once("2\\pi\\in\\mathbb{Q}"));
+        assertEquals("false", Calc.once("\\sqrt{2}+1\\in\\mathbb{Q}"));
+        assertEquals("false", Calc.once("2^{0.5}\\in\\mathbb{Q}"));
+        assertEquals("false", Calc.once("\\sqrt[3]{2}\\in\\mathbb{Q}"));
+        assertEquals("true", Calc.once("\\sqrt{2}\\notin\\mathbb{Q}"));
+        assertEquals("true", Calc.once("\\pi\\in\\mathbb{R}"));
+    }
+
+    @Test
+    void exactFormDecidesWholeNumbers() {
+        assertEquals("true", Calc.once("8^{2/3}\\in\\mathbb{Z}"));
+        assertEquals("true", Calc.once("0.3-0.1-0.2\\in\\mathbb{N}"));
+        assertEquals("false", Calc.once("\\pi\\cdot 10^{18}\\in\\mathbb{Z}"));
+        assertEquals("true", Calc.once("4^{-1/2}\\in\\mathbb{Q}"));
+        assertEquals("true", Calc.once("50\\%\\in\\mathbb{Q}"));
+        assertEquals("false", Calc.once("|-\\sqrt{2}|\\in\\mathbb{Q}"));
+    }
+
+    @Test
+    void rationalStillUnknownWhenNoProof() {
+        assertEquals("Uncalculable — Can't tell if rational", Calc.once("\\ln 2\\in\\mathbb{Q}"));
+        assertEquals("Uncalculable — Can't tell if rational", Calc.once("\\log_2 10\\in\\mathbb{Q}"));
+        assertEquals("Uncalculable — Can't tell if rational", Calc.once("\\sin(\\pi/6)\\in\\mathbb{Q}"));
+        assertEquals("Uncalculable — Can't tell if rational", Calc.once("\\cos(\\pi/3)\\in\\mathbb{Q}"));
     }
 
     @Test

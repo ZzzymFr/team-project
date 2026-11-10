@@ -65,7 +65,7 @@ class UncalculableReasonTest {
         reason("Infinite set", "\\{1\\}\\cup\\mathbb{N}");
         reason("A set has no value", "\\mathbb{R}");
         reason("Unknown set", "\\mathbb{X}", "\\forall x\\in\\mathbb{R}^{n}");
-        reason("Can't tell if rational", "\\pi\\in\\mathbb{Q}");
+        reason("Can't tell if rational", "\\ln 2\\in\\mathbb{Q}");
     }
 
     @Test
