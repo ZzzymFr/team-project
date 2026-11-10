@@ -23,8 +23,10 @@ import entity.value.NumberValue;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public final class MathParser {
     // stuff we cant calc (integrals, ..., maps)
@@ -722,12 +724,38 @@ public final class MathParser {
         return false;
     }
 
-    // sum body stops at + / -, so \sum n+1 = (\sum n)+1
+    // sum body stops at + / -, so \sum n+1 = (\sum n)+1, but runs thru the last term that still uses n
     private Node parseSeriesBody(String variable) {
+        int bound = boundNames.size();
         boundNames.add(variable);
         Node body = parseTerm();
-        boundNames.remove(boundNames.size() - 1);
+        Node sum = body;
+        int end = position;
+        int plusMinusAtEnd = plusMinusCount;
+        try {
+            while (peekIs("+") || peekIs("-")) {
+                boolean add = next().equals("+");
+                Node term = parseTerm();
+                sum = new BinaryNode(add ? BinaryNode.Op.ADD : BinaryNode.Op.SUBTRACT, sum, term);
+                if (uses(term, variable)) {
+                    body = sum;
+                    end = position;
+                    plusMinusAtEnd = plusMinusCount;
+                }
+            }
+        } catch (MathSyntaxException e) {
+            // bad term, the outside parse reports it
+        }
+        position = end;
+        plusMinusCount = plusMinusAtEnd;
+        boundNames.subList(bound, boundNames.size()).clear();
         return body;
+    }
+
+    private static boolean uses(Node node, String variable) {
+        Set<String> free = new HashSet<>();
+        node.collectFreeVariables(free);
+        return free.contains(variable);
     }
 
     // bound inside the brackets, parsed on its own
