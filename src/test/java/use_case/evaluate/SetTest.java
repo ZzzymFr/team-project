@@ -29,6 +29,34 @@ class SetTest {
     }
 
     @Test
+    void wholeNumbersDespiteFloatNoise() {
+        assertEquals("true", Calc.once("\\sqrt{2}\\sqrt{2}\\in\\mathbb{Z}"));
+        assertEquals("false", Calc.once("\\sqrt{2}\\sqrt{2}\\notin\\mathbb{Z}"));
+        assertEquals("true", Calc.once("\\sqrt{2}^2\\in\\mathbb{N}"));
+        assertEquals("true", Calc.once("\\sqrt{2}\\cdot\\sqrt{8}\\in\\mathbb{Z}"));
+        assertEquals("true", Calc.once("\\sqrt{3}\\cdot\\sqrt{12}\\in\\mathbb{Z}"));
+        assertEquals("true", Calc.once("\\sin(\\pi)\\in\\mathbb{Z}"));
+        assertEquals("true", Calc.once("\\tan(\\pi/4)\\in\\mathbb{Z}"));
+        assertEquals("true", Calc.once("2\\sin(\\pi/6)\\in\\mathbb{Z}"));
+        assertEquals("true", Calc.once("e^{\\ln 2}\\in\\mathbb{Z}"));
+        assertEquals("true", Calc.once("1000^{1/3}\\in\\mathbb{Z}"));
+        assertEquals("true", Calc.once("\\log_{10}1000\\in\\mathbb{Z}"));
+        assertEquals("true", Calc.once("1.1\\cdot 1.1\\cdot 100\\in\\mathbb{Z}"));
+        assertEquals("true", Calc.once("4.35\\cdot 100\\in\\mathbb{Z}"));
+        assertEquals("true", Calc.once("\\forall x\\in\\{1,2,3\\}, \\sqrt{x}^2\\in\\mathbb{Z}"));
+    }
+
+    @Test
+    void nearWholeIsStillNotWhole() {
+        assertEquals("false", Calc.once("0.999999999999\\in\\mathbb{Z}"));
+        assertEquals("false", Calc.once("1000000.5\\in\\mathbb{Z}"));
+        assertEquals("false", Calc.once("7/2\\in\\mathbb{Z}"));
+        assertEquals("true", Calc.once("\\cos(\\pi)\\in\\mathbb{Z}"));
+        assertEquals("true", Calc.once("\\pi/\\pi\\in\\mathbb{Z}"));
+        assertEquals("false", Calc.once("\\sqrt{2}\\in\\mathbb{Z}"));
+    }
+
+    @Test
     void subsetAndEquality() {
         assertEquals("true", Calc.once("\\{1,2\\}\\subset\\{1,2,3\\}"));
         assertEquals("false", Calc.once("\\{1,4\\}\\subset\\{1,2,3\\}"));

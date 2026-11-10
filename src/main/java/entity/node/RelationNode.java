@@ -63,7 +63,7 @@ public class RelationNode extends Node {
             if (result && tolerated) {
                 context.markTolerated();
             }
-            result = result && holds(operator, left, right, operands.get(i), operands.get(i + 1), exact);
+            result = result && holds(operator, left, right, operands.get(i), operands.get(i + 1), exact, context);
             left = right;
             leftError = rightError;
             outer = Math.max(outer, rightError);
@@ -157,7 +157,8 @@ public class RelationNode extends Node {
         }
     }
 
-    private boolean holds(String operator, Value left, Value right, Node leftNode, Node rightNode, double exact) {
+    private boolean holds(String operator, Value left, Value right, Node leftNode, Node rightNode, double exact,
+                          Context context) {
         switch (operator) {
             case "=":
                 return areEqual(left, right, exact);
@@ -176,9 +177,9 @@ public class RelationNode extends Node {
             case "\\perp":
                 return isPerpendicular(left, right);
             case "\\in":
-                return Membership.isMember(left, right, leftNode);
+                return Membership.isMember(left, right, leftNode, context);
             case "\\notin":
-                return !Membership.isMember(left, right, leftNode);
+                return !Membership.isMember(left, right, leftNode, context);
             case "\\subset":
                 return Membership.isSubset(left, right);
             default:

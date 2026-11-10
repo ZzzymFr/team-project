@@ -1,5 +1,6 @@
 package entity.node;
 
+import entity.Context;
 import entity.UncalculableException;
 import entity.UncalculableReason;
 import entity.UndefinedException;
@@ -15,7 +16,7 @@ final class Membership {
     private Membership() {
     }
 
-    static boolean isMember(Value element, Value set, Node elementNode) {
+    static boolean isMember(Value element, Value set, Node elementNode, Context context) {
         if (element instanceof NumberValue && Double.isNaN(((NumberValue) element).getValue())) {
             throw new UndefinedException();
         }
@@ -27,18 +28,32 @@ final class Membership {
             if (element instanceof VectorValue) {
                 return numbers.containsVector((VectorValue) element);
             }
-            double number = Values.toNumber(element);
-            if (numbers.getKind() == NumberSetValue.Kind.RATIONAL && numbers.getDimension() == 1
-                    && !Double.isNaN(number) && !Double.isInfinite(number)
-                    && number != Math.floor(number)) {
-                if (SignedNumber.is(elementNode)) {
-                    return true;
-                }
-                throw new UncalculableException(UncalculableReason.RATIONAL);
-            }
-            return numbers.containsNumber(number);
+            return containsNumber(numbers, Values.toNumber(element), elementNode, context);
         }
         throw new UncalculableException(UncalculableReason.WRONG_KIND);
+    }
+
+    private static boolean containsNumber(NumberSetValue numbers, double number, Node node, Context context) {
+        if (numbers.getDimension() != 1 || !Double.isFinite(number)) {
+            return numbers.containsNumber(number);
+        }
+        double nearest = Math.rint(number);
+        if (isWhole(number, nearest, node, context)) {
+            return numbers.containsNumber(nearest, true, true);
+        }
+        if (SignedNumber.is(node)) {
+            return numbers.containsNumber(number, false, true);
+        }
+        return numbers.containsNumber(number);
+    }
+
+    // whole if = would call it equal to the nearest int
+    private static boolean isWhole(double number, double nearest, Node node, Context context) {
+        if (number == nearest) {
+            return true;
+        }
+        double scale = NoiseScale.isSupported(node) ? NoiseScale.of(node, context) : Double.NaN;
+        return NoiseTolerance.within(number, nearest, NoiseTolerance.of(scale, number, nearest));
     }
 
     static boolean isSubset(Value left, Value right) {
