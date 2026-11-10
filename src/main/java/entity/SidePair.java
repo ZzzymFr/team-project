@@ -48,8 +48,8 @@ final class SidePair {
     }
 
     // approx sides equal within error
-    boolean isNoise() {
-        return (left.isApproximate() || right.isApproximate()) && lastLeft != lastRight
+    boolean isNoise(Context at) {
+        return (left.isApproximate(at) || right.isApproximate(at)) && lastLeft != lastRight
                 && Values.areApproximatelyEqual(lastLeft, lastRight, lastError);
     }
 }

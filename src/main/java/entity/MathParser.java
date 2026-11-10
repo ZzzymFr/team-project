@@ -578,7 +578,7 @@ public final class MathParser {
             arguments.add(parseStatement());
         }
         expect(")");
-        return new CallNode(name, arguments, derivativeOrder, derivativeParameter, functions);
+        return new CallNode(name, arguments, derivativeOrder, derivativeParameter);
     }
 
     // parse \frac{d}{dx} stuff, null if its not a derivative

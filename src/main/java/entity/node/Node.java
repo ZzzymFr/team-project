@@ -22,18 +22,19 @@ public abstract class Node {
         }
     }
 
-    public boolean canBeInfinite() {
+    // context = same functions evaluate() will see
+    public boolean canBeInfinite(Context context) {
         for (Node child : children()) {
-            if (child.canBeInfinite()) {
+            if (child.canBeInfinite(context)) {
                 return true;
             }
         }
         return false;
     }
 
-    public boolean isApproximate() {
+    public boolean isApproximate(Context context) {
         for (Node child : children()) {
-            if (child.isApproximate()) {
+            if (child.isApproximate(context)) {
                 return true;
             }
         }

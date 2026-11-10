@@ -58,12 +58,12 @@ public class LimitNode extends Node {
     }
 
     @Override
-    public boolean canBeInfinite() {
+    public boolean canBeInfinite(Context context) {
         return true;
     }
 
     @Override
-    public boolean isApproximate() {
+    public boolean isApproximate(Context context) {
         return true;
     }
 

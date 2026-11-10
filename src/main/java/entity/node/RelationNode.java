@@ -58,7 +58,7 @@ public class RelationNode extends Node {
             Value right = comparable(operands.get(i + 1), context);
             double rightError = context.getApproximation();
             String operator = operators.get(i);
-            boolean approximate = operands.get(i).isApproximate() || operands.get(i + 1).isApproximate();
+            boolean approximate = operands.get(i).isApproximate(context) || operands.get(i + 1).isApproximate(context);
             double error = approximate ? Math.max(leftError, rightError) : -1;
             double exact = exactTolerance(i, left, right, context);
             boolean tolerated = Double.isNaN(exact) ? isDecidedByTolerance(operator, left, right, error)
@@ -127,7 +127,7 @@ public class RelationNode extends Node {
             if (Double.isNaN(number)) {
                 throw new UndefinedException();
             }
-            if (Double.isInfinite(number) && !operand.canBeInfinite()) {
+            if (Double.isInfinite(number) && !operand.canBeInfinite(context)) {
                 throw new OverflowException();
             }
         }

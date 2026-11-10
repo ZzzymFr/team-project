@@ -112,7 +112,7 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
     private Value calculate(Node node, Context context) {
         Value value = node.evaluate(context);
         if (value instanceof NumberValue && Double.isInfinite(((NumberValue) value).getValue())
-                && !node.canBeInfinite()) {
+                && !node.canBeInfinite(context)) {
             throw new UncalculableException(UncalculableReason.TOO_BIG);
         }
         if (value instanceof NumberSetValue) {
@@ -132,8 +132,9 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
     private List<Value> calculateAll(Node node, Map<String, UserFunction> functions, int masks) {
         List<Value> values = new ArrayList<>();
         for (int mask = 0; mask < masks; mask++) {
-            Value value = calculate(node, new Context(functions).withSigns(mask));
-            if (node.isApproximate()) {
+            Context context = new Context(functions).withSigns(mask);
+            Value value = calculate(node, context);
+            if (node.isApproximate(context)) {
                 value = value.accept(ROUNDER);
             }
             boolean seen = false;

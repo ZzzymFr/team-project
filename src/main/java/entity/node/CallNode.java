@@ -13,24 +13,20 @@ import entity.value.Values;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 public class CallNode extends Node {
     private final String name;
     private final List<Node> arguments;
     private final int derivativeOrder;
     private final int derivativeParameter;
-    private final Map<String, UserFunction> functions;
     private boolean checkingInfinity = false;
     private boolean checkingApproximate = false;
 
-    public CallNode(String name, List<Node> arguments, int derivativeOrder, int derivativeParameter,
-                    Map<String, UserFunction> functions) {
+    public CallNode(String name, List<Node> arguments, int derivativeOrder, int derivativeParameter) {
         this.name = name;
         this.arguments = Collections.unmodifiableList(new ArrayList<>(arguments));
         this.derivativeOrder = derivativeOrder;
         this.derivativeParameter = derivativeParameter;
-        this.functions = functions;
     }
 
     public String getName() {
@@ -55,34 +51,35 @@ public class CallNode extends Node {
     }
 
     @Override
-    public boolean canBeInfinite() {
-        if (super.canBeInfinite()) {
+    public boolean canBeInfinite(Context context) {
+        if (super.canBeInfinite(context)) {
             return true;
         }
-        UserFunction function = functions.get(name);
+        // ask whats defined now, the callee may have been rewritten since
+        UserFunction function = context.getFunction(name);
         if (function == null || checkingInfinity) {
             return false;
         }
         checkingInfinity = true;
         try {
-            return function.getBody().canBeInfinite();
+            return function.getBody().canBeInfinite(context);
         } finally {
             checkingInfinity = false;
         }
     }
 
     @Override
-    public boolean isApproximate() {
-        if (derivativeOrder > 0 || super.isApproximate()) {
+    public boolean isApproximate(Context context) {
+        if (derivativeOrder > 0 || super.isApproximate(context)) {
             return true;
         }
-        UserFunction function = functions.get(name);
+        UserFunction function = context.getFunction(name);
         if (function == null || checkingApproximate) {
             return false;
         }
         checkingApproximate = true;
         try {
-            return function.getBody().isApproximate();
+            return function.getBody().isApproximate(context);
         } finally {
             checkingApproximate = false;
         }

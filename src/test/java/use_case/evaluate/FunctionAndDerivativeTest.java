@@ -37,6 +37,18 @@ class FunctionAndDerivativeTest {
     }
 
     @Test
+    void redefinedFunctionIsSeenByItsCallers() {
+        Calc c = new Calc();
+        c.show("m(x)=x");
+        c.show("n(x)=m(x)+1");
+        assertEquals("= 2", c.show("n(1)="));
+        c.show("m(x)=\\infty");
+        assertEquals("= ∞", c.show("n(1)="));
+        c.show("m(x)=10^{400}x");
+        assertEquals("Uncalculable — Number too big", c.show("n(1)="));
+    }
+
+    @Test
     void derivativeSyntaxOutsideFunctions() {
         assertEquals("Uncalculable", Calc.withoutReason(Calc.once("f'(x)=\\cos(e^{x})")));
         assertEquals("= 2x", Calc.once("\\frac{d}{dx}x^2"));

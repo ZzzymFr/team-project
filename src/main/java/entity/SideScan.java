@@ -41,7 +41,7 @@ final class SideScan {
             return Double.POSITIVE_INFINITY;
         }
         // lost value can give NaN too (inf - inf)
-        if (Double.isInfinite(d) || context.isAbsorbed() || pair.isNoise()) {
+        if (Double.isInfinite(d) || context.isAbsorbed() || pair.isNoise(context)) {
             return Double.POSITIVE_INFINITY;
         }
         return d;
