@@ -6,8 +6,16 @@ import entity.node.NamedFunction;
 // an Expr as a number, letters from the context, same rules the nodes use
 public final class ExprValue {
     private static final NamedFunction LOG = NamedFunction.of("\\log");
+    // same 64 ulps NoiseScale allows
+    private static final double NOISE = 64 * Math.ulp(1.0);
+    private static final double SLOPE_STEP = 1e-7;
 
-    private ExprValue() {
+    private final Context context;
+    // float noise in the last value, in ulps of 1 like NoiseScale
+    private double scale;
+
+    private ExprValue(Context context) {
+        this.context = context;
     }
 
     // no rule for dy/dx or a name NamedFunction doesnt have
@@ -38,37 +46,111 @@ public final class ExprValue {
     }
 
     public static double of(Expr e, Context context) {
+        return new ExprValue(context).value(e);
+    }
+
+    // {value, how much float noise could be in it}, NaN noise = cant tell
+    public static double[] withNoise(Expr e, Context context) {
+        ExprValue v = new ExprValue(context);
+        double value = v.value(e);
+        return new double[] {value, NOISE * v.scale};
+    }
+
+    private double value(Expr e) {
         switch (e.kind()) {
             case NUM:
-                return e.value().toDouble();
+                double n = e.value().toDouble();
+                scale = e.value().isInteger() ? 0 : Math.abs(n);
+                return n;
             case VAR:
-                return context.getVariable(e.name());
+                return rounded(context.getVariable(e.name()));
             case E:
-                return Math.E;
+                return rounded(Math.E);
             case PI:
-                return Math.PI;
+                return rounded(Math.PI);
             case ADD:
-                double sum = 0;
-                for (Expr t : e.terms()) {
-                    sum += of(t, context);
-                }
-                return sum;
+                return sum(e);
             case MUL:
-                double product = 1;
-                for (Expr f : e.terms()) {
-                    product *= of(f, context);
-                }
-                return product;
+                return product(e);
             case POW:
-                return power(of(e.base(), context), of(e.exponent(), context), !hasLetter(e.exponent()));
+                return power(e);
             case FN:
-                return NamedFunction.of("\\" + e.name()).apply(of(e.arg(), context));
+                return function(e);
             case LOG:
-                double x = of(e.arg(), context);
-                return e.logBase() == null ? LOG.apply(x) : LOG.apply(x, of(e.logBase(), context));
+                return log(e);
             default:
                 throw new IllegalStateException("no value for " + e.kind());
         }
+    }
+
+    private double rounded(double v) {
+        scale = Math.abs(v);
+        return v;
+    }
+
+    private double sum(Expr e) {
+        double total = 0;
+        double noise = 0;
+        for (Expr t : e.terms()) {
+            total += value(t);
+            noise += scale;
+        }
+        scale = noise + Math.abs(total);
+        return total;
+    }
+
+    private double product(Expr e) {
+        double total = 1;
+        double noise = 0;
+        for (Expr f : e.terms()) {
+            double v = value(f);
+            noise = noise * Math.abs(v) + Math.abs(total) * scale;
+            total *= v;
+        }
+        scale = noise + Math.abs(total);
+        return total;
+    }
+
+    private double power(Expr e) {
+        double a = value(e.base());
+        double sa = scale;
+        double b = value(e.exponent());
+        double sb = scale;
+        double result = power(a, b, !hasLetter(e.exponent()));
+        if (a == 0) {
+            scale = sa == 0 && sb == 0 ? 0 : Double.NaN;
+            return result;
+        }
+        scale = Math.abs(b * result / a) * sa + Math.abs(result * Math.log(Math.abs(a))) * sb + Math.abs(result);
+        return result;
+    }
+
+    private double function(Expr e) {
+        NamedFunction f = NamedFunction.of("\\" + e.name());
+        double x = value(e.arg());
+        double sx = scale;
+        double result = f.apply(x);
+        // small step, but a few ulps so x+h isnt just x (sin at 10^12)
+        double h = Math.max(4 * Math.ulp(x), SLOPE_STEP * Math.min(1, Math.abs(x)));
+        double slope = Math.abs(f.apply(x + h) - f.apply(x - h)) / (2 * h);
+        scale = slope * sx + Math.abs(result);
+        return result;
+    }
+
+    private double log(Expr e) {
+        double x = value(e.arg());
+        double sx = scale;
+        if (e.logBase() == null) {
+            double result = LOG.apply(x);
+            scale = sx / Math.abs(x * Math.log(10)) + Math.abs(result);
+            return result;
+        }
+        double base = value(e.logBase());
+        double sb = scale;
+        double result = LOG.apply(x, base);
+        double lnBase = Math.abs(Math.log(base));
+        scale = sx / Math.abs(x * lnBase) + Math.abs(result) * sb / Math.abs(base * lnBase) + Math.abs(result);
+        return result;
     }
 
     // copy of BinaryNode's ^, its private there

@@ -65,6 +65,18 @@ class ExprValueTest {
     }
 
     @Test
+    void noiseCoversRoundedInputs() {
+        Expr cos = Expr.fn("cos", Expr.var("x"));
+        double[] atHalfPi = ExprValue.withNoise(cos, at(Math.PI / 2));
+        assertTrue(Math.abs(atHalfPi[0]) <= atHalfPi[1]);
+        double[] atOne = ExprValue.withNoise(cos, at(1));
+        assertTrue(atOne[1] < 1e-13);
+        double[] farOut = ExprValue.withNoise(cos, at(1e12));
+        assertTrue(farOut[1] > 1e-6);
+        assertEquals(0, ExprValue.withNoise(Expr.num(12), at(1))[1]);
+    }
+
+    @Test
     void onlyKnownParts() {
         assertTrue(ExprValue.canEvaluate(Expr.fn("cosh", Expr.var("x"))));
         assertFalse(ExprValue.canEvaluate(Expr.fn("nope", Expr.var("x"))));
