@@ -35,8 +35,8 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
     public EvaluateInteractor(FunctionDataAccessInterface functionDataAccess,
                               EvaluateOutputBoundary presenter) {
         this.functionDataAccess = functionDataAccess;
-        this.presenter = presenter;
-        this.functionDefiner = new FunctionDefiner(functionDataAccess, presenter);
+        this.presenter = new NoiseFreeOutput(presenter);
+        this.functionDefiner = new FunctionDefiner(functionDataAccess, this.presenter);
     }
 
     @Override
