@@ -259,6 +259,19 @@ class HardCombinationTest {
     }
 
     @Test
+    void tinyConstantsWithCdotAndTimesCompareExactly() {
+        assertEquals("false", Calc.once("2\\cdot 10^{-10}=0"));
+        assertEquals("true", Calc.once("2\\cdot 10^{-10}>0"));
+        assertEquals("false", Calc.once("2\\times 10^{-10}=0"));
+        assertEquals("false", Calc.once("1+2\\cdot 10^{-10}=1"));
+        assertEquals("true", Calc.once("(1,2)\\cdot(3,4)=11"));
+        assertEquals("true", Calc.once("(1,0,0)\\times(0,1,0)=(0,0,1)"));
+        assertEquals("true", Calc.once("\\sqrt{2}\\cdot\\sqrt{2}=2"));
+        assertEquals("true", Calc.once("4\\times3=12"));
+        assertEquals("true", Calc.once("1+10^{-17}=1"));
+    }
+
+    @Test
     void tinyConstantsInNewFunctionsCompareExactly() {
         assertEquals("true", Calc.once("\\sinh(10^{-10})>0"));
         assertEquals("true", Calc.once("\\arctan(10^{-10})\\neq0"));

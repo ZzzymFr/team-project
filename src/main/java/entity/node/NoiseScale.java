@@ -47,6 +47,9 @@ public final class NoiseScale {
             case SUBTRACT:
                 return sa + sb + own;
             case MULTIPLY:
+            case DOT:
+            case CROSS:
+                // \cdot \times on numbers, a vector side gives NaN = unknown
                 return sa * Math.abs(b) + Math.abs(a) * sb + own;
             case DIVIDE:
                 return b == 0 ? Double.NaN : sa / Math.abs(b) + Math.abs(a) * sb / (b * b) + own;
@@ -105,6 +108,8 @@ public final class NoiseScale {
                 case ADD:
                 case SUBTRACT:
                 case MULTIPLY:
+                case DOT:
+                case CROSS:
                 case DIVIDE:
                 case POWER:
                     return isSupported(node.getLeft()) && isSupported(node.getRight());
