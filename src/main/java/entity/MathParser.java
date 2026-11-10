@@ -24,6 +24,7 @@ import entity.value.NumberValue;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -36,8 +37,11 @@ public final class MathParser {
     // tokens that cant start a value
     private static final List<String> OPERATORS = Arrays.asList("\\leq", "\\geq", "\\neq", "\\approx",
             "\\times", "\\cdot", "\\land", "\\lor", "\\oplus", "\\Rightarrow", "\\Leftrightarrow",
-            "\\leftrightarrow", "\\in", "\\notin", "\\subset", "\\cup", "\\cap", "\\perp", "\\rangle",
-            "\\}");
+            "\\leftrightarrow", "\\in", "\\notin", "\\subset", "\\supseteq", "\\cup", "\\cap", "\\perp",
+            "\\rangle", "\\}");
+    private static final Map<String, String> MIRRORED = Map.of("\\supseteq", "\\subset", "=", "=",
+            "\\neq", "\\neq", "\\approx", "\\approx", "\\perp", "\\perp", "<", ">", ">", "<",
+            "\\leq", "\\geq", "\\geq", "\\leq");
     // a bare arg like \sin 2x ends before these
     private static final List<String> NAMED_FUNCTIONS = namedFunctions();
 
@@ -197,7 +201,25 @@ public final class MathParser {
             operators.add(next());
             operands.add(parseSetExpression());
         }
+        if (operators.contains("\\supseteq")) {
+            return mirrored(operands, operators);
+        }
         return new RelationNode(operands, operators);
+    }
+
+    // A ⊇ B is B ⊆ A, so read the whole chain right to left
+    private static Node mirrored(List<Node> operands, List<String> operators) {
+        List<Node> reversed = new ArrayList<>(operands);
+        Collections.reverse(reversed);
+        List<String> flipped = new ArrayList<>();
+        for (int i = operators.size() - 1; i >= 0; i--) {
+            String operator = operators.get(i);
+            if (!MIRRORED.containsKey(operator)) {
+                throw new MathSyntaxException("Unexpected \"\\supseteq\".");
+            }
+            flipped.add(MIRRORED.get(operator));
+        }
+        return new RelationNode(reversed, flipped);
     }
 
     // \cap binds tighter than \cup, like * over +
@@ -949,7 +971,7 @@ public final class MathParser {
                 || "\\leq".equals(token) || "\\geq".equals(token)
                 || "\\neq".equals(token) || "\\approx".equals(token)
                 || "\\in".equals(token) || "\\perp".equals(token)
-                || "\\notin".equals(token) || "\\subset".equals(token);
+                || "\\notin".equals(token) || "\\subset".equals(token) || "\\supseteq".equals(token);
     }
 
     private boolean startsValue(String token) {

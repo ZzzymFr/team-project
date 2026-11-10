@@ -207,6 +207,11 @@ public class MathLexer {
             case "\\div":
                 tokens.add("/");
                 break;
+            case "\\emptyset":
+            case "\\varnothing":
+                tokens.add("\\{");
+                tokens.add("\\}");
+                break;
             case "\\left":
             case "\\right":
             case "\\,":

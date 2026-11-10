@@ -130,6 +130,20 @@ class SetTest {
     }
 
     @Test
+    void emptySetAndSuperset() {
+        assertEquals("true", Calc.once("\\{1\\}\\cap\\{2\\}=\\emptyset"));
+        assertEquals("false", Calc.once("1\\in\\emptyset"));
+        assertEquals("true", Calc.once("\\varnothing=\\{\\}"));
+        assertEquals("= 0", Calc.once("|\\emptyset|"));
+        assertEquals("true", Calc.once("\\{1,2,3\\}\\supseteq\\{1,2\\}"));
+        assertEquals("false", Calc.once("\\{1,2\\}\\supseteq\\{1,2,3\\}"));
+        assertEquals("true", Calc.once("\\mathbb{R}\\supseteq\\mathbb{N}"));
+        assertEquals("true", Calc.once("\\{1,2,3\\}\\supseteq\\{1,2\\}\\supseteq\\emptyset"));
+        assertEquals("true", Calc.once("\\{1,2\\}=\\{2,1\\}\\supseteq\\{1\\}"));
+        assertEquals("x = 2", Calc.once("\\{1,2,3\\}\\supseteq\\{x+1\\}\\supseteq\\{3\\}"));
+    }
+
+    @Test
     void uncalculableCases() {
         assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\{1\\}+1")));
         assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\mathbb{R}")));
