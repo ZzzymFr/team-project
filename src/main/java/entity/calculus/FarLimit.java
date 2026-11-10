@@ -14,7 +14,6 @@ final class FarLimit {
     private static final int SETTLED_RUN = 3;
     private static final int GROWTH_STEPS = 3;
     private static final double STEADY_GROWTH = 0.999;
-    private static final int CHECK_TRIES = 8;
 
     private FarLimit() {
     }
@@ -25,36 +24,39 @@ final class FarLimit {
 
     // nearest = last sample of the normal run, NaN = nothing clean out there (cot x, e^x/e^x)
     static double limit(LimitSide side, double h, double nearest) {
-        return limit(side, h, nearest, Integer.MAX_VALUE);
-    }
-
-    // quick second opinion, gives up if the far end wont give clean samples soon
-    static double check(LimitSide side, double h, double nearest) {
-        return limit(side, h, nearest, CHECK_TRIES);
-    }
-
-    private static double limit(LimitSide side, double h, double nearest, int tries) {
         int outermost = 0;
         while (side.reaches(h / Math.pow(SHRINK, outermost + 1))) {
             outermost++;
         }
-        // read inwards from the far end, only the outermost clean run counts
+        // clean out to some edge, overflow/NaN past it, find the edge by halving
+        int edge = outermost;
+        double stop = cleanAt(side, h, outermost);
+        if (Double.isFinite(stop)) {
+            stop = Double.NaN;
+        } else if (!Double.isFinite(cleanAt(side, h, 1))) {
+            return Double.NaN;
+        } else {
+            int clean = 1;
+            while (edge - clean > 1) {
+                int mid = (clean + edge) / 2;
+                double y = cleanAt(side, h, mid);
+                if (Double.isFinite(y)) {
+                    clean = mid;
+                } else {
+                    edge = mid;
+                    stop = y;
+                }
+            }
+            edge = clean;
+        }
         List<Double> values = new ArrayList<>();
-        double stop = Double.NaN;
-        int k = outermost;
-        for (; k >= 1 && values.size() <= GROWTH_STEPS && outermost - k < tries; k--) {
-            double at = h / Math.pow(SHRINK, k);
-            double y = side.valueAt(at);
-            if (Double.isFinite(y) && isClean(side, at, y)) {
-                values.add(0, y);
-            } else if (values.isEmpty()) {
-                stop = Double.isFinite(y) ? Double.NaN : y;
-            } else {
+        int k = edge;
+        for (; k >= 1 && values.size() <= GROWTH_STEPS; k--) {
+            double y = cleanAt(side, h, k);
+            if (!Double.isFinite(y)) {
                 break;
             }
-        }
-        if (values.isEmpty()) {
-            return Double.NaN;
+            values.add(0, y);
         }
         if (k == 0) {
             values.add(0, nearest);
@@ -67,6 +69,16 @@ final class FarLimit {
             return growth * Double.POSITIVE_INFINITY;
         }
         return settled(values);
+    }
+
+    // sample at grid point k, NaN if it isnt clean
+    private static double cleanAt(LimitSide side, double h, int k) {
+        double at = h / Math.pow(SHRINK, k);
+        double y = side.valueAt(at);
+        if (Double.isFinite(y) && !isClean(side, at, y)) {
+            return Double.NaN;
+        }
+        return y;
     }
 
     // lost something to rounding and no idea how much it matters (sqrt(x^2+x)-x) -> skip

@@ -192,6 +192,8 @@ class LimitTest {
         assertEquals("= undefined", Calc.once("\\lim_{x\\to 0}\\cot x"));
         assertEquals("= ∞", Calc.once("\\lim_{x\\to 0^+}\\cot x"));
         assertEquals("= ∞", Calc.once("\\lim_{x\\to 0}\\csc^2 x"));
+        // solver asks this many times, far out has to stay cheap
+        assertEquals("no solution", Calc.once("\\lim_{t\\to 0}\\cot(t)+x=0"));
     }
 
     @Test

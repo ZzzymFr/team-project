@@ -281,7 +281,7 @@ public final class LimitCalculator {
 
     private static double farOr(LimitSide side, double h, double nearest, double value) {
         try {
-            double far = FarLimit.check(side, h, nearest);
+            double far = FarLimit.limit(side, h, nearest);
             return Double.isNaN(far) ? value : far;
         } catch (UncalculableException e) {
             return value;
