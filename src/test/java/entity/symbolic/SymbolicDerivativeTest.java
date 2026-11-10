@@ -107,6 +107,14 @@ class SymbolicDerivativeTest {
     }
 
     @Test
+    void dotAndCrossBetweenNumbersAreJustTimes() {
+        assertEquals("6x", d("\\frac{d}{dx}3\\cdot x^2"));
+        assertEquals("6x", d("\\frac{d}{dx}3\\times x^2"));
+        assertEquals("2x", d("\\frac{d}{dx}(x\\cdot x)"));
+        fails("\\frac{d}{dx}(x,1)\\cdot(x,2)", UncalculableReason.NOT_DIFFERENTIABLE);
+    }
+
+    @Test
     void extraTermsStay() {
         assertEquals("2x+y", d("\\frac{d}{dx}(x^2)+y"));
         assertEquals("2x+1", d("\\frac{d}{dx}(x^2)+1"));

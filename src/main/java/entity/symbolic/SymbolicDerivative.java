@@ -185,6 +185,9 @@ public final class SymbolicDerivative {
                 return Expr.add(convert(b.getLeft(), inDerivative),
                         Expr.mul(Expr.num(-1), convert(b.getRight(), inDerivative)));
             case MULTIPLY:
+            case DOT:
+            case CROSS:
+                // \cdot and \times on plain numbers, a vector side fails on its own
                 return Expr.mul(convert(b.getLeft(), inDerivative), convert(b.getRight(), inDerivative));
             case DIVIDE:
                 return Expr.mul(convert(b.getLeft(), inDerivative),
