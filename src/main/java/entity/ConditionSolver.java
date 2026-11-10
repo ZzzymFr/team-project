@@ -312,6 +312,7 @@ public class ConditionSolver {
             snapped = tidy(limit, !domainEdge);
         }
         if (!Double.isNaN(snapped)) {
+            snapped = exactRoot(snapped, falsePoint, truePoint);
             return new double[] {snapped, sampleTruth.isTrueAt(snapped) ? INCLUDED : 0};
         }
         if (domainEdge && sampleTruth.isTrueAt(truePoint)) {
@@ -326,6 +327,22 @@ public class ConditionSolver {
             return new double[] {truePoint, INCLUDED};
         }
         return new double[] {limit, 0};
+    }
+
+    // tiny roots come off the solver loose (x>10^{-13} looked included), pinned one decides
+    private double exactRoot(double root, double falsePoint, double truePoint) {
+        if (root >= Math.min(falsePoint, truePoint) && root <= Math.max(falsePoint, truePoint)) {
+            return root;
+        }
+        for (ConditionRoots.Root found : conditionRoots.all()) {
+            if (found.value == root) {
+                double pinned = scan.pinRoot(found.pair, root, SNAP);
+                if (!Double.isNaN(pinned) && sampleTruth.isTrueAt(pinned) != sampleTruth.isTrueAt(root)) {
+                    return pinned;
+                }
+            }
+        }
+        return root;
     }
 
     private boolean isUndefinedAt(double point) {

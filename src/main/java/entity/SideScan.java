@@ -75,6 +75,24 @@ final class SideScan {
         return (low + high) / 2;
     }
 
+    // root to the last bit, NaN if sign doesnt flip within maxWidth
+    double pinRoot(SidePair pair, double root, double maxWidth) {
+        double dRoot = difference(pair, root);
+        if (dRoot == 0 || !Double.isFinite(dRoot)) {
+            return Double.NaN;
+        }
+        for (double width = Math.ulp(root); width <= maxWidth; width *= 2) {
+            double dBelow = difference(pair, root - width);
+            if (dBelow * dRoot < 0) {
+                return bisect(pair, root - width, root, dBelow);
+            }
+            if (difference(pair, root + width) * dRoot < 0) {
+                return bisect(pair, root, root + width, dRoot);
+            }
+        }
+        return Double.NaN;
+    }
+
     // defined end of the edge
     double edgeBetween(SidePair pair, double from, double dFrom, double to) {
         double defined = Double.isNaN(dFrom) ? to : from;

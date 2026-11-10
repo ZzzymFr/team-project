@@ -50,6 +50,16 @@ class ConditionSolverTest {
     }
 
     @Test
+    void keepsTinyBoundaryOpen() {
+        List<Interval> intervals = new ConditionSolver(parse("x>10^{-13}"), "x", context()).solve();
+        assertEquals(1, intervals.size());
+        assertEquals(1e-13, intervals.get(0).getLow(), 1e-20);
+        assertFalse(intervals.get(0).isLowIncluded());
+        assertFalse(new ConditionSolver(parse("x>10^{-8}"), "x", context()).solve().get(0).isLowIncluded());
+        assertTrue(new ConditionSolver(parse("x\\geq10^{-13}"), "x", context()).solve().get(0).isLowIncluded());
+    }
+
+    @Test
     void skipsRelationsWithForeignVariables() {
         // y not bound, only x>1 gives a root
         List<Double> roots = new ConditionSolver(parse("x>1\\land x<y"), "x", context()).boundaryRoots();
