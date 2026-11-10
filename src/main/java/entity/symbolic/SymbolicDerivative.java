@@ -33,12 +33,36 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BinaryOperator;
 
 // d/dx written out: parser nodes -> Expr, each derivative swapped for its formula
 public final class SymbolicDerivative {
     private static final int MAX_CALL_DEPTH = 32;
     private static final double MAX_EXACT = 1e15;
     private static final long DECIMAL_SCALE = 1_000_000_000L;
+    private static final Expr MINUS_HALF = Expr.num(Rational.of(-1, 2), false);
+    // f(u) -> f'(u) * u', given u and u'
+    private static final Map<String, BinaryOperator<Expr>> RULES = new HashMap<>();
+    // the simplifier knows these at 0
+    private static final Set<String> KNOWN_AT_ZERO = Set.of("sin", "cos", "tan", "ln");
+
+    static {
+        RULES.put("sin", (u, du) -> Expr.mul(Expr.fn("cos", u), du));
+        RULES.put("cos", (u, du) -> Expr.mul(Expr.num(-1), Expr.fn("sin", u), du));
+        RULES.put("tan", (u, du) -> Expr.mul(Expr.pow(Expr.fn("cos", u), Expr.num(-2)), du));
+        RULES.put("ln", (u, du) -> Expr.mul(du, Expr.pow(u, Expr.num(-1))));
+        RULES.put("arcsin", (u, du) -> Expr.mul(du, Expr.pow(oneMinusSquare(u), MINUS_HALF)));
+        RULES.put("arccos", (u, du) -> Expr.mul(Expr.num(-1), du, Expr.pow(oneMinusSquare(u), MINUS_HALF)));
+        RULES.put("arctan", (u, du) -> Expr.mul(du,
+                Expr.pow(Expr.add(Expr.pow(u, Expr.num(2)), Expr.num(1)), Expr.num(-1))));
+        RULES.put("sinh", (u, du) -> Expr.mul(Expr.fn("cosh", u), du));
+        RULES.put("cosh", (u, du) -> Expr.mul(Expr.fn("sinh", u), du));
+        RULES.put("tanh", (u, du) -> Expr.mul(Expr.pow(Expr.fn("cosh", u), Expr.num(-2)), du));
+        RULES.put("cot", (u, du) -> Expr.mul(Expr.num(-1), Expr.pow(Expr.fn("sin", u), Expr.num(-2)), du));
+        RULES.put("sec", (u, du) -> Expr.mul(Expr.fn("sin", u), Expr.pow(Expr.fn("cos", u), Expr.num(-2)), du));
+        RULES.put("csc", (u, du) -> Expr.mul(Expr.num(-1), Expr.fn("cos", u),
+                Expr.pow(Expr.fn("sin", u), Expr.num(-2)), du));
+    }
 
     private final Map<String, UserFunction> functions;
     private final NodeVisitor<Expr> outsideDerivative = new Converter(false);
@@ -200,22 +224,29 @@ public final class SymbolicDerivative {
     }
 
     private Expr function(FunctionNode f, boolean inDerivative) {
+        String name = f.getName().substring(1);
+        if (RULES.containsKey(name) && !KNOWN_AT_ZERO.contains(name) && isConstant(f)) {
+            return null;  // simplifier would read cosh(0) as 0, so take its value
+        }
         Expr arg = convert(f.getArgument(), inDerivative);
         Expr extra = f.getExtra() == null ? null : convert(f.getExtra(), inDerivative);
         switch (f.getName()) {
-            case "\\sin":
-            case "\\cos":
-            case "\\tan":
-            case "\\ln":
-                return Expr.fn(f.getName().substring(1), arg);
             case "\\log":
                 return Expr.log(arg, extra);
             case "\\sqrt":
                 Expr degree = extra == null ? Expr.num(2) : extra;
                 return Expr.pow(arg, Expr.pow(degree, Expr.num(-1)));
+            case "\\exp":
+                return Expr.pow(Expr.constE(), arg);
             default:
-                return null;
+                return RULES.containsKey(name) ? Expr.fn(name, arg) : null;
         }
+    }
+
+    private static boolean isConstant(Node node) {
+        Set<String> free = new HashSet<>();
+        node.collectFreeVariables(free);
+        return free.isEmpty();
     }
 
     // f(u): body w/ params swapped for the args; f'(u) = f' at u, no chain factor
@@ -360,18 +391,16 @@ public final class SymbolicDerivative {
 
     private static Expr functionRule(String name, Expr arg, String x, boolean implicit) {
         Expr inner = d(arg, x, implicit);
-        switch (name) {
-            case "sin":
-                return Expr.mul(Expr.fn("cos", arg), inner);
-            case "cos":
-                return Expr.mul(Expr.num(-1), Expr.fn("sin", arg), inner);
-            case "tan":
-                return Expr.mul(Expr.pow(Expr.fn("cos", arg), Expr.num(-2)), inner);
-            case "ln":
-                return Expr.mul(inner, Expr.pow(arg, Expr.num(-1)));
-            default:
-                throw new UncalculableException(UncalculableReason.NOT_DIFFERENTIABLE);
+        BinaryOperator<Expr> rule = RULES.get(name);
+        if (rule == null) {
+            throw new UncalculableException(UncalculableReason.NOT_DIFFERENTIABLE);
         }
+        return rule.apply(arg, inner);
+    }
+
+    // 1 - u^2
+    private static Expr oneMinusSquare(Expr u) {
+        return Expr.add(Expr.num(1), Expr.mul(Expr.num(-1), Expr.pow(u, Expr.num(2))));
     }
 
     private static Expr logRule(Expr arg, Expr base, String x, boolean implicit) {

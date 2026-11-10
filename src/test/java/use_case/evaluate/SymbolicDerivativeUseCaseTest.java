@@ -84,6 +84,35 @@ class SymbolicDerivativeUseCaseTest {
     }
 
     @Test
+    void newFunctionsAreWrittenOut() {
+        assertEquals("= \\frac{1}{x^{2}+1}", show("\\frac{d}{dx}\\arctan x"));
+        assertEquals("= \\frac{1}{\\sqrt{-x^{2}+1}}", show("\\frac{d}{dx}\\arcsin x"));
+        assertEquals("= -\\frac{1}{\\sqrt{-x^{2}+1}}", show("\\frac{d}{dx}\\arccos x"));
+        assertEquals("= \\cosh x", show("\\frac{d}{dx}\\sinh x"));
+        assertEquals("= \\sinh x", show("\\frac{d}{dx}\\cosh x"));
+        assertEquals("= \\frac{1}{(\\cosh x)^{2}}", show("\\frac{d}{dx}\\tanh x"));
+        assertEquals(show("\\frac{d}{dx}e^{2x}"), show("\\frac{d}{dx}\\exp(2x)"));
+        assertEquals("= -\\frac{1}{(\\sin x)^{2}}", show("\\frac{d}{dx}\\cot x"));
+        assertEquals("= \\frac{\\sin x}{(\\cos x)^{2}}", show("\\frac{d}{dx}\\sec x"));
+        assertEquals("= -\\frac{\\cos x}{(\\sin x)^{2}}", show("\\frac{d}{dx}\\csc x"));
+        assertEquals("= 2x\\cosh(x^{2})", show("\\frac{d}{dx}\\sinh(x^2)"));
+    }
+
+    @Test
+    void newFunctionsOfANumberAreJustTheirValue() {
+        assertEquals("= 1", show("\\frac{d}{dx}x\\cosh 0"));
+        assertEquals("= 1", show("\\frac{d}{dx}x\\sec 0"));
+    }
+
+    @Test
+    void oldFunctionsAreWrittenTheSame() {
+        assertEquals("= 2x\\cos(x^{2})", show("\\frac{d}{dx}\\sin(x^2)"));
+        assertEquals("= \\frac{1}{(\\cos x)^{2}}", show("\\frac{d}{dx}\\tan x"));
+        assertEquals("= \\frac{1}{x\\ln 2}", show("\\frac{d}{dx}\\log_2 x"));
+        assertEquals("= \\frac{1}{2\\sqrt{x}}", show("\\frac{d}{dx}\\sqrt{x}"));
+    }
+
+    @Test
     void failuresGiveAReason() {
         assertEquals("Uncalculable — Can't differentiate |x|", show("\\frac{d}{dx}|x|"));
         assertEquals("Uncalculable — Answer too long", show("\\frac{d}{dx}(\\frac{\\sin x}{\\ln x+x^x})"));
