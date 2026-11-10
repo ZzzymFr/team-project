@@ -26,6 +26,9 @@ class MathLexerTest {
         assertEquals(Arrays.asList("\\leq", "\\geq", "\\neq", "\\approx", "\\pm", "\\infty", "\\rightarrow", "\\Rightarrow"),
                 MathLexer.tokenize("\\le ≥ \\ne ≈ ± ∞ \\to \\implies"));
         assertEquals(Arrays.asList("50", "%"), MathLexer.tokenize("50\\%"));
+        assertEquals(Arrays.asList("\\int", "\\int", "\\int", "\\ldots", "\\ldots"),
+                MathLexer.tokenize("\\iint\\iiint\\oint\\vdots\\ddots"));
+        assertEquals(Arrays.asList("\\{", "\\}", "\\cup", "\\{", "\\}"), MathLexer.tokenize("\\emptyset\\cup\\varnothing"));
     }
 
     @Test
