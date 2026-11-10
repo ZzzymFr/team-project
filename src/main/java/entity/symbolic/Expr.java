@@ -16,7 +16,7 @@ public final class Expr {
     private final Kind kind;
     private final Rational value;
     private final boolean decimal;
-    private final String name;      // var name, fn name (sin cos tan ln), dvar y
+    private final String name;      // var name, fn name (sin, cosh, ...), dvar y
     private final List<Expr> terms;
     private final Expr first;       // pow base, fn/log arg
     private final Expr second;      // pow exponent, log base (null = 10)
@@ -73,7 +73,7 @@ public final class Expr {
         return new Expr(Kind.POW, null, false, null, null, base, exponent);
     }
 
-    // name is sin cos tan or ln
+    // name w/o the backslash, sin ln arctan cosh etc
     public static Expr fn(String name, Expr arg) {
         return new Expr(Kind.FN, null, false, name, null, arg, null);
     }

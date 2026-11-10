@@ -15,6 +15,9 @@ public final class Simplifier {
     private static final int MAX_STEPS = 200_000;
     private static final int MAX_POWER = 64;
     private static final int MAX_EXPAND = 4;
+    // f(0) when its a whole number, ln 0 / cot 0 / arccos 0 etc stay as they are
+    private static final Map<String, Long> AT_ZERO = Map.of("sin", 0L, "tan", 0L, "arcsin", 0L, "arctan", 0L,
+            "sinh", 0L, "tanh", 0L, "cos", 1L, "cosh", 1L, "sec", 1L);
 
     private int steps;
 
@@ -159,8 +162,8 @@ public final class Simplifier {
             if (arg.kind() == Expr.Kind.POW && arg.base().kind() == Expr.Kind.E) {
                 return arg.exponent();
             }
-        } else if (arg.isNum(0)) {
-            return Expr.num("cos".equals(name) ? 1 : 0);
+        } else if (arg.isNum(0) && AT_ZERO.containsKey(name)) {
+            return Expr.num(AT_ZERO.get(name));
         }
         return Expr.fn(name, arg);
     }

@@ -43,8 +43,6 @@ public final class SymbolicDerivative {
     private static final Expr MINUS_HALF = Expr.num(Rational.of(-1, 2), false);
     // f(u) -> f'(u) * u', given u and u'
     private static final Map<String, BinaryOperator<Expr>> RULES = new HashMap<>();
-    // the simplifier knows these at 0
-    private static final Set<String> KNOWN_AT_ZERO = Set.of("sin", "cos", "tan", "ln");
 
     static {
         RULES.put("sin", (u, du) -> Expr.mul(Expr.fn("cos", u), du));
@@ -225,9 +223,6 @@ public final class SymbolicDerivative {
 
     private Expr function(FunctionNode f, boolean inDerivative) {
         String name = f.getName().substring(1);
-        if (RULES.containsKey(name) && !KNOWN_AT_ZERO.contains(name) && isConstant(f)) {
-            return null;  // simplifier would read cosh(0) as 0, so take its value
-        }
         Expr arg = convert(f.getArgument(), inDerivative);
         Expr extra = f.getExtra() == null ? null : convert(f.getExtra(), inDerivative);
         switch (f.getName()) {
@@ -241,12 +236,6 @@ public final class SymbolicDerivative {
             default:
                 return RULES.containsKey(name) ? Expr.fn(name, arg) : null;
         }
-    }
-
-    private static boolean isConstant(Node node) {
-        Set<String> free = new HashSet<>();
-        node.collectFreeVariables(free);
-        return free.isEmpty();
     }
 
     // f(u): body w/ params swapped for the args; f'(u) = f' at u, no chain factor

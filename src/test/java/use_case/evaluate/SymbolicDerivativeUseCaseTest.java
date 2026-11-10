@@ -99,9 +99,12 @@ class SymbolicDerivativeUseCaseTest {
     }
 
     @Test
-    void newFunctionsOfANumberAreJustTheirValue() {
+    void newFunctionsOfZeroFoldWhenExact() {
         assertEquals("= 1", show("\\frac{d}{dx}x\\cosh 0"));
         assertEquals("= 1", show("\\frac{d}{dx}x\\sec 0"));
+        assertEquals("= 1", show("\\frac{d}{dx}x\\cosh(x-x)"));
+        assertEquals("= 1", show("\\frac{d}{dx}x\\sec(x-x)"));
+        assertEquals("= \\arccos 0", show("\\frac{d}{dx}x\\arccos(x-x)"));
     }
 
     @Test
