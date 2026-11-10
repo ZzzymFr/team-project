@@ -94,8 +94,74 @@ class LimitTest {
     @Test
     void earlyEstimateIsNotTheLimit() {
         assertEquals("= 1", Calc.once("\\lim_{x\\to\\infty}\\frac{x^3}{x^3+10^{18}}"));
-        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\lim_{x\\to\\infty}\\frac{x}{x+10^{8}}")));
-        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\lim_{x\\to 0}\\frac{x}{x+10^{-8}}")));
+        assertEquals("= 1", Calc.once("\\lim_{x\\to\\infty}\\frac{x}{x+10^{8}}"));
+        assertEquals("= 1", Calc.once("\\lim_{x\\to\\infty}\\frac{x}{x+10^{9}}"));
+        assertEquals("= 0", Calc.once("\\lim_{x\\to 0}\\frac{x}{x+10^{-8}}"));
+    }
+
+    @Test
+    void bigConstantsAtInfinity() {
+        assertEquals("= 1", Calc.once("\\lim_{x\\to\\infty}\\frac{x}{x+10^{10}}"));
+        assertEquals("= 0", Calc.once("\\lim_{x\\to\\infty}\\frac{10^{12}}{x+10^{12}}"));
+        assertEquals("= 1", Calc.once("\\lim_{x\\to\\infty}\\frac{x^2}{x^2+10^{20}}"));
+        assertEquals("= 2", Calc.once("\\lim_{x\\to\\infty}\\frac{2x+10^{11}}{x+10^{11}}"));
+        assertEquals("= 0", Calc.once("\\lim_{x\\to\\infty}e^{-x/10^{12}}"));
+        assertEquals("= 0", Calc.once("\\lim_{x\\to\\infty}\\frac{1}{x-10^{12}}"));
+        assertEquals("= ∞", Calc.once("\\lim_{x\\to\\infty}(\\ln x-10^{12})"));
+    }
+
+    @Test
+    void tinyConstantsAtZero() {
+        assertEquals("= 0", Calc.once("\\lim_{x\\to 0}\\frac{x}{x+10^{-12}}"));
+        // -10^{-12}/x -> -inf so e^... -> 0
+        assertEquals("= 0", Calc.once("\\lim_{x\\to 0^+}e^{-10^{-12}/x}"));
+    }
+
+    @Test
+    void bigConstantsThatAlreadyWorked() {
+        assertEquals("= 1", Calc.once("\\lim_{x\\to\\infty}\\frac{x}{x+1000000}"));
+        assertEquals("= 1000000", Calc.once("\\lim_{x\\to\\infty}\\frac{1000000x+1}{x+1000000}"));
+        assertEquals("= 1", Calc.once("\\lim_{x\\to\\infty}\\frac{x+10^6}{x}"));
+        assertEquals("= ∞", Calc.once("\\lim_{x\\to\\infty}(x-10^{12})"));
+        assertEquals("= ∞", Calc.once("\\lim_{x\\to\\infty}\\frac{x}{10^{10}}"));
+        assertEquals("= 0", Calc.once("\\lim_{x\\to\\infty}\\frac{10^{100}}{x}"));
+        assertEquals("= ∞", Calc.once("\\lim_{x\\to\\infty}\\frac{x}{10^{100}}"));
+        assertEquals("= 500000", Calc.once("\\lim_{x\\to\\infty}(\\sqrt{x^2+10^6x}-x)"));
+        assertEquals("= 2000", Calc.once("\\lim_{x\\to 1000}\\frac{x^2-1000000}{x-1000}"));
+        assertEquals("= 200000000", Calc.once("\\lim_{x\\to 10^8}\\frac{x^2-10^{16}}{x-10^8}"));
+        assertEquals("= 1000000", Calc.once("\\lim_{x\\to 0}\\frac{\\sin(10^6x)}{x}"));
+    }
+
+    @Test
+    void textbookLimitsStayPut() {
+        assertEquals("= 1", Calc.once("\\lim_{x\\to 0}\\frac{\\sin x}{x}"));
+        assertEquals("= 0.5", Calc.once("\\lim_{x\\to 0}\\frac{1-\\cos x}{x^2}"));
+        assertEquals("= 1/6", Calc.once("\\lim_{x\\to 0}\\frac{x-\\sin x}{x^3}"));
+        assertEquals("= 2.72", Calc.once("\\lim_{x\\to\\infty}(1+\\frac{1}{x})^x"));
+        assertEquals("= 0.5", Calc.once("\\lim_{x\\to\\infty}\\frac{x^2+1}{2x^2-3}"));
+        assertEquals("= 0", Calc.once("\\lim_{x\\to\\infty}\\frac{x}{e^x}"));
+        assertEquals("= 0", Calc.once("\\lim_{x\\to\\infty}\\frac{\\ln x}{x}"));
+        assertEquals("= ∞", Calc.once("\\lim_{x\\to 0^+}\\frac{1}{x}"));
+        assertEquals("= -∞", Calc.once("\\lim_{x\\to 0^-}\\frac{1}{x}"));
+        assertEquals("= ∞", Calc.once("\\lim_{x\\to 0}\\frac{1}{x^2}"));
+        assertEquals("= 0", Calc.once("\\lim_{x\\to 0^+}x\\ln x"));
+        assertEquals("= -∞", Calc.once("\\lim_{x\\to 0^+}\\ln x"));
+        assertEquals("= 0", Calc.once("\\lim_{x\\to -\\infty}e^x"));
+        assertEquals("= ∞", Calc.once("\\lim_{x\\to\\infty}x^2"));
+        assertEquals("= -∞", Calc.once("\\lim_{x\\to\\infty}-x^2"));
+        assertEquals("= ∞", Calc.once("\\lim_{x\\to\\infty}\\frac{2^x}{x^{10}}"));
+        assertEquals("= 0", Calc.once("\\lim_{x\\to\\infty}\\frac{x^{10}}{2^x}"));
+        assertEquals("= 1", Calc.once("\\lim_{x\\to\\infty}x^{1/x}"));
+        assertEquals("= ∞", Calc.once("\\lim_{x\\to\\infty}x^{0.001}"));
+        assertEquals("= -1.36", Calc.once("\\lim_{x\\to\\infty}x((1+\\frac{1}{x})^{x}-e)"));
+        assertEquals("= 0", Calc.once("\\lim_{x\\to\\infty}e^{-x}\\sin x"));
+        assertEquals("= 1/6", Calc.once("\\lim_{x\\to 0}\\frac{e^x-1-x-x^2/2}{x^3}"));
+        assertEquals("= -1/3", Calc.once("\\lim_{x\\to 0}(\\frac{1}{x^2}-\\frac{1}{\\sin^2 x})"));
+        assertEquals("= 0.61", Calc.once("\\lim_{x\\to 0}(\\cos x)^{1/x^2}"));
+        assertEquals("= undefined", Calc.once("\\lim_{x\\to 2}\\frac{1}{(x-2)^3}"));
+        assertEquals("= undefined", Calc.once("\\lim_{x\\to 0}e^{1/x}"));
+        assertEquals("= 0", Calc.once("\\lim_{x\\to 0^-}e^{1/x}"));
+        assertEquals("= 0", Calc.once("\\lim_{x\\to 0}e^{-1/x^2}"));
     }
 
     @Test

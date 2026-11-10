@@ -95,11 +95,31 @@ class LimitCalculatorTest {
         double inf = Double.POSITIVE_INFINITY;
         assertEquals(1, LimitCalculator.limit(x -> x * x * x / (x * x * x + 1e18), inf, 0), 1e-9);
         // samples at 0.98 and climbing, 0 is not an answer
-        try {
-            assertEquals(1, LimitCalculator.limit(x -> x / (x + 1e8), inf, 0), 1e-9);
-        } catch (UncalculableException e) {
-            // unclear is fine too
-        }
+        assertEquals(1, LimitCalculator.limit(x -> x / (x + 1e8), inf, 0), 1e-9);
+    }
+
+    @Test
+    void bigConstantsNeedSamplesFurtherOut() {
+        double inf = Double.POSITIVE_INFINITY;
+        assertEquals(1, LimitCalculator.limit(x -> x / (x + 1e10), inf, 0), 1e-9);
+        assertEquals(1, LimitCalculator.limit(x -> x / (x + 1e100), inf, 0), 1e-9);
+        assertEquals(0, LimitCalculator.limit(x -> 1e12 / (x + 1e12), inf, 0), 0);
+        assertEquals(0, LimitCalculator.limit(x -> Math.exp(-x / 1e12), inf, 0), 0);
+        assertEquals(0, LimitCalculator.limit(x -> 1 / (x - 1e12), inf, 0), 0);
+        assertEquals(0, LimitCalculator.limit(x -> x / (x + 1e-8), 0, 0), 0);
+        assertEquals(0, LimitCalculator.limit(x -> x / (x + 1e-12), 0, 0), 0);
+    }
+
+    @Test
+    void growthOnlyCountsIfItKeepsGrowing() {
+        double inf = Double.POSITIVE_INFINITY;
+        assertEquals(inf, LimitCalculator.limit(x -> Math.pow(x, 0.001), inf, 0));
+        assertEquals(inf, LimitCalculator.limit(x -> x / 1e100, inf, 0));
+        assertEquals(inf, LimitCalculator.limit(x -> x * x, inf, 0));
+        assertEquals(inf, LimitCalculator.limit(x -> Math.sqrt(x) - 1e8, inf, 0));
+        assertEquals(-inf, LimitCalculator.limit(Math::log, 0, 1));
+        assertEquals(inf, LimitCalculator.limit(x -> 1 / x, 0, 1));
+        assertThrows(UncalculableException.class, () -> LimitCalculator.limit(x -> Math.pow(x, -0.001), inf, 0));
     }
 
     @Test
