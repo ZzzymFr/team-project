@@ -1,5 +1,8 @@
 package entity;
 
+import entity.node.NumericDerivative;
+import entity.node.PointDerivative;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -16,26 +19,32 @@ public final class Context {
     private final int signMask;
     private final int depth;
     private final Budget budget;
+    private final PointDerivative derivative;
 
     public Context(Map<String, UserFunction> functions) {
-        this(functions, null, 0, 0, new Budget());
+        this(functions, new NumericDerivative());
+    }
+
+    public Context(Map<String, UserFunction> functions, PointDerivative derivative) {
+        this(functions, null, 0, 0, new Budget(), derivative);
     }
 
     private Context(Map<String, UserFunction> functions, Binding variables, int signMask, int depth,
-                    Budget budget) {
+                    Budget budget, PointDerivative derivative) {
         this.functions = functions;
         this.variables = variables;
         this.signMask = signMask;
         this.depth = depth;
         this.budget = budget;
+        this.derivative = derivative;
     }
 
     public Context withVariable(String name, double value) {
-        return new Context(functions, new Binding(name, value, variables), signMask, depth, budget);
+        return new Context(functions, new Binding(name, value, variables), signMask, depth, budget, derivative);
     }
 
     public Context withSigns(int signMask) {
-        return new Context(functions, variables, signMask, depth, budget);
+        return new Context(functions, variables, signMask, depth, budget, derivative);
     }
 
     public Context forFunctionBody() {
@@ -50,7 +59,7 @@ public final class Context {
         if (depth >= MAX_FUNCTION_DEPTH) {
             throw new MathSyntaxException(subject + " keeps calling itself, so it cannot be calculated.");
         }
-        return new Context(functions, null, signMask, depth + 1, budget);
+        return new Context(functions, null, signMask, depth + 1, budget, derivative);
     }
 
     public boolean hasVariable(String name) {
@@ -82,6 +91,10 @@ public final class Context {
 
     public UserFunction getFunction(String name) {
         return functions.get(name);
+    }
+
+    public PointDerivative getDerivative() {
+        return derivative;
     }
 
     public boolean isPlus(int signIndex) {

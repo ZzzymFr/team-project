@@ -70,10 +70,13 @@ public class CallNode extends Node {
 
     @Override
     public boolean isApproximate(Context context) {
-        if (derivativeOrder > 0 || super.isApproximate(context)) {
+        if (super.isApproximate(context)) {
             return true;
         }
         UserFunction function = context.getFunction(name);
+        if (derivativeOrder > 0 && !isExactDerivative(function, context)) {
+            return true;
+        }
         if (function == null || checkingApproximate) {
             return false;
         }
@@ -83,6 +86,14 @@ public class CallNode extends Node {
         } finally {
             checkingApproximate = false;
         }
+    }
+
+    private boolean isExactDerivative(UserFunction function, Context context) {
+        if (function == null || derivativeParameter < 0 || derivativeParameter >= function.getParameters().size()) {
+            return false;
+        }
+        String parameter = function.getParameters().get(derivativeParameter);
+        return context.getDerivative().isExact(function.getBody(), parameter, derivativeOrder, context);
     }
 
     @Override
@@ -113,10 +124,7 @@ public class CallNode extends Node {
             return body.evaluate(bound);
         }
         String parameter = parameters.get(derivativeParameter);
-        Context fixed = bound;
-        double[] result = DerivativeCalculator.derivativeWithError(
-                t -> DerivativeNode.numberAt(body, fixed.withVariable(parameter, t)),
-                values[derivativeParameter], derivativeOrder);
+        double[] result = context.getDerivative().at(body, parameter, derivativeOrder, bound);
         context.noteApproximation(result[1]);
         return new NumberValue(result[0]);
     }

@@ -1,7 +1,6 @@
 package entity.node;
 
 import entity.Context;
-import entity.calculus.DerivativeCalculator;
 import entity.value.NumberValue;
 import entity.value.Value;
 
@@ -60,19 +59,17 @@ public class DerivativeNode extends Node {
 
     @Override
     public boolean isApproximate(Context context) {
-        return true;
+        return !context.getDerivative().isExact(body, variable, order, context) || super.isApproximate(context);
     }
 
     @Override
     public Value evaluate(Context context) {
-        double x = context.getVariable(variable);
-        double[] result = DerivativeCalculator.derivativeWithError(
-                t -> numberAt(body, context.withVariable(variable, t)), x, order);
+        double[] result = context.getDerivative().at(body, variable, order, context);
         context.noteApproximation(result[1]);
         return new NumberValue(result[0]);
     }
 
-    static double numberAt(Node node, Context context) {
+    public static double numberAt(Node node, Context context) {
         context.spendStep();
         Value value = node.evaluate(context);
         if (value instanceof NumberValue) {
