@@ -7,6 +7,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class HardeningTest {
     @Test
+    void bigAnswersShowRealDigitsOrAPowerOfTen() {
+        assertEquals("= 123456123456", Calc.once("123456\\cdot 1000001="));
+        assertEquals("= 1099511627776", Calc.once("2^{40}="));
+        assertEquals("= 2.432902008×10^18", Calc.once("20!="));
+        assertEquals("= 1×10^300", Calc.once("10^{300}="));
+    }
+
+    @Test
     void touchingRootsBetweenGridPointsAreFound() {
         assertEquals("x = 1.41", Calc.once("(x-\\sqrt{2})^2=0"));
         assertTrue(Calc.once("\\cos(x)=1").endsWith("(and 21 more)"), Calc.once("\\cos(x)=1"));

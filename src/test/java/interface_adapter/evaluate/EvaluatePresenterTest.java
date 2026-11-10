@@ -6,6 +6,8 @@ import entity.value.FiniteSetValue;
 import entity.value.NumberValue;
 import entity.value.VectorValue;
 import interface_adapter.MathLabViewModel;
+import interface_adapter.TextRun;
+import use_case.evaluate.FormulaShape;
 import use_case.evaluate.OutputDataMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -60,6 +62,33 @@ class EvaluatePresenterTest {
         assertEquals("0.00000001", AnswerFormatter.format(1e-8));
         assertEquals("-0.0046", AnswerFormatter.format(-0.004567));
         assertEquals("3333333.33", AnswerFormatter.format(1e7 / 3));
+    }
+
+    @Test
+    void bigNumbersKeepTheirDigits() {
+        assertEquals("123456123456", AnswerFormatter.format(123456.0 * 1000001));
+        assertEquals("1099511627776", AnswerFormatter.format(Math.pow(2, 40)));
+        assertEquals("12345678901.5", AnswerFormatter.format(12345678901.5));
+        assertEquals("30000000000", AnswerFormatter.format((0.1 + 0.2) * 1e11));
+        assertEquals("-999999999999999", AnswerFormatter.format(-999999999999999.0));
+    }
+
+    @Test
+    void hugeNumbersGoScientific() {
+        assertEquals("2.432902008×10^18", AnswerFormatter.format(2432902008176640000.0));
+        assertEquals("1×10^300", AnswerFormatter.format(1e300));
+        assertEquals("-5×10^20", AnswerFormatter.format(-5e20));
+    }
+
+    @Test
+    void powerOfTenIsRaisedOnTheCanvas() {
+        presenter.prepareFormulaShape(FormulaShape.ENDS_WITH_EQUALS);
+        presenter.prepareValuesView(List.of(OutputDataMapper.of(new NumberValue(-5e20))));
+        assertEquals("= -5×10^20", viewModel.getState().getResultText());
+        assertEquals(List.of(new TextRun("−5×10", false), new TextRun("20", true)),
+                viewModel.getState().getAnswerRuns());
+        presenter.prepareValuesView(List.of(OutputDataMapper.of(new NumberValue(7))));
+        assertEquals(null, viewModel.getState().getAnswerRuns());
     }
 
     @Test

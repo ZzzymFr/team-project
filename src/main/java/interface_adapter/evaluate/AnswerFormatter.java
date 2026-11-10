@@ -20,6 +20,8 @@ public final class AnswerFormatter {
     private static final double FRACTION_TOLERANCE = 1e-8;
     private static final double FRACTION_LIMIT = 1e6;
     private static final double TINY = 0.005;
+    private static final int CLEAN_DIGITS = 10;
+    private static final int MAX_DIGITS = 15;  // all a double is good for
 
     private AnswerFormatter() {
     }
@@ -122,8 +124,15 @@ public final class AnswerFormatter {
         if (Math.abs(value) < 1e-12) {
             return "0";
         }
-        // 10 sig first so 0.1+0.2 noise is gone
-        BigDecimal clean = new BigDecimal(value).round(new MathContext(10)).stripTrailingZeros();
+        BigDecimal exact = new BigDecimal(value);
+        int wholeDigits = exact.precision() - exact.scale();
+        if (wholeDigits > MAX_DIGITS) {
+            // past what a double holds, zeros would be made up
+            return PowerOfTen.write(exact, CLEAN_DIGITS);
+        }
+        // 10 sig first so 0.1+0.2 noise is gone, big ones need more or their own digits get cut
+        int digits = Math.max(CLEAN_DIGITS, Math.min(wholeDigits + SHOWN_DECIMALS, MAX_DIGITS));
+        BigDecimal clean = exact.round(new MathContext(digits)).stripTrailingZeros();
         if (clean.scale() <= SHOWN_DECIMALS) {
             return clean.toPlainString();
         }
