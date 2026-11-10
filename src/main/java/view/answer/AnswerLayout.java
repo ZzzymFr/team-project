@@ -77,6 +77,15 @@ public final class AnswerLayout {
         return near(formulaBounds, strokeBounds, JOIN_MARGIN_X * charHeight, JOIN_MARGIN_Y * charHeight);
     }
 
+    // how far the middle of a stroke is outside the formula box, 0 = inside
+    static double gap(Rectangle formulaBounds, Rectangle strokeBounds) {
+        double x = strokeBounds.getCenterX();
+        double y = strokeBounds.getCenterY();
+        double dx = Math.max(0, Math.max(formulaBounds.getMinX() - x, x - formulaBounds.getMaxX()));
+        double dy = Math.max(0, Math.max(formulaBounds.getMinY() - y, y - formulaBounds.getMaxY()));
+        return Math.hypot(dx, dy);
+    }
+
     // median height of tall single strokes; lines stacked above each other don't add up
     public static double strokeHeight(Collection<Stroke> strokes) {
         List<Rectangle> boxes = new ArrayList<>();

@@ -69,6 +69,35 @@ class FormulaBookTest {
         assertTrue(book.isBound(near));
     }
 
+    // two lines 4px apart, the older one on top
+    @Test
+    void erasedLeftoverStaysWithTheLineItWasCutFrom() {
+        Formula top = answered(stroke(100, 100, 100, 140), stroke(160, 100, 160, 140));
+        Stroke cut = stroke(100, 144, 100, 184);
+        Formula bottom = answered(cut, stroke(160, 144, 160, 184));
+        Stroke leftover = stroke(100, 144, 100, 160);
+
+        Set<Long> changed = book.strokesReplaced(List.of(cut), List.of(leftover), revisions);
+
+        assertEquals(Set.of(bottom.getId()), changed);
+        assertNotNull(book.get(top.getId()).getAnswer());
+        assertTrue(book.get(bottom.getId()).getStrokes().contains(leftover));
+        assertFalse(book.get(top.getId()).getStrokes().contains(leftover));
+    }
+
+    @Test
+    void writingBetweenTightLinesJoinsTheCloserOne() {
+        Formula top = answered(stroke(100, 100, 100, 140), stroke(160, 100, 160, 140));
+        Formula bottom = answered(stroke(100, 144, 100, 184), stroke(160, 144, 160, 184));
+        Stroke added = stroke(175, 144, 175, 184);
+
+        Set<Long> changed = book.strokesReplaced(List.of(), List.of(added), revisions);
+
+        assertEquals(Set.of(bottom.getId()), changed);
+        assertNotNull(book.get(top.getId()).getAnswer());
+        assertTrue(book.get(bottom.getId()).getStrokes().contains(added));
+    }
+
     @Test
     void writingFarAwayChangesNothing() {
         Formula f = answered(stroke(100, 100, 100, 140));

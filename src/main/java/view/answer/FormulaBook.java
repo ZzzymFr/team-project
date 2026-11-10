@@ -88,13 +88,10 @@ public class FormulaBook {
             if (box == null) {
                 continue;
             }
-            for (Formula f : formulas.values()) {
-                // judge against the old box so erased pieces still count
-                if (AnswerLayout.joins(before.get(f.getId()), f.getCharHeight(), box)) {
-                    after.get(f.getId()).add(s);
-                    changed.add(f.getId());
-                    break;
-                }
+            Formula home = homeOf(box, gone, before);
+            if (home != null) {
+                after.get(home.getId()).add(s);
+                changed.add(home.getId());
             }
         }
         for (long id : changed) {
@@ -106,6 +103,40 @@ public class FormulaBook {
             }
         }
         return changed;
+    }
+
+    // formula a stroke lands on: the one it was cut out of, else the closest. null = none
+    private Formula homeOf(Rectangle box, Set<Stroke> gone, Map<Long, Rectangle> before) {
+        Formula closest = null;
+        double closestGap = 0;
+        for (Formula f : formulas.values()) {
+            // judge against the old box so erased pieces still count
+            Rectangle old = before.get(f.getId());
+            if (!AnswerLayout.joins(old, f.getCharHeight(), box)) {
+                continue;
+            }
+            if (wasCutFrom(f, gone, box)) {
+                return f;
+            }
+            double gap = AnswerLayout.gap(old, box);
+            if (closest == null || gap < closestGap) {
+                closest = f;
+                closestGap = gap;
+            }
+        }
+        return closest;
+    }
+
+    // box sits inside a stroke the formula just lost = leftover of an erase
+    private static boolean wasCutFrom(Formula f, Set<Stroke> gone, Rectangle box) {
+        for (Stroke s : f.getStrokes()) {
+            Rectangle whole = gone.contains(s) ? AnswerLayout.bounds(List.of(s)) : null;
+            if (whole != null && whole.getMinX() <= box.getMinX() && whole.getMaxX() >= box.getMaxX()
+                    && whole.getMinY() <= box.getMinY() && whole.getMaxY() >= box.getMaxY()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // whole formula moved/scaled: same content, keep revision
