@@ -13,9 +13,9 @@ public enum NamedFunction {
             (x, value, noise) -> (1 + value * value) * noise),
     LN("\\ln", NamedFunction::logarithm, (x, value, noise) -> noise / Math.abs(x)),
     LOG("\\log", Syntax.LOG, x -> x <= 0 ? Double.NaN : Math.log10(x), NamedFunction::log,
-            (x, value, noise) -> noise / (Math.abs(x) * Math.log(10))),
+            (x, value, noise) -> noise / (Math.abs(x) * Math.log(10)), NamedFunction::logNoise),
     SQRT("\\sqrt", Syntax.ROOT, Math::sqrt, NamedFunction::root,
-            (x, value, noise) -> x == 0 ? Double.NaN : Math.abs(value / (2 * x)) * noise),
+            (x, value, noise) -> rootNoise(x, 2, value, noise, 0), NamedFunction::rootNoise),
     ARCSIN("\\arcsin", Math::asin, (x, value, noise) -> noise / Math.sqrt(1 - x * x)),
     ARCCOS("\\arccos", Math::acos, (x, value, noise) -> noise / Math.sqrt(1 - x * x)),
     ARCTAN("\\arctan", Math::atan, (x, value, noise) -> noise / (1 + x * x)),
@@ -29,18 +29,25 @@ public enum NamedFunction {
             (x, value, noise) -> Math.abs(value * Math.tan(x)) * noise),
     CSC("\\csc", x -> Math.abs(Math.sin(x)) < 1e-12 ? Double.NaN : 1 / Math.sin(x),
             (x, value, noise) -> Math.abs(value / Math.tan(x)) * noise),
-    FLOOR("\\lfloor", Syntax.BRACKETS, Math::floor, null, null),
-    CEIL("\\lceil", Syntax.BRACKETS, Math::ceil, null, null),
+    // jumps, so no noise formula
+    FLOOR("\\lfloor", Syntax.BRACKETS, Math::floor, null, null, null),
+    CEIL("\\lceil", Syntax.BRACKETS, Math::ceil, null, null, null),
     // lists fold left, \max(a,b,c) = max(max(a,b),c)
-    MAX("\\max", Syntax.LIST, x -> x, Math::max, null),
-    MIN("\\min", Syntax.LIST, x -> x, Math::min, null),
-    GCD("\\gcd", Syntax.LIST, x -> gcd(x, 0), NamedFunction::gcd, null);
+    MAX("\\max", Syntax.LIST, x -> x, Math::max, (x, value, noise) -> noise,
+            (x, other, value, noise, otherNoise) -> Math.max(noise, otherNoise)),
+    MIN("\\min", Syntax.LIST, x -> x, Math::min, (x, value, noise) -> noise,
+            (x, other, value, noise, otherNoise) -> Math.max(noise, otherNoise)),
+    GCD("\\gcd", Syntax.LIST, x -> gcd(x, 0), NamedFunction::gcd, null, null);
 
     // how the argument is written
     public enum Syntax { NAMED, LOG, ROOT, BRACKETS, LIST }
 
     interface Noise {
         double of(double x, double value, double noise);
+    }
+
+    interface ExtraNoise {
+        double of(double x, double extra, double value, double noise, double extraNoise);
     }
 
     private static final Map<String, NamedFunction> BY_LATEX = new HashMap<>();
@@ -56,18 +63,20 @@ public enum NamedFunction {
     private final DoubleUnaryOperator value;
     private final DoubleBinaryOperator withExtra;
     private final Noise noise;
+    private final ExtraNoise extraNoise;
 
     NamedFunction(String latex, DoubleUnaryOperator value, Noise noise) {
-        this(latex, Syntax.NAMED, value, null, noise);
+        this(latex, Syntax.NAMED, value, null, noise, null);
     }
 
     NamedFunction(String latex, Syntax syntax, DoubleUnaryOperator value, DoubleBinaryOperator withExtra,
-                  Noise noise) {
+                  Noise noise, ExtraNoise extraNoise) {
         this.latex = latex;
         this.syntax = syntax;
         this.value = value;
         this.withExtra = withExtra;
         this.noise = noise;
+        this.extraNoise = extraNoise;
     }
 
     // null if its not one
@@ -109,13 +118,30 @@ public enum NamedFunction {
         return withExtra.applyAsDouble(x, extra);
     }
 
-    boolean hasNoise() {
-        return noise != null;
+    boolean hasNoise(boolean withExtra) {
+        return withExtra ? extraNoise != null : noise != null;
     }
 
     // noise in the answer from noise in x, w/o its own rounding
     double noise(double x, double result, double inputNoise) {
         return noise.of(x, result, inputNoise);
+    }
+
+    double noise(double x, double extra, double result, double inputNoise, double extraNoise) {
+        return this.extraNoise.of(x, extra, result, inputNoise, extraNoise);
+    }
+
+    private static double logNoise(double x, double base, double value, double noise, double baseNoise) {
+        double logBase = Math.abs(Math.log(base));
+        return noise / (Math.abs(x) * logBase) + Math.abs(value) * baseNoise / (Math.abs(base) * logBase);
+    }
+
+    // degree noise left out, its almost always a typed whole number
+    private static double rootNoise(double x, double degree, double value, double noise, double degreeNoise) {
+        if (x == 0) {
+            return Double.NaN;
+        }
+        return Math.abs(value / (degree * x)) * noise;
     }
 
     private static double log(double x, double base) {

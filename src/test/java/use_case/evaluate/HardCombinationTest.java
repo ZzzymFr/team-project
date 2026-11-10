@@ -259,6 +259,21 @@ class HardCombinationTest {
     }
 
     @Test
+    void tinyConstantsInNewFunctionsCompareExactly() {
+        assertEquals("true", Calc.once("\\sinh(10^{-10})>0"));
+        assertEquals("true", Calc.once("\\arctan(10^{-10})\\neq0"));
+        assertEquals("true", Calc.once("\\exp(10^{-10})>1"));
+        assertEquals("true", Calc.once("\\max(10^{-10},0)>0"));
+        assertEquals("false", Calc.once("\\min(1+10^{-10},2)=1"));
+        assertEquals("true", Calc.once("\\cosh(1)^2-\\sinh(1)^2=1"));
+        assertEquals("true", Calc.once("\\exp(\\ln 5)=5"));
+        assertEquals("true", Calc.once("\\sec(1)\\cos(1)=1"));
+        assertEquals("true", Calc.once("\\cot(1)\\tan(1)=1"));
+        assertEquals("true", Calc.once("\\log_{2}8=3"));
+        assertEquals("true", Calc.once("\\sqrt[3]{27}=3"));
+    }
+
+    @Test
     void boundVariableShadowsFunction() {
         Calc calc = new Calc();
         calc.show("h(x)=x^2");

@@ -66,18 +66,8 @@ public final class NoiseScale {
         if (node.getExtra() == null) {
             return function.noise(x, value, sx) + own;
         }
-        // only log base / root degree get here
-        if (function == NamedFunction.LOG) {
-            double base = number(node.getExtra(), context);
-            double logBase = Math.abs(Math.log(base));
-            return sx / (Math.abs(x) * logBase)
-                    + Math.abs(value) * of(node.getExtra(), context) / (Math.abs(base) * logBase) + own;
-        }
-        if (x == 0) {
-            return Double.NaN;
-        }
-        double degree = number(node.getExtra(), context);
-        return Math.abs(value / (degree * x)) * sx + own;
+        double extra = number(node.getExtra(), context);
+        return function.noise(x, extra, value, sx, of(node.getExtra(), context)) + own;
     }
 
     private static double number(Node node, Context context) {
@@ -126,7 +116,7 @@ public final class NoiseScale {
         @Override
         public Boolean visitFunction(FunctionNode node) {
             NamedFunction function = NamedFunction.of(node.getName());
-            if (function == null || !function.hasNoise()) {
+            if (function == null || !function.hasNoise(node.getExtra() != null)) {
                 return false;
             }
             for (Node child : node.children()) {
