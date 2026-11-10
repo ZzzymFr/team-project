@@ -6,8 +6,6 @@ import entity.UncalculableException;
 import entity.UncalculableReason;
 import entity.UndefinedException;
 import entity.value.BooleanValue;
-import entity.value.FiniteSetValue;
-import entity.value.NumberSetValue;
 import entity.value.VectorValue;
 import entity.value.NumberValue;
 import entity.value.Value;
@@ -20,7 +18,6 @@ import java.util.List;
 public class RelationNode extends Node {
     private final List<Node> operands;
     private final List<String> operators;
-    private static final double USUAL_TOLERANCE = 1e-9;
     private boolean[] plain;
 
     public RelationNode(List<Node> operands, List<String> operators) {
@@ -88,13 +85,7 @@ public class RelationNode extends Node {
             return Double.NaN;
         }
         double scale = NoiseScale.of(operands.get(index), context) + NoiseScale.of(operands.get(index + 1), context);
-        if (Double.isNaN(scale) || Double.isInfinite(scale)) {
-            return Double.NaN;
-        }
-        double a = Math.abs(((NumberValue) left).getValue());
-        double b = Math.abs(((NumberValue) right).getValue());
-        // never looser than the usual 1e-9, noisy spots keep the old band
-        return Math.min(NoiseScale.TOLERANCE * scale, USUAL_TOLERANCE * Math.max(1, Math.max(a, b)));
+        return NoiseTolerance.of(scale, ((NumberValue) left).getValue(), ((NumberValue) right).getValue());
     }
 
     // like isDecidedByTolerance but w/ the noise tol
@@ -185,11 +176,11 @@ public class RelationNode extends Node {
             case "\\perp":
                 return isPerpendicular(left, right);
             case "\\in":
-                return isMember(left, right, leftNode);
+                return Membership.isMember(left, right, leftNode);
             case "\\notin":
-                return !isMember(left, right, leftNode);
+                return !Membership.isMember(left, right, leftNode);
             case "\\subset":
-                return isSubset(left, right);
+                return Membership.isSubset(left, right);
             default:
                 throw new UncalculableException();
         }
@@ -204,60 +195,6 @@ public class RelationNode extends Node {
         return Values.areAlmostEqual(product, 0);
     }
 
-    private boolean isMember(Value element, Value set, Node elementNode) {
-        if (element instanceof NumberValue && Double.isNaN(((NumberValue) element).getValue())) {
-            throw new UndefinedException();
-        }
-        if (element instanceof NumberValue && set instanceof FiniteSetValue) {
-            return ((FiniteSetValue) set).contains(((NumberValue) element).getValue());
-        }
-        if (set instanceof NumberSetValue) {
-            NumberSetValue numbers = (NumberSetValue) set;
-            if (element instanceof VectorValue) {
-                return numbers.containsVector((VectorValue) element);
-            }
-            double number = Values.toNumber(element);
-            if (numbers.getKind() == NumberSetValue.Kind.RATIONAL && numbers.getDimension() == 1
-                    && !Double.isNaN(number) && !Double.isInfinite(number)
-                    && number != Math.floor(number)) {
-                if (isLiteral(elementNode)) {
-                    return true;
-                }
-                throw new UncalculableException(UncalculableReason.RATIONAL);
-            }
-            return numbers.containsNumber(number);
-        }
-        throw new UncalculableException(UncalculableReason.WRONG_KIND);
-    }
-
-    private boolean isLiteral(Node node) {
-        if (node instanceof UnaryNode && ((UnaryNode) node).getOp() == UnaryNode.Op.NEGATE) {
-            return isLiteral(((UnaryNode) node).getOperand());
-        }
-        return node instanceof NumberNode;
-    }
-
-    private boolean isSubset(Value left, Value right) {
-        if (left instanceof FiniteSetValue && right instanceof FiniteSetValue) {
-            return ((FiniteSetValue) left).isSubsetOf((FiniteSetValue) right);
-        }
-        if (left instanceof FiniteSetValue && right instanceof NumberSetValue) {
-            for (double element : ((FiniteSetValue) left).getElements()) {
-                if (!((NumberSetValue) right).containsNumber(element)) {
-                    return false;
-                }
-            }
-            return true;
-        }
-        if (left instanceof NumberSetValue && right instanceof NumberSetValue) {
-            return ((NumberSetValue) left).isSubsetOf((NumberSetValue) right);
-        }
-        if (left instanceof NumberSetValue && right instanceof FiniteSetValue) {
-            return false;
-        }
-        throw new UncalculableException(UncalculableReason.WRONG_KIND);
-    }
-
     private boolean areEqual(Value left, Value right, double exact) {
         if (Double.isNaN(exact)) {
             return Values.areEqual(left, right);
@@ -266,12 +203,7 @@ public class RelationNode extends Node {
     }
 
     private boolean almostEqual(Value left, Value right, double exact) {
-        if (Double.isNaN(exact)) {
-            return Values.areAlmostEqual(Values.toNumber(left), Values.toNumber(right));
-        }
-        double a = Values.toNumber(left);
-        double b = Values.toNumber(right);
-        return a == b || Math.abs(a - b) <= exact;
+        return NoiseTolerance.within(Values.toNumber(left), Values.toNumber(right), exact);
     }
 
     private boolean approximately(double a, double b, Node leftNode, Node rightNode) {
@@ -281,21 +213,13 @@ public class RelationNode extends Node {
         if (Double.isInfinite(a) || Double.isInfinite(b)) {
             return a == b;
         }
-        if (isLiteral(rightNode)) {
-            return withinRounding(a, b, decimalsOf(rightNode));
+        if (SignedNumber.is(rightNode)) {
+            return withinRounding(a, b, SignedNumber.decimalsOf(rightNode));
         }
-        if (isLiteral(leftNode)) {
-            return withinRounding(a, b, decimalsOf(leftNode));
+        if (SignedNumber.is(leftNode)) {
+            return withinRounding(a, b, SignedNumber.decimalsOf(leftNode));
         }
         return Math.abs(a - b) <= 0.01 * Math.max(Math.abs(a), Math.abs(b));
-    }
-
-    // decimals in literal, incl -3.14
-    private static int decimalsOf(Node literal) {
-        if (literal instanceof UnaryNode) {
-            return decimalsOf(((UnaryNode) literal).getOperand());
-        }
-        return ((NumberNode) literal).getDecimals();
     }
 
     private boolean withinRounding(double a, double b, int decimals) {
