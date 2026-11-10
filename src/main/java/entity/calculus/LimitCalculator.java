@@ -209,9 +209,39 @@ public final class LimitCalculator {
             return value;
         }
         if (blind) {
-            return FarLimit.limit(side, h, nearest);
+            return farUnlessClosedIn(side, h, samples, value);
         }
         return isStaircase(samples, value) ? farOr(side, h, nearest, value) : value;
+    }
+
+    // far end cant tell (e^x/(e^x+1) is inf/inf there): ok if the samples were closing in before the repeats
+    private static double farUnlessClosedIn(LimitSide side, double h, List<Double> samples, double value) {
+        try {
+            return FarLimit.limit(side, h, samples.get(samples.size() - 1));
+        } catch (UncalculableException e) {
+            if (closedIn(samples)) {
+                return value;
+            }
+            throw e;
+        }
+    }
+
+    // x-10^{20} repeats from the first sample, e^x/(e^x+1) got to 1-5e-10 first
+    private static boolean closedIn(List<Double> samples) {
+        int end = samples.size() - 1;
+        double repeated = samples.get(end);
+        while (end >= 0 && samples.get(end) == repeated) {
+            end--;
+        }
+        if (end < 0) {
+            return false;
+        }
+        double size = Math.max(1, Math.abs(repeated));
+        double last = Math.abs(samples.get(end) - repeated);
+        if (last <= ACCEPTED * size) {
+            return true;
+        }
+        return end >= 1 && last < Math.abs(samples.get(end - 1) - repeated) && last <= WALKED_OFF * size;
     }
 
     // still growing at x=1e300 -> thats the answer, anything else the normal run decides

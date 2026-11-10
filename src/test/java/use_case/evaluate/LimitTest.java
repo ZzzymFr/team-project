@@ -160,6 +160,33 @@ class LimitTest {
     }
 
     @Test
+    void exponentialsThatOverflowFarOut() {
+        assertEquals("= 1", Calc.once("\\lim_{x\\to\\infty}\\frac{e^x}{e^x+1}"));
+        assertEquals("= 1", Calc.once("\\lim_{x\\to\\infty}\\frac{e^x-e^{-x}}{e^x+e^{-x}}"));
+        assertEquals("= 1", Calc.once("\\lim_{x\\to\\infty}\\frac{e^{2x}}{e^{2x}+1}"));
+        assertEquals("= 1", Calc.once("\\lim_{x\\to\\infty}\\frac{2^x}{2^x+1}"));
+        assertEquals("= 1", Calc.once("\\lim_{x\\to\\infty}\\frac{3^x+1}{3^x-1}"));
+        assertEquals("= 1", Calc.once("\\lim_{x\\to\\infty}\\frac{e^x+x}{e^x-x}"));
+        assertEquals("= 1", Calc.once("\\lim_{x\\to\\infty}\\frac{e^x+1}{e^x}"));
+        assertEquals("= 1", Calc.once("\\lim_{x\\to\\infty}\\frac{\\ln(1+e^x)}{x}"));
+        assertEquals("= 1", Calc.once("\\lim_{x\\to\\infty}\\frac{\\sqrt{e^{2x}+1}}{e^x}"));
+        assertEquals("= 0", Calc.once("\\lim_{x\\to -\\infty}\\frac{e^x}{e^x+1}"));
+        assertEquals("= 1", Calc.once("\\lim_{x\\to\\infty}\\frac{1}{1+e^{-x}}"));
+        assertEquals("= 1", Calc.once("\\lim_{x\\to\\infty}\\tanh x"));
+        assertEquals("= 0.5", Calc.once("\\lim_{x\\to\\infty}\\frac{\\cosh x}{e^x}"));
+        assertEquals("= 1.57", Calc.once("\\lim_{x\\to\\infty}\\arctan(e^x)"));
+        assertEquals("= 0", Calc.once("\\lim_{x\\to\\infty}\\frac{e^x}{x!}"));
+        assertEquals("= ∞", Calc.once("\\lim_{x\\to\\infty}\\frac{e^x}{x^2}"));
+        assertEquals("= 0", Calc.once("\\lim_{x\\to\\infty}\\frac{e^x}{e^{2x}}"));
+        assertEquals("= -∞", Calc.once("\\lim_{x\\to\\infty}e^x-e^{2x}"));
+        assertEquals("= 0", Calc.once("\\lim_{x\\to\\infty}\\frac{e^x}{e^x+e^{2x}}"));
+        assertEquals("= 0", Calc.once("\\lim_{x\\to\\infty}0.5^x"));
+        assertEquals("= ∞", Calc.once("\\lim_{x\\to\\infty}1.5^x"));
+        assertEquals("= 0", Calc.once("\\lim_{n\\to\\infty}\\frac{2^n}{n!}"));
+        assertEquals("= 1", Calc.once("\\lim_{n\\to\\infty}\\sqrt[n]{n}"));
+    }
+
+    @Test
     void polesAtZeroWithBothSigns() {
         assertEquals("= undefined", Calc.once("\\lim_{x\\to 0}\\frac{\\sin x}{x^2}"));
         assertEquals("= undefined", Calc.once("\\lim_{x\\to 0}\\frac{1}{x^3}"));

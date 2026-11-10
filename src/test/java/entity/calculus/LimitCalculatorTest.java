@@ -118,6 +118,9 @@ class LimitCalculatorTest {
         assertEquals(inf, LimitCalculator.limit(x -> x - 1e20, noNoise, x -> x - 1e20 == -1e20, inf, 0));
         assertEquals(-inf, LimitCalculator.limit(x -> 1e20 - x, noNoise, x -> 1e20 - x == 1e20, inf, 0));
         assertEquals(1e12, LimitCalculator.limit(x -> 1e12 + 1 / x, noNoise, x -> 1e12 + 1 / x == 1e12, inf, 0), 1e-3);
+        // 1 swallowed by e^x, samples got to 1 before that, far end is inf/inf
+        assertEquals(1, LimitCalculator.limit(x -> Math.exp(x) / (Math.exp(x) + 1), noNoise,
+                x -> Math.exp(x) + 1 == Math.exp(x), inf, 0), 0);
         // near a nonzero point x really doesnt matter
         assertEquals(-1e20, LimitCalculator.limit(x -> x - 1e20, noNoise, x -> true, 3, 0), 0);
     }
