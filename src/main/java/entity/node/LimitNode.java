@@ -1,8 +1,6 @@
 package entity.node;
 
 import entity.Context;
-import entity.UncalculableException;
-import entity.UncalculableReason;
 import entity.UndefinedException;
 import entity.calculus.LimitCalculator;
 import entity.value.NumberValue;
@@ -74,10 +72,6 @@ public class LimitNode extends Node {
         double limit = LimitCalculator.limit(t -> sample(t, context, losses),
                 t -> noiseAt(t, context),
                 t -> t == losses.absorbedAt, point, side);
-        if (Double.isNaN(limit) && losses.nan) {
-            // inf-inf in the samples, not a real "no limit"
-            throw new UncalculableException(UncalculableReason.TOO_BIG);
-        }
         return new NumberValue(limit);
     }
 
@@ -88,9 +82,7 @@ public class LimitNode extends Node {
         losses.absorbedAt = Double.NaN;
         try {
             double value = DerivativeNode.numberAt(body, context);
-            if (Double.isNaN(value) && context.isAbsorbed()) {
-                losses.nan = true;
-            } else if (context.isAbsorbed()) {
+            if (context.isAbsorbed()) {
                 losses.absorbedAt = t;
             }
             return value;
@@ -112,9 +104,8 @@ public class LimitNode extends Node {
         }
     }
 
-    // what rounding lost in the samples, absorbedAt = last sample that lost something
+    // last sample that lost something to rounding
     private static final class Losses {
-        private boolean nan;
         private double absorbedAt = Double.NaN;
     }
 

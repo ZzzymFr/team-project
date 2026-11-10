@@ -67,17 +67,28 @@ public final class LimitCalculator {
         if (Double.isInfinite(target)) {
             double sign = Math.signum(target);
             DoubleUnaryOperator x = t -> sign / t;
-            return oneSided(new LimitSide(f.compose(x), noise.compose(x), t -> absorbed.test(x.applyAsDouble(t)),
-                    FAR_REACH));
+            LimitSide only = new LimitSide(f.compose(x), noise.compose(x), t -> absorbed.test(x.applyAsDouble(t)),
+                    FAR_REACH);
+            return unlessLost(oneSided(only), only, only);
         }
         if (side != 0) {
-            return oneSided(near(f, noise, absorbed, target, side > 0 ? 1 : -1));
+            LimitSide only = near(f, noise, absorbed, target, side > 0 ? 1 : -1);
+            return unlessLost(oneSided(only), only, only);
         }
-        double left = oneSided(near(f, noise, absorbed, target, -1));
+        LimitSide below = near(f, noise, absorbed, target, -1);
+        LimitSide above = near(f, noise, absorbed, target, 1);
+        double left = oneSided(below);
         if (Double.isNaN(left)) {
-            return Double.NaN;
+            return unlessLost(left, below, above);
         }
-        return combine(left, oneSided(near(f, noise, absorbed, target, 1)));
+        return unlessLost(combine(left, oneSided(above)), below, above);
+    }
+
+    private static double unlessLost(double limit, LimitSide below, LimitSide above) {
+        if (Double.isNaN(limit) && (below.lostNaN() || above.lostNaN())) {
+            throw new UncalculableException(UncalculableReason.TOO_BIG);
+        }
+        return limit;
     }
 
     private static LimitSide near(DoubleUnaryOperator f, DoubleUnaryOperator noise, DoublePredicate absorbed,
@@ -125,7 +136,7 @@ public final class LimitCalculator {
         for (int k = 0; k < POSITIONS && samples.size() < SAMPLES; k++) {
             double y = side.valueAt(h);
             double yNoise = Double.isFinite(y) ? side.noiseAt(h) : Double.NaN;
-            boolean lostSome = Double.isFinite(y) && side.absorbedAt(h);
+            boolean lostSome = side.absorbedAt(h);
             h = h / SHRINK;
             if (Double.isFinite(yNoise) && yNoise > CLEAN * Math.max(1, Math.abs(y))) {
                 // roundoff from here on, (10^6+h)^2-10^12 etc
@@ -133,6 +144,9 @@ public final class LimitCalculator {
                 break;
             }
             if (!Double.isFinite(y)) {
+                if (Double.isNaN(y) && lostSome) {
+                    side.noteLostNaN();
+                }
                 if (!samples.isEmpty()) {
                     before = samples;
                     samples = new ArrayList<>();

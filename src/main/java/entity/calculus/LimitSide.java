@@ -9,6 +9,7 @@ final class LimitSide {
     private final DoubleUnaryOperator noise;
     private final DoublePredicate absorbed;
     private final double reach;
+    private boolean lostNaN;
 
     // reach = smallest h worth sampling
     LimitSide(DoubleUnaryOperator value, DoubleUnaryOperator noise, DoublePredicate absorbed, double reach) {
@@ -29,6 +30,15 @@ final class LimitSide {
     // rounding swallowed part of the sample at h
     boolean absorbedAt(double h) {
         return absorbed.test(h);
+    }
+
+    // inf-inf in a normal-run sample, so a NaN answer isnt a real "no limit"
+    void noteLostNaN() {
+        lostNaN = true;
+    }
+
+    boolean lostNaN() {
+        return lostNaN;
     }
 
     boolean reaches(double h) {

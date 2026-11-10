@@ -160,6 +160,26 @@ class LimitTest {
     }
 
     @Test
+    void polesAtZeroWithBothSigns() {
+        assertEquals("= undefined", Calc.once("\\lim_{x\\to 0}\\frac{\\sin x}{x^2}"));
+        assertEquals("= undefined", Calc.once("\\lim_{x\\to 0}\\frac{1}{x^3}"));
+        assertEquals("= undefined", Calc.once("\\lim_{x\\to 0}\\frac{\\tan x}{x^2}"));
+        assertEquals("= undefined", Calc.once("\\lim_{x\\to 0}\\frac{\\cos x}{x}"));
+        assertEquals("= undefined", Calc.once("\\lim_{x\\to 0}\\frac{e^x}{x}"));
+        assertEquals("= undefined", Calc.once("\\lim_{x\\to 0}\\frac{1}{\\sin x}"));
+        assertEquals("= undefined", Calc.once("\\lim_{x\\to 0}\\frac{x+1}{x}"));
+        assertEquals("= undefined", Calc.once("\\lim_{x\\to 1}\\frac{x}{x-1}"));
+        assertEquals("= ∞", Calc.once("\\lim_{x\\to 0^+}\\frac{\\sin x}{x^2}"));
+        assertEquals("= ∞", Calc.once("\\lim_{x\\to 0}\\frac{\\sin x}{x^3}"));
+        assertEquals("= ∞", Calc.once("\\lim_{x\\to 0}\\frac{\\cos x}{x^2}"));
+        assertEquals("= ∞", Calc.once("\\lim_{x\\to 0}\\frac{1}{x^4}"));
+        assertEquals("= ∞", Calc.once("\\lim_{x\\to 0}\\frac{|x|}{x^2}"));
+        assertEquals("= -∞", Calc.once("\\lim_{x\\to 0}(\\frac{1}{x}-\\frac{1}{x^2})"));
+        assertEquals("= -∞", Calc.once("\\lim_{x\\to 0}\\ln|x|"));
+        assertEquals("= -∞", Calc.once("\\lim_{x\\to 0^-}\\frac{1}{x^3}"));
+    }
+
+    @Test
     void textbookLimitsStayPut() {
         assertEquals("= 1", Calc.once("\\lim_{x\\to 0}\\frac{\\sin x}{x}"));
         assertEquals("= 0.5", Calc.once("\\lim_{x\\to 0}\\frac{1-\\cos x}{x^2}"));
