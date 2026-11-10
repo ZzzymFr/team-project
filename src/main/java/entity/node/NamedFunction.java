@@ -15,7 +15,20 @@ public enum NamedFunction {
     LOG("\\log", Syntax.LOG, x -> x <= 0 ? Double.NaN : Math.log10(x), NamedFunction::log,
             (x, value, noise) -> noise / (Math.abs(x) * Math.log(10))),
     SQRT("\\sqrt", Syntax.ROOT, Math::sqrt, NamedFunction::root,
-            (x, value, noise) -> x == 0 ? Double.NaN : Math.abs(value / (2 * x)) * noise);
+            (x, value, noise) -> x == 0 ? Double.NaN : Math.abs(value / (2 * x)) * noise),
+    ARCSIN("\\arcsin", Math::asin, (x, value, noise) -> noise / Math.sqrt(1 - x * x)),
+    ARCCOS("\\arccos", Math::acos, (x, value, noise) -> noise / Math.sqrt(1 - x * x)),
+    ARCTAN("\\arctan", Math::atan, (x, value, noise) -> noise / (1 + x * x)),
+    SINH("\\sinh", Math::sinh, (x, value, noise) -> Math.cosh(x) * noise),
+    COSH("\\cosh", Math::cosh, (x, value, noise) -> Math.abs(Math.sinh(x)) * noise),
+    TANH("\\tanh", Math::tanh, (x, value, noise) -> (1 - value * value) * noise),
+    EXP("\\exp", Math::exp, (x, value, noise) -> Math.abs(value) * noise),
+    COT("\\cot", x -> Math.abs(Math.sin(x)) < 1e-12 ? Double.NaN : Math.cos(x) / Math.sin(x),
+            (x, value, noise) -> (1 + value * value) * noise),
+    SEC("\\sec", x -> Math.abs(Math.cos(x)) < 1e-12 ? Double.NaN : 1 / Math.cos(x),
+            (x, value, noise) -> Math.abs(value * Math.tan(x)) * noise),
+    CSC("\\csc", x -> Math.abs(Math.sin(x)) < 1e-12 ? Double.NaN : 1 / Math.sin(x),
+            (x, value, noise) -> Math.abs(value / Math.tan(x)) * noise);
 
     // how the argument is written
     public enum Syntax { NAMED, LOG, ROOT }
