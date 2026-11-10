@@ -144,6 +144,7 @@ public final class SymbolicDerivative {
 
         @Override
         public Expr visitFunction(FunctionNode node) {
+            checkDefined(node);
             Expr e = function(node, inDerivative);
             return e != null ? e : opaque(node, inDerivative);
         }
@@ -295,6 +296,18 @@ public final class SymbolicDerivative {
 
     private Expr derivative(DerivativeNode node) {
         return nth(convert(node.getBody(), true), node.getVariable(), node.getOrder(), !node.isPartial());
+    }
+
+    // ln 0, cot 0: no letters and no value, dont write it out
+    private void checkDefined(Node node) {
+        Set<String> free = new HashSet<>();
+        node.collectFreeVariables(free);
+        if (free.isEmpty()) {
+            Value v = node.evaluate(new Context(functions));
+            if (v instanceof NumberValue && Double.isNaN(((NumberValue) v).getValue())) {
+                throw new UndefinedException();
+            }
+        }
     }
 
     // no letters -> just its value (e.g. a sum); else can't do it

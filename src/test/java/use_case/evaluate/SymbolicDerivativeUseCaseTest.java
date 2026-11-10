@@ -120,4 +120,13 @@ class SymbolicDerivativeUseCaseTest {
         assertEquals("Uncalculable — Can't differentiate |x|", show("\\frac{d}{dx}|x|"));
         assertEquals("Uncalculable — Answer too long", show("\\frac{d}{dx}(\\frac{\\sin x}{\\ln x+x^x})"));
     }
+
+    @Test
+    void constantWithNoValueIsUndefinedNotWrittenOut() {
+        assertEquals("Uncalculable — Has an undefined part", show("\\frac{d}{dx}x\\ln 0"));
+        assertEquals("Uncalculable — Has an undefined part", show("\\frac{d}{dx}x\\cot 0"));
+        assertEquals("Uncalculable — Has an undefined part", show("\\frac{d}{dx}x\\sqrt{-1}"));
+        assertEquals("= \\sin 2", show("\\frac{d}{dx}x\\sin 2"));
+        assertEquals("= \\ln 2", show("\\frac{d}{dx}x\\ln 2"));
+    }
 }
