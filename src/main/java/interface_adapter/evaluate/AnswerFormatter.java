@@ -137,14 +137,13 @@ public final class AnswerFormatter {
             return clean.toPlainString();
         }
         if (Math.abs(value) < TINY) {
-            // keep tiny answers from showing as 0
-            return clean.round(new MathContext(SHOWN_DECIMALS)).toPlainString();
+            return shown(clean).toPlainString();
         }
         String fraction = fraction(value);
         if (fraction != null) {
             return fraction;
         }
-        BigDecimal rounded = clean.setScale(SHOWN_DECIMALS, RoundingMode.HALF_UP).stripTrailingZeros();
+        BigDecimal rounded = shown(clean).stripTrailingZeros();
         if (rounded.scale() <= 0) {
             // 1.001 -> "1" looks exact, keep digits till it differs
             double gap = clean.subtract(rounded).abs().doubleValue();
@@ -152,6 +151,14 @@ public final class AnswerFormatter {
             return clean.setScale(decimals, RoundingMode.HALF_UP).stripTrailingZeros().toPlainString();
         }
         return rounded.toPlainString();
+    }
+
+    // 2 dp, tiny ones get 2 sig figs so they dont show as 0
+    static BigDecimal shown(BigDecimal value) {
+        if (value.abs().doubleValue() < TINY) {
+            return value.round(new MathContext(SHOWN_DECIMALS));
+        }
+        return value.setScale(SHOWN_DECIMALS, RoundingMode.HALF_UP);
     }
 
     public static String format(ValueOutputData value) {

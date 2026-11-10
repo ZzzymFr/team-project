@@ -44,6 +44,13 @@ class SymbolicDerivativeUseCaseTest {
     }
 
     @Test
+    void tinyDecimalsDontTurnIntoZero() {
+        assertEquals("= 0.004", show("\\frac{d}{dx}0.004x"));
+        assertEquals("= 0.002x", show("\\frac{d}{dx}0.001x^2"));
+        assertEquals("= 0.13x", show("\\frac{d}{dx}0.0625x^2"));
+    }
+
+    @Test
     void definedFunctionPrime() {
         show("f(y)=3y^{2}");
         assertEquals("= 6y", show("f'(y)="));
