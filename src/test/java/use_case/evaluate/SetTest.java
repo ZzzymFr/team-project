@@ -119,6 +119,17 @@ class SetTest {
     }
 
     @Test
+    void subsetChecksEachWrittenElement() {
+        assertEquals("false", Calc.once("\\{0.9999999999\\}\\subset\\mathbb{Z}"));
+        assertEquals("true", Calc.once("\\{1/3\\}\\subset\\mathbb{Q}"));
+        assertEquals("false", Calc.once("\\{\\sqrt{2}\\}\\subset\\mathbb{Q}"));
+        assertEquals("true", Calc.once("\\{1,2\\}\\subset\\mathbb{N}"));
+        assertEquals("true", Calc.once("\\{1,2\\}\\cup\\{3\\}\\subset\\mathbb{N}"));
+        assertEquals("true", Calc.once("\\{\\sqrt{2}^2\\}\\cup\\{3\\}\\subset\\mathbb{N}"));
+        assertEquals("true", Calc.once("\\{\\}\\subset\\mathbb{N}"));
+    }
+
+    @Test
     void uncalculableCases() {
         assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\{1\\}+1")));
         assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\mathbb{R}")));

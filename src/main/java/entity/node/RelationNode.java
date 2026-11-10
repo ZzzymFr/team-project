@@ -181,7 +181,7 @@ public class RelationNode extends Node {
             case "\\notin":
                 return !Membership.isMember(left, right, leftNode, context);
             case "\\subset":
-                return Membership.isSubset(left, right);
+                return Membership.isSubset(left, right, leftNode, context);
             default:
                 throw new UncalculableException();
         }

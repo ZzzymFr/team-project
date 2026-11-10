@@ -12,6 +12,8 @@ import entity.value.Value;
 import entity.value.Values;
 import entity.value.VectorValue;
 
+import java.util.List;
+
 // \in and \subset
 final class Membership {
     private Membership() {
@@ -66,11 +68,15 @@ final class Membership {
         return NoiseTolerance.within(number, nearest, NoiseTolerance.of(scale, number, nearest));
     }
 
-    static boolean isSubset(Value left, Value right) {
+    static boolean isSubset(Value left, Value right, Node leftNode, Context context) {
         if (left instanceof FiniteSetValue && right instanceof FiniteSetValue) {
             return ((FiniteSetValue) left).isSubsetOf((FiniteSetValue) right);
         }
         if (left instanceof FiniteSetValue && right instanceof NumberSetValue) {
+            List<Node> written = leftNode.accept(WrittenElements.INSTANCE);
+            if (written != null) {
+                return containsWritten((NumberSetValue) right, written, context);
+            }
             for (double element : ((FiniteSetValue) left).getElements()) {
                 if (!containsElement((NumberSetValue) right, element)) {
                     return false;
@@ -85,6 +91,16 @@ final class Membership {
             return false;
         }
         throw new UncalculableException(UncalculableReason.WRONG_KIND);
+    }
+
+    // typed {..}: each element goes the same way as \in
+    private static boolean containsWritten(NumberSetValue numbers, List<Node> written, Context context) {
+        for (Node element : written) {
+            if (!containsNumber(numbers, Values.toNumber(element.evaluate(context)), element, context)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     // no formula to go on, same tol the set used to dedupe
