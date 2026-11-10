@@ -21,6 +21,7 @@ class FormulaShapeTest {
         assertEquals(FormulaShape.RELATION, shape("x^{2}-5x+6=0"));
         assertEquals(FormulaShape.RELATION, shape("x^{2}<4"));
         assertEquals(FormulaShape.RELATION, shape("x\\le 3"));
+        assertEquals(FormulaShape.RELATION, shape("\\{1,2\\}\\supseteq\\{1\\}"));
     }
 
     @Test
