@@ -72,7 +72,7 @@ public class LimitNode extends Node {
         double point = Values.toNumber(target.evaluate(context));
         Losses losses = new Losses();
         double limit = LimitCalculator.limit(t -> sample(t, context, losses),
-                t -> NoiseScale.noiseOf(body, context.withVariable(variable, t)),
+                t -> noiseAt(t, context),
                 t -> t == losses.absorbedAt, point, side);
         if (Double.isNaN(limit) && losses.nan) {
             // inf-inf in the samples, not a real "no limit"
@@ -97,7 +97,18 @@ public class LimitNode extends Node {
         } catch (UndefinedException e) {
             return Double.NaN;
         } finally {
-            context.setAbsorbed(outer || context.isAbsorbed());
+            // calculator already gets this per sample, dont leak it to the outer solver
+            context.setAbsorbed(outer);
+        }
+    }
+
+    // only a size estimate, rounding inside it isnt the answer's
+    private double noiseAt(double t, Context context) {
+        boolean outer = context.isAbsorbed();
+        try {
+            return NoiseScale.noiseOf(body, context.withVariable(variable, t));
+        } finally {
+            context.setAbsorbed(outer);
         }
     }
 

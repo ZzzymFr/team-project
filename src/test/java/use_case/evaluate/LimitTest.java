@@ -64,6 +64,14 @@ class LimitTest {
     }
 
     @Test
+    void roundingInsideTheSamplesStaysInsideTheLimit() {
+        assertEquals("x = 1", Calc.once("\\lim_{t\\to0}(10^{20}+t)x=10^{20}"));
+        assertEquals("x = 1", Calc.once("\\lim_{t\\to0}10^{-20}t+x=1"));
+        assertEquals("true", Calc.once("\\lim_{x\\to\\infty}\\frac{x}{x+10^{8}}=1"));
+        assertEquals("x > 0", Calc.once("\\lim_{t\\to0}\\frac{|x+t|-|x|}{t}=1"));
+    }
+
+    @Test
     void oscillationAndLargeOffsets() {
         assertEquals("= undefined", Calc.once("\\lim_{x\\to\\infty}\\sin(\\ln x)"));
         assertEquals("= ∞", Calc.once("\\lim_{x\\to\\infty}x-1000000000000"));
