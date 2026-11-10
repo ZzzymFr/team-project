@@ -1,7 +1,7 @@
 package entity;
 
-import entity.node.NumericDerivative;
 import entity.node.PointDerivative;
+import entity.symbolic.Derivatives;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -22,7 +22,7 @@ public final class Context {
     private final PointDerivative derivative;
 
     public Context(Map<String, UserFunction> functions) {
-        this(functions, new NumericDerivative());
+        this(functions, Derivatives.standard());
     }
 
     public Context(Map<String, UserFunction> functions, PointDerivative derivative) {

@@ -119,6 +119,63 @@ class FunctionAndDerivativeTest {
     }
 
     @Test
+    void knownFormulaGivesExactDerivatives() {
+        Calc c = new Calc();
+        c.show("f(x)=x^{x^x}");
+        assertEquals("= 766906545381.25", c.show("f'(2.9)"));
+        c.show("f(x)=e^{e^x}");
+        assertEquals("= 1420316213.66", c.show("f'(2.9)"));
+        c.show("k(x)=\\frac{1}{x}");
+        assertEquals("= 240000000000", c.show("k''''(0.01)"));
+        c.show("h(x)=x^{20}");
+        assertEquals("= 1.774291992×10^32", c.show("h''''(50)"));
+        c.show("q(x)=e^x");
+        assertEquals("= 5.184705529×10^21", c.show("q'(50)"));
+        c.show("f(x)=e^{x^2}");
+        assertEquals("= 14099366.03", c.show("f''''(3)"));
+        c.show("g(x)=\\sin(100x)");
+        assertEquals("= -50636564.11", c.show("g''''(1)"));
+    }
+
+    @Test
+    void exactDerivativeOnlyWhereTheFunctionIsDefined() {
+        Calc c = new Calc();
+        c.show("u(x)=x^{1/3}");
+        assertEquals("= undefined", c.show("u'(0)"));
+        assertEquals("= 1/12", c.show("u'(8)"));
+        assertEquals("= 1/12", c.show("u'(-8)"));
+        c.show("r(x)=x^{3/2}");
+        assertEquals("= undefined", c.show("r'(0)"));
+        assertEquals("= 3", c.show("r'(4)"));
+        c.show("m(x)=\\ln x");
+        assertEquals("= undefined", c.show("m'(-1)"));
+        c.show("s(x)=\\sin x");
+        assertEquals("= 0", c.show("s''(\\pi)"));
+    }
+
+    @Test
+    void derivativeEquationsUseTheFormula() {
+        assertEquals("true for all x", Calc.once("\\frac{d^4}{dx^4}\\sin x=\\sin x"));
+        assertEquals("x = 1", Calc.once("\\frac{d}{dx}\\ln x=1"));
+        assertEquals("x = 1", Calc.once("\\frac{d^2}{dx^2}\\ln x=-1"));
+    }
+
+    @Test
+    void exactDerivativeSeesARedefinedCallee() {
+        Calc c = new Calc();
+        c.show("g(x)=x^2");
+        c.show("f(x)=g(x)+1");
+        assertEquals("= 6", c.show("f'(3)"));
+        c.show("g(x)=x^3");
+        assertEquals("= 27", c.show("f'(3)"));
+        c.show("p(x)=f'(x)");
+        assertEquals("= 27", c.show("p(3)"));
+        c.show("g(x)=x^4");
+        assertEquals("= 108", c.show("p(3)"));
+        assertEquals("= 108", c.show("\\frac{df}{dx}(3)"));
+    }
+
+    @Test
     void derivativeVariableStaysFree() {
         assertEquals("true for all x", Calc.once("\\frac{d}{dx}5=0"));
         assertEquals("= 2x", Calc.once("\\frac{d}{dx}x^2"));
