@@ -65,6 +65,13 @@ class EvaluatePresenterTest {
     }
 
     @Test
+    void tinyOnesDropTrailingZero() {
+        assertEquals("0.00000006", AnswerFormatter.format(5.99999e-8));
+        assertEquals("0.001", AnswerFormatter.format(0.000999501));
+        assertEquals("-0.000001", AnswerFormatter.format(-0.0000009999));
+    }
+
+    @Test
     void bigNumbersKeepTheirDigits() {
         assertEquals("123456123456", AnswerFormatter.format(123456.0 * 1000001));
         assertEquals("1099511627776", AnswerFormatter.format(Math.pow(2, 40)));

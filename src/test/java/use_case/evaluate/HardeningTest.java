@@ -15,6 +15,14 @@ class HardeningTest {
     }
 
     @Test
+    void tinyAnswersHaveNoTrailingZero() {
+        assertEquals("= 0.00000006", Calc.once("5.99999\\cdot 10^{-8}"));
+        assertEquals("= 0.00000006", Calc.once("6\\cdot 10^{-8}"));
+        assertEquals("= 0.001", Calc.once("\\sum_{n=1}^{\\infty}\\frac{1}{(n+1000)^2}"));
+        assertEquals("= 0.000001", Calc.once("\\lim_{x\\to 0}\\frac{\\sin(x)}{10^6x}"));
+    }
+
+    @Test
     void boundaryRightOnTheRangeEndStillAnswers() {
         assertEquals("x > 100", Calc.once("x>100"));
         assertEquals("x ≥ 100", Calc.once("x\\geq 100"));

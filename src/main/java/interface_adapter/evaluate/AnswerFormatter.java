@@ -156,7 +156,7 @@ public final class AnswerFormatter {
     // 2 dp, tiny ones get 2 sig figs so they dont show as 0
     static BigDecimal shown(BigDecimal value) {
         if (value.abs().doubleValue() < TINY) {
-            return value.round(new MathContext(SHOWN_DECIMALS));
+            return value.round(new MathContext(SHOWN_DECIMALS)).stripTrailingZeros();
         }
         return value.setScale(SHOWN_DECIMALS, RoundingMode.HALF_UP);
     }
