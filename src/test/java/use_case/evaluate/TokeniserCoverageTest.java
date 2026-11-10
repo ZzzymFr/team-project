@@ -117,6 +117,32 @@ class TokeniserCoverageTest {
     }
 
     @Test
+    void floorCeilAndLists() {
+        assertEquals("= 2", Calc.once("\\lfloor 2.5\\rfloor"));
+        assertEquals("= 3", Calc.once("\\lceil 2.5\\rceil"));
+        assertEquals("= -3", Calc.once("\\lfloor -2.5\\rfloor"));
+        assertEquals("= 6", Calc.once("2\\lceil 2.5\\rceil"));
+        assertEquals("= 2", Calc.once("\\max(1,2)"));
+        assertEquals("= 1", Calc.once("\\min(3,1,2)"));
+        assertEquals("= 6", Calc.once("\\gcd(12,18)"));
+        assertEquals("= 2", Calc.once("\\gcd(12,18,8)"));
+        assertEquals("= undefined", Calc.once("\\gcd(1.5,3)"));
+        assertEquals("x = 3", Calc.once("\\max(x,1)=3"));
+    }
+
+    @Test
+    void floorCeilAndListsMisused() {
+        assertEquals("Uncalculable — Wrong kind of value", Calc.once("\\max(\\{1\\},2)"));
+        assertEquals("Uncalculable — Wrong kind of value", Calc.once("\\lfloor(1,2)\\rfloor"));
+        assertEquals("Uncalculable — Can't differentiate this", Calc.once("\\frac{d}{dx}\\max(x,1)"));
+        assertEquals("Uncalculable — Can't differentiate this", Calc.once("\\frac{d}{dx}\\lfloor x\\rfloor"));
+        assertEquals("Unexpected \"\\rfloor\".", Calc.once("\\rfloor"));
+        assertEquals("Unexpected \"\\rceil\".", Calc.once("1\\rceil2"));
+        assertEquals("Expected \"\\rfloor\".", Calc.once("1\\lfloor2"));
+        assertEquals("Expected \"(\".", Calc.once("\\max{1}"));
+    }
+
+    @Test
     void integralsAreUncalculable() {
         assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\int")));
         assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\int_a^x g=\\lim_{n\\rightarrow\\infty}\\int_a^x f_n'")));

@@ -28,10 +28,16 @@ public enum NamedFunction {
     SEC("\\sec", x -> Math.abs(Math.cos(x)) < 1e-12 ? Double.NaN : 1 / Math.cos(x),
             (x, value, noise) -> Math.abs(value * Math.tan(x)) * noise),
     CSC("\\csc", x -> Math.abs(Math.sin(x)) < 1e-12 ? Double.NaN : 1 / Math.sin(x),
-            (x, value, noise) -> Math.abs(value / Math.tan(x)) * noise);
+            (x, value, noise) -> Math.abs(value / Math.tan(x)) * noise),
+    FLOOR("\\lfloor", Syntax.BRACKETS, Math::floor, null, null),
+    CEIL("\\lceil", Syntax.BRACKETS, Math::ceil, null, null),
+    // lists fold left, \max(a,b,c) = max(max(a,b),c)
+    MAX("\\max", Syntax.LIST, x -> x, Math::max, null),
+    MIN("\\min", Syntax.LIST, x -> x, Math::min, null),
+    GCD("\\gcd", Syntax.LIST, x -> gcd(x, 0), NamedFunction::gcd, null);
 
     // how the argument is written
-    public enum Syntax { NAMED, LOG, ROOT }
+    public enum Syntax { NAMED, LOG, ROOT, BRACKETS, LIST }
 
     interface Noise {
         double of(double x, double value, double noise);
@@ -77,11 +83,25 @@ public enum NamedFunction {
         return syntax;
     }
 
+    // \lfloor .. \rfloor
+    public String getClosing() {
+        return syntax == Syntax.BRACKETS ? "\\r" + latex.substring(2) : null;
+    }
+
+    public static boolean isClosing(String token) {
+        for (NamedFunction function : values()) {
+            if (token.equals(function.getClosing())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public double apply(double x) {
         return value.applyAsDouble(x);
     }
 
-    // log base, root degree
+    // log base, root degree, next list item
     public double apply(double x, double extra) {
         if (withExtra == null) {
             throw new IllegalStateException(latex + " takes one input");
@@ -121,5 +141,20 @@ public enum NamedFunction {
             return -Math.pow(-x, 1 / degree);
         }
         return Math.pow(x, 1 / degree);
+    }
+
+    // whole numbers only
+    private static double gcd(double a, double b) {
+        if (a != Math.rint(a) || b != Math.rint(b) || Double.isInfinite(a) || Double.isInfinite(b)) {
+            return Double.NaN;
+        }
+        double big = Math.abs(a);
+        double small = Math.abs(b);
+        while (small != 0) {
+            double rest = big % small;
+            big = small;
+            small = rest;
+        }
+        return big;
     }
 }

@@ -389,7 +389,7 @@ public final class MathParser {
         if (MEANINGLESS.contains(token)) {
             throw new UncalculableException(meaninglessReason(token));
         }
-        if (OPERATORS.contains(token)) {
+        if (OPERATORS.contains(token) || NamedFunction.isClosing(token)) {
             throw new MathSyntaxException("Unexpected \"" + token + "\".");
         }
         if (token.startsWith("\\") && token.length() > 1) {
@@ -834,12 +834,29 @@ public final class MathParser {
                 return parseLog();
             case ROOT:
                 return parseSqrt();
+            case BRACKETS:
+                return new FunctionNode(function.getLatex(), parseRestOfGroup(function.getClosing()), null);
+            case LIST:
+                return parseList(function.getLatex());
             default:
                 String name = function.getLatex();
                 Node power = parseFunctionPower(name);
                 Node value = new FunctionNode(name, parseNamedFunctionArgument(), null);
                 return power == null ? value : new BinaryNode(BinaryNode.Op.POWER, value, power);
         }
+    }
+
+    // \max(a,b,c) -> max(max(a,b),c)
+    private Node parseList(String name) {
+        expect("(");
+        Node result = parseStatement();
+        boolean single = !peekIs(",");
+        while (peekIs(",")) {
+            next();
+            result = new FunctionNode(name, result, parseStatement());
+        }
+        expect(")");
+        return single ? new FunctionNode(name, result, null) : result;
     }
 
     private Node parseSqrt() {
