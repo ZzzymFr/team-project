@@ -23,7 +23,6 @@ import entity.value.NumberValue;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -46,7 +45,6 @@ public final class MathParser {
     private int plusMinusCount = 0;
     private int absoluteDepth = 0;
     private final List<String> boundNames = new ArrayList<>();
-    private final Map<Integer, Node> groupsBeforeSign = new HashMap<>();
 
     public MathParser(List<String> tokens, Map<String, UserFunction> functions) {
         this.tokens = tokens;
@@ -297,12 +295,7 @@ public final class MathParser {
             return parseNumber(token);
         }
         if (token.equals("(")) {
-            int open = position - 1;
-            Node group = parseParenthesized();
-            if (peekIs("+") || peekIs("-")) {
-                groupsBeforeSign.put(open, group);  // d/dx(..)+rest splits here, symbolic only
-            }
-            return group;
+            return parseParenthesized();
         }
         if (token.equals("\\langle")) {
             return parseAngleVector();
@@ -617,10 +610,7 @@ public final class MathParser {
             throw new UncalculableException(UncalculableReason.MAX_DERIVATIVE);
         }
         if (function == null) {
-            int bodyStart = position;
-            Node body = parseBody(variable);
-            return new DerivativeNode(variable, order, body, "\\partial".equals(operator),
-                    groupsBeforeSign.get(bodyStart));
+            return new DerivativeNode(variable, order, parseDerivativeBody(variable), "\\partial".equals(operator));
         }
         int parameter = functions.get(function).getParameters().indexOf(variable);
         if (parameter < 0) {
@@ -699,6 +689,37 @@ public final class MathParser {
         Node body = parseAdditive();
         boundNames.remove(boundNames.size() - 1);
         return body;
+    }
+
+    // d/dx(..)+rest: just the bracket, rest is added after
+    private Node parseDerivativeBody(String variable) {
+        if (!bracketThenSign()) {
+            return parseBody(variable);
+        }
+        boundNames.add(variable);
+        Node body = parsePrimary();
+        boundNames.remove(boundNames.size() - 1);
+        return body;
+    }
+
+    // next is (..) with a + or - right after it
+    private boolean bracketThenSign() {
+        if (!peekIs("(")) {
+            return false;
+        }
+        int depth = 0;
+        for (int i = position; i < tokens.size(); i++) {
+            if (tokens.get(i).equals("(")) {
+                depth++;
+            } else if (tokens.get(i).equals(")")) {
+                depth--;
+                if (depth == 0) {
+                    String after = tokenAt(i + 1);
+                    return "+".equals(after) || "-".equals(after);
+                }
+            }
+        }
+        return false;
     }
 
     // sum body stops at + / -, so \sum n+1 = (\sum n)+1

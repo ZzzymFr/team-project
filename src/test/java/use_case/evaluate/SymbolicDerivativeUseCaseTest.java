@@ -35,6 +35,15 @@ class SymbolicDerivativeUseCaseTest {
     }
 
     @Test
+    void bracketAfterDdxIsTheBodyForNumbersToo() {
+        assertEquals("= 5x", show("\\frac{d}{dx}(x^2)+3x"));
+        assertEquals("x = 2", show("\\frac{d}{dx}(x^2)+3x=10"));
+        assertEquals("x = 3.5", show("\\frac{d}{dx}(x^2+3x)=10"));
+        show("g(x)=\\frac{d}{dx}(x^2)-3x");
+        assertEquals("= -2", show("g(2)="));
+    }
+
+    @Test
     void definedFunctionPrime() {
         show("f(y)=3y^{2}");
         assertEquals("= 6y", show("f'(y)="));

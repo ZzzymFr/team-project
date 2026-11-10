@@ -252,34 +252,7 @@ public final class SymbolicDerivative {
     }
 
     private Expr derivative(DerivativeNode node) {
-        boolean implicit = !node.isPartial();
-        if (node.getLeadingGroup() != null) {
-            Expr split = splitAtGroup(node.getBody(), node);
-            if (split != null) {
-                return split;
-            }
-        }
-        return nth(convert(node.getBody(), true), node.getVariable(), node.getOrder(), implicit);
-    }
-
-    // d/dx(..)+rest: parser put rest in the body, only the bracket gets differentiated
-    private Expr splitAtGroup(Node n, DerivativeNode node) {
-        if (n == node.getLeadingGroup()) {
-            return nth(convert(n, true), node.getVariable(), node.getOrder(), !node.isPartial());
-        }
-        if (!(n instanceof BinaryNode)) {
-            return null;
-        }
-        BinaryNode b = (BinaryNode) n;
-        if (b.getOp() != BinaryNode.Op.ADD && b.getOp() != BinaryNode.Op.SUBTRACT) {
-            return null;
-        }
-        Expr left = splitAtGroup(b.getLeft(), node);
-        if (left == null) {
-            return null;
-        }
-        Expr right = convert(b.getRight(), false);
-        return Expr.add(left, b.getOp() == BinaryNode.Op.ADD ? right : Expr.mul(Expr.num(-1), right));
+        return nth(convert(node.getBody(), true), node.getVariable(), node.getOrder(), !node.isPartial());
     }
 
     // no letters -> just its value (e.g. a sum); else can't do it
