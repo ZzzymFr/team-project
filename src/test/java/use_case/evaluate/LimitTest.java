@@ -92,6 +92,13 @@ class LimitTest {
     }
 
     @Test
+    void earlyEstimateIsNotTheLimit() {
+        assertEquals("= 1", Calc.once("\\lim_{x\\to\\infty}\\frac{x^3}{x^3+10^{18}}"));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\lim_{x\\to\\infty}\\frac{x}{x+10^{8}}")));
+        assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\lim_{x\\to 0}\\frac{x}{x+10^{-8}}")));
+    }
+
+    @Test
     void undampedOscillationsHaveNoLimit() {
         assertEquals("= undefined", Calc.once("\\lim_{x\\to\\infty}\\cos x"));
         assertEquals("= undefined", Calc.once("\\lim_{x\\to0}\\sin(\\frac{1}{x})"));

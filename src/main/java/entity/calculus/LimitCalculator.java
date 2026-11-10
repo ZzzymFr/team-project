@@ -38,6 +38,7 @@ public final class LimitCalculator {
     private static final double BLOW_UP = 2;
     private static final int CLEAN_RUN = 4;
     private static final double NOISE_CENTRE = 1e-3;
+    private static final double WALKED_OFF = 1e-3;
 
     private LimitCalculator() {
     }
@@ -131,24 +132,46 @@ public final class LimitCalculator {
             badRun = 0;
             samples.add(y);
             richardson.add(y);
+            if (departs(samples, richardson.value)) {
+                richardson.forget();
+            }
             if (samples.size() >= MIN_SAMPLES && isSettled(samples, richardson)) {
                 return snapped(richardson.value, richardson.error, y);
             }
         }
         if (noisyStop) {
-            return fromCleanSamples(samples, richardson);
+            return trusted(fromCleanSamples(samples, richardson), samples);
         }
         if (!anyFinite) {
             // all samples same inf or side outside domain
             return Double.isInfinite(badValue) ? badValue : Double.NaN;
         }
         if (samples.size() >= MIN_SAMPLES) {
-            return fromSamples(samples, richardson);
+            return trusted(fromSamples(samples, richardson), samples);
         }
         if (badRun >= TAIL && Double.isInfinite(overflow) && movesTowards(before, overflow)) {
             return overflow;
         }
         throw new UncalculableException(UncalculableReason.LIMIT);
+    }
+
+    // nearest samples walking away from it = not the limit
+    private static double trusted(double value, List<Double> samples) {
+        if (Double.isFinite(value) && departs(samples, value)) {
+            throw new UncalculableException(UncalculableReason.LIMIT);
+        }
+        return value;
+    }
+
+    private static boolean departs(List<Double> samples, double value) {
+        int n = samples.size();
+        if (n < 3 || !Double.isFinite(value)) {
+            return false;
+        }
+        double last = Math.abs(samples.get(n - 1) - value);
+        double before = Math.abs(samples.get(n - 2) - value);
+        return last > WALKED_OFF * Math.max(1, Math.abs(value)) && last > before
+                && before > Math.abs(samples.get(n - 3) - value);
     }
 
     // only the samples before roundoff took over, answer to the digits they back
@@ -455,6 +478,13 @@ public final class LimitCalculator {
                 value = rowValue;
                 error = rowError;
             }
+        }
+
+        // best entry is from rows the samples since left behind
+        void forget() {
+            value = Double.NaN;
+            error = Double.POSITIVE_INFINITY;
+            worseRows = 0;
         }
 
         private void consider(double candidate, double candidateError) {

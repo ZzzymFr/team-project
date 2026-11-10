@@ -91,6 +91,18 @@ class LimitCalculatorTest {
     }
 
     @Test
+    void earlyEstimateDroppedOnceSamplesWalkAway() {
+        double inf = Double.POSITIVE_INFINITY;
+        assertEquals(1, LimitCalculator.limit(x -> x * x * x / (x * x * x + 1e18), inf, 0), 1e-9);
+        // samples at 0.98 and climbing, 0 is not an answer
+        try {
+            assertEquals(1, LimitCalculator.limit(x -> x / (x + 1e8), inf, 0), 1e-9);
+        } catch (UncalculableException e) {
+            // unclear is fine too
+        }
+    }
+
+    @Test
     void exponentialBeatsBigPowerAtInfinity() {
         double inf = Double.POSITIVE_INFINITY;
         assertEquals(inf, LimitCalculator.limit(x -> Math.exp(x) / Math.pow(x, 30), inf, 0));
