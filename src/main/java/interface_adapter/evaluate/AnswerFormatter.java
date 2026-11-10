@@ -22,6 +22,7 @@ public final class AnswerFormatter {
     private static final double TINY = 0.005;
     private static final int CLEAN_DIGITS = 10;
     private static final int MAX_DIGITS = 15;  // all a double is good for
+    private static final double SMALLEST_PLAIN = 1e-12;
 
     private AnswerFormatter() {
     }
@@ -121,10 +122,11 @@ public final class AnswerFormatter {
         if (value == Double.NEGATIVE_INFINITY) {
             return "-∞";
         }
-        if (Math.abs(value) < 1e-12) {
-            return "0";
-        }
         BigDecimal exact = new BigDecimal(value);
+        if (isPastPlain(value)) {
+            // too many zeros after the point, m×10^-n instead
+            return PowerOfTen.write(exact, SHOWN_DECIMALS);
+        }
         int wholeDigits = exact.precision() - exact.scale();
         if (wholeDigits > MAX_DIGITS) {
             // past what a double holds, zeros would be made up
@@ -201,7 +203,8 @@ public final class AnswerFormatter {
     private static List<String> formatApart(List<Double> numbers) {
         List<String> shown = new ArrayList<>();
         for (double number : numbers) {
-            shown.add(format(number));
+            // a root this small only got here bc its neighbour is one too, keep it plain
+            shown.add(isPastPlain(number) ? precise(number) : format(number));
         }
         for (int i = 1; i < numbers.size(); i++) {
             if (shown.get(i).equals(shown.get(i - 1)) && !numbers.get(i).equals(numbers.get(i - 1))) {
@@ -210,6 +213,10 @@ public final class AnswerFormatter {
             }
         }
         return shown;
+    }
+
+    private static boolean isPastPlain(double value) {
+        return value != 0 && Math.abs(value) < SMALLEST_PLAIN;
     }
 
     private static String precise(double value) {

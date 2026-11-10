@@ -15,6 +15,44 @@ class HardeningTest {
     }
 
     @Test
+    void realTinyValuesAreNotZero() {
+        assertEquals("= 1×10^-13", Calc.once("10^{-13}"));
+        assertEquals("= 9.4×10^-14", Calc.once("e^{-30}"));
+        assertEquals("= 8.9×10^-16", Calc.once("2^{-50}"));
+        assertEquals("= 1×10^-15", Calc.once("1/10^{15}"));
+        assertEquals("= 3×10^-14", Calc.once("3(10^{-14})"));
+        assertEquals("= 1×10^-13", Calc.once("\\sin(10^{-13})"));
+        assertEquals("= -1×10^-13", Calc.once("-10^{-13}"));
+        assertEquals("false", Calc.once("10^{-13}=0"));
+        assertEquals("true", Calc.once("10^{-13}>0"));
+        // from 1e-12 up nothing changes
+        assertEquals("= 0.000000000001", Calc.once("10^{-12}"));
+        assertEquals("= 0.0000000000019", Calc.once("e^{-27}"));
+        assertEquals("= -0.0000022", Calc.once("\\sin(10^{10}\\pi)"));
+    }
+
+    @Test
+    void floatNoiseStillShowsAsZero() {
+        assertEquals("= 0", Calc.once("0.1+0.2-0.3"));
+        assertEquals("= 0", Calc.once("\\sin(\\pi)"));
+        assertEquals("= 0", Calc.once("\\cos(\\pi/2)"));
+        assertEquals("= 0", Calc.once("1-1/3-1/3-1/3"));
+        assertEquals("= 0", Calc.once("(\\sqrt{2})^2-2"));
+        assertEquals("= 0", Calc.once("\\tan(\\pi)"));
+        assertEquals("= 0", Calc.once("\\sin\\pi"));
+        assertEquals("= 0", Calc.once("\\lim_{x\\to\\infty}\\frac{x}{e^x}"));
+        assertEquals("= 0", Calc.once("\\sum_{n=1}^{\\infty}\\frac{1}{n^2}-\\frac{\\pi^2}{6}"));
+        assertEquals("= (0, 0)", Calc.once("(1,2)-(1,2)"));
+        Calc calc = new Calc();
+        calc.show("f(x)=\\sin x");
+        assertEquals("= 0", calc.show("f(\\pi)"));
+        // roots keep the old rule for now
+        assertEquals("x = 0", Calc.once("x=10^{-13}"));
+        assertEquals("x = -0.000000000000001 or x = 0.000000000000001", Calc.once("x^2=10^{-30}"));
+        assertEquals("-0.00001 < x < 0.00001", Calc.once("x^2<10^{-10}"));
+    }
+
+    @Test
     void tinyAnswersHaveNoTrailingZero() {
         assertEquals("= 0.00000006", Calc.once("5.99999\\cdot 10^{-8}"));
         assertEquals("= 0.00000006", Calc.once("6\\cdot 10^{-8}"));

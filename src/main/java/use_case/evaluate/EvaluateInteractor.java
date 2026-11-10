@@ -133,7 +133,7 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
         List<Value> values = new ArrayList<>();
         for (int mask = 0; mask < masks; mask++) {
             Context context = new Context(functions).withSigns(mask);
-            Value value = calculate(node, context);
+            Value value = calculate(node, context).accept(new NoiseFilter(node, context));
             if (node.isApproximate(context)) {
                 value = value.accept(ROUNDER);
             }

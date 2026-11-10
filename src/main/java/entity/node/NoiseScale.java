@@ -5,7 +5,7 @@ import entity.value.NumberValue;
 import entity.value.Value;
 
 // how big float noise in a plain formula can get, so 10^{-10}>0 stays true
-final class NoiseScale {
+public final class NoiseScale {
     // a few dozen roundings worth of eps
     static final double TOLERANCE = 64 * Math.ulp(1.0);
     private static final double EXACT_INTEGERS = 0x1p53;
@@ -20,7 +20,7 @@ final class NoiseScale {
     }
 
     // rough abs float noise in a value, NaN if unknown
-    static double noiseOf(Node node, Context context) {
+    public static double noiseOf(Node node, Context context) {
         if (!isSupported(node)) {
             return Double.NaN;
         }

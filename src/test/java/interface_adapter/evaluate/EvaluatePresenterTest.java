@@ -34,7 +34,8 @@ class EvaluatePresenterTest {
         assertEquals("2", AnswerFormatter.format(2.0));
         assertEquals("-100", AnswerFormatter.format(-100));
         assertEquals("1/3", AnswerFormatter.format(1.0 / 3));
-        assertEquals("0", AnswerFormatter.format(Math.sin(Math.PI)));
+        // sin(pi) noise is made 0 in the use case now
+        assertEquals("0", AnswerFormatter.format(0.0));
         assertEquals("∞", AnswerFormatter.format(1.0 / 0));
         assertEquals("undefined", AnswerFormatter.format(Double.NaN));
         assertEquals("-∞", AnswerFormatter.format(-1.0 / 0));
@@ -96,6 +97,22 @@ class EvaluatePresenterTest {
                 viewModel.getState().getAnswerRuns());
         presenter.prepareValuesView(List.of(OutputDataMapper.of(new NumberValue(7))));
         assertEquals(null, viewModel.getState().getAnswerRuns());
+    }
+
+    @Test
+    void reallyTinyGoesScientific() {
+        assertEquals("1×10^-13", AnswerFormatter.format(1e-13));
+        assertEquals("-9.4×10^-14", AnswerFormatter.format(-Math.exp(-30)));
+        assertEquals("0.000000000001", AnswerFormatter.format(1e-12));
+        presenter.prepareFormulaShape(FormulaShape.ENDS_WITH_EQUALS);
+        presenter.prepareValuesView(List.of(OutputDataMapper.of(new NumberValue(-1e-13))));
+        assertEquals("= -1×10^-13", viewModel.getState().getResultText());
+        assertEquals(List.of(new TextRun("−1×10", false), new TextRun("−13", true)),
+                viewModel.getState().getAnswerRuns());
+        presenter.prepareFormulaShape(FormulaShape.PLAIN);
+        presenter.prepareValuesView(List.of(OutputDataMapper.of(new NumberValue(3e-14))));
+        assertEquals(List.of(new TextRun("= 3×10", false), new TextRun("−14", true)),
+                viewModel.getState().getAnswerRuns());
     }
 
     @Test
