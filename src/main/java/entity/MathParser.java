@@ -33,7 +33,11 @@ import java.util.Set;
 public final class MathParser {
     // stuff we cant calc (integrals, ..., maps)
     private static final List<String> MEANINGLESS = Arrays.asList("\\int", "\\ldots", "\\rightarrow",
-            "\\partial", ":", ";");
+            "\\partial");
+    // not a calculation, and a syntax error w/ one of these around is just prose
+    private static final List<String> PROSE = Arrays.asList(":", ";", "\\nabla", "\\sup", "\\inf",
+            "\\limsup", "\\liminf", "\\det", "\\dim", "\\ker", "\\Pr", "\\dot", "\\ddot", "\\equiv", "\\sim",
+            "\\mapsto", "\\leftarrow");
     // tokens that cant start a value
     private static final List<String> OPERATORS = Arrays.asList("\\leq", "\\geq", "\\neq", "\\approx",
             "\\times", "\\cdot", "\\land", "\\lor", "\\oplus", "\\Rightarrow", "\\Leftrightarrow",
@@ -70,9 +74,10 @@ public final class MathParser {
         } catch (UncalculableException e) {
             throw e;
         } catch (MathSyntaxException e) {
-            // leftover : or ; is just prose
-            if (tokens.contains(":") || tokens.contains(";")) {
-                throw new UncalculableException(UncalculableReason.NOT_CALCULATION);
+            for (String token : PROSE) {
+                if (tokens.contains(token)) {
+                    throw new UncalculableException(UncalculableReason.NOT_CALCULATION);
+                }
             }
             throw e;
         }
@@ -408,7 +413,7 @@ public final class MathParser {
             }
             return new VariableNode(name);
         }
-        if (MEANINGLESS.contains(token)) {
+        if (MEANINGLESS.contains(token) || PROSE.contains(token)) {
             throw new UncalculableException(meaninglessReason(token));
         }
         if (OPERATORS.contains(token) || NamedFunction.isClosing(token)) {

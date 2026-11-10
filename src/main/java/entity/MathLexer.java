@@ -31,6 +31,11 @@ public class MathLexer {
         ALIASES.put("\\dfrac", "\\frac");
         ALIASES.put("\\tfrac", "\\frac");
         ALIASES.put("\\cdots", "\\ldots");
+        ALIASES.put("\\vdots", "\\ldots");
+        ALIASES.put("\\ddots", "\\ldots");
+        ALIASES.put("\\iint", "\\int");
+        ALIASES.put("\\iiint", "\\int");
+        ALIASES.put("\\oint", "\\int");
         ALIASES.put("\\prime", "'");
     }
 
