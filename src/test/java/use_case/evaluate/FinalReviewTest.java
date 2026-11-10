@@ -142,7 +142,7 @@ class FinalReviewTest {
         assertEquals("no solution", quick("\\frac{1}{x-200}=0"));
         assertEquals("x = -300 or x = 200", quick("(x-200)(x+300)=0"));
         correctOrUncalculable("x = 1000", "e^{-x}(x-1000)=0");
-        assertEquals(UNCALCULABLE, Calc.withoutReason(quick("|x-500|<0.01")));
+        assertEquals("499.99 < x < 500.01", quick("|x-500|<0.01"));
         assertEquals(UNCALCULABLE, Calc.withoutReason(quick("\\sin(\\frac{x}{1000})>0")));
     }
 

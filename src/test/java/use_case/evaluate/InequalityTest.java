@@ -32,4 +32,29 @@ class InequalityTest {
         assertEquals("x ≤ 0", Calc.once("x^3\\leq0"));
         assertEquals("-0.0001 ≤ x ≤ 0.0001", Calc.once("x^2\\leq0.00000001"));
     }
+
+    @Test
+    void boundariesPastTheRange() {
+        assertEquals("x > 150", Calc.once("2x>300"));
+        assertEquals("x ≥ 150", Calc.once("x\\geq 150"));
+        assertEquals("x > 500", Calc.once("x-500>0"));
+        assertEquals("x > 200", Calc.once("0.05x>10"));
+        assertEquals("x > 200", Calc.once("25x-5000>0"));
+        assertEquals("x < 101", Calc.once("x<101"));
+        assertEquals("x > 100.5", Calc.once("x>100.5"));
+        assertEquals("x < -100.01", Calc.once("x<-100.01"));
+        assertEquals("x > 1000", Calc.once("x>1000"));
+        assertEquals("x < -5000", Calc.once("x<-5000"));
+        assertEquals("x > 1000000000000", Calc.once("x>10^{12}"));
+    }
+
+    @Test
+    void rangesPastTheRange() {
+        assertEquals("-200 < x < 200", Calc.once("|x|<200"));
+        assertEquals("-200 < x < 200", Calc.once("x^2<40000"));
+        assertEquals("x < -10000 or x > 10000", Calc.once("x^2>10^8"));
+        assertEquals("50 < x < 150", Calc.once("50<x<150"));
+        assertEquals("50 < x < 150", Calc.once("x>50 \\land x<150"));
+        assertEquals("x < 0 or x > 1000", Calc.once("\\frac{1}{x}<0.001"));
+    }
 }

@@ -24,9 +24,9 @@ class HardeningTest {
         assertEquals("x ≠ -100", Calc.once("x\\neq -100"));
         assertEquals("x < -100 or x > 100", Calc.once("|x|>100"));
         assertEquals("x ≤ -100 or x ≥ 100", Calc.once("x^2\\geq 10000"));
-        // past the end is still past the end
-        assertEquals("Uncalculable — Answer beyond ±100", Calc.once("x>100.001"));
-        assertEquals("Uncalculable — Answer beyond ±100", Calc.once("x\\geq 200"));
+        // just past the end comes from the far scan now
+        assertEquals("x > 100.001", Calc.once("x>100.001"));
+        assertEquals("x ≥ 200", Calc.once("x\\geq 200"));
         // root on the end + endless ones after it
         assertEquals("Uncalculable — Too many solutions", Calc.once("\\sin(\\pi x)>0"));
         assertEquals("Uncalculable — Too many solutions", Calc.once("\\sin(\\pi x)\\neq 0"));

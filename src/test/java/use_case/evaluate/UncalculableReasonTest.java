@@ -78,7 +78,9 @@ class UncalculableReasonTest {
     void solving() {
         reason("Too many solutions", "\\sin x>0");
         reason("Changes too fast", "\\sin(100\\pi x)=0");
-        reason("Answer beyond ±100", "x>500", "x<-500");
+        reason("Answer beyond ±100", "\\ln x>1000", "\\sqrt{x-200}>1");
+        assertEquals("x > 500", Calc.once("x>500"));
+        assertEquals("x < -500", Calc.once("x<-500"));
     }
 
     @Test

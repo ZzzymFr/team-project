@@ -333,6 +333,19 @@ class HardCombinationTest {
     }
 
     @Test
+    void curvedBoundariesPastTheRange() {
+        assertEquals("x > 148.41", Calc.once("\\ln x>5"));
+        assertEquals("x > 121", Calc.once("\\sqrt{x}>11"));
+        assertEquals("x > 138.98", Calc.once("1.005^x>2"));
+        assertEquals("x > 115.13", Calc.once("e^x>10^{50}"));
+        assertEquals("1 < x < 1000000", Calc.once("x^2-1000001x+1000000<0"));
+        // still endless / still past what doubles hold
+        assertEquals("Uncalculable — Too many solutions", Calc.once("\\sin x>0"));
+        assertEquals("Uncalculable — Too many solutions", Calc.once("\\tan x>0"));
+        assertEquals("Uncalculable — Answer beyond ±100", Calc.once("\\ln x>1000"));
+    }
+
+    @Test
     void fewRootsInRangeButEndlessPastIt() {
         assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\sin(x/100)=0")));
         assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\cos(\\frac{x}{50})=1")));

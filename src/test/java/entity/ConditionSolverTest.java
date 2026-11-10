@@ -40,6 +40,16 @@ class ConditionSolverTest {
     }
 
     @Test
+    void findsBoundaryPastTheRange() {
+        List<Interval> intervals = new ConditionSolver(parse("x^2-1000001x+1000000<0"), "x", context()).solve();
+        assertEquals(1, intervals.size());
+        assertEquals(1, intervals.get(0).getLow(), DELTA);
+        assertEquals(1e6, intervals.get(0).getHigh(), 1e-6);
+        assertFalse(intervals.get(0).isLowIncluded());
+        assertFalse(intervals.get(0).isHighIncluded());
+    }
+
+    @Test
     void skipsRelationsWithForeignVariables() {
         // y not bound, only x>1 gives a root
         List<Double> roots = new ConditionSolver(parse("x>1\\land x<y"), "x", context()).boundaryRoots();
