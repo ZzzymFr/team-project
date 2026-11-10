@@ -182,8 +182,10 @@ final class SideScan {
             for (int k = 0; k <= SCAN_POINTS && roots.size() <= limit; k++) {
                 double point = sign * EquationSolver.SEARCH_END * Math.pow(10, k / (double) POINTS_PER_DECADE);
                 double d = scanValue(pair, point);
-                if (d != 0 && Double.isFinite(d) && Values.areAlmostEqual(pair.lastLeft, pair.lastRight)) {
-                    // within tol only rounding shows
+                // within tol only rounding shows. a root right on the range end isnt beyond it either
+                boolean onRangeEnd = k == 0 && d == 0;
+                if ((d != 0 && Double.isFinite(d) && Values.areAlmostEqual(pair.lastLeft, pair.lastRight))
+                        || onRangeEnd) {
                     d = Double.POSITIVE_INFINITY;
                 }
                 if (Double.isInfinite(d)) {

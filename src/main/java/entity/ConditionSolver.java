@@ -73,8 +73,9 @@ public class ConditionSolver {
             throw new UncalculableException(UncalculableReason.BEYOND_RANGE);
         }
         if (below && flipsBeyond(-1, edgeTruth) || above && flipsBeyond(1, edgeTruth)) {
-            // keeps flipping out there = endless solutions
-            throw new UncalculableException(rootsBeyond(MAX_ISOLATED_POINTS) == null
+            // keeps flipping out there = endless solutions, same if it was already flipping all the way in range
+            boolean endless = intervals.size() > MAX_ISOLATED_POINTS || rootsBeyond(MAX_ISOLATED_POINTS) == null;
+            throw new UncalculableException(endless
                     ? UncalculableReason.TOO_MANY_SOLUTIONS : UncalculableReason.BEYOND_RANGE);
         }
         return intervals;
@@ -143,7 +144,8 @@ public class ConditionSolver {
             }
             int end = i;
             // lone true sample only shown if false right next to it
-            if (start == end && !rootValues.contains(points[start]) && !midpoints.contains(points[start])) {
+            if (start == end && !rootValues.contains(points[start]) && !midpoints.contains(points[start])
+                    && !runsPastEnd(points, start)) {
                 isolatedPoints++;
                 if (isolatedPoints > MAX_ISOLATED_POINTS || !isIsolated(points[start], true)) {
                     throw new UncalculableException(UncalculableReason.TOO_MANY_SOLUTIONS);
@@ -175,6 +177,15 @@ public class ConditionSolver {
             i++;
         }
         return intervals;
+    }
+
+    // true sample on the very end that stays true further out is a ray (x > 100), not a point
+    private boolean runsPastEnd(double[] points, int index) {
+        double offset = SideScan.ROOT_OFFSET * Math.max(1, Math.abs(points[index]));
+        if (index == points.length - 1) {
+            return sampleTruth.isTrueAt(points[index] + offset);
+        }
+        return index == 0 && sampleTruth.isTrueAt(points[index] - offset);
     }
 
     // single false between trues is the boundary itself

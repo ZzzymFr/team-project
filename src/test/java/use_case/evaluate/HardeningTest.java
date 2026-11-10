@@ -15,6 +15,24 @@ class HardeningTest {
     }
 
     @Test
+    void boundaryRightOnTheRangeEndStillAnswers() {
+        assertEquals("x > 100", Calc.once("x>100"));
+        assertEquals("x ≥ 100", Calc.once("x\\geq 100"));
+        assertEquals("x < -100", Calc.once("x<-100"));
+        assertEquals("x ≤ -100", Calc.once("x\\leq -100"));
+        assertEquals("x ≠ 100", Calc.once("x\\neq 100"));
+        assertEquals("x ≠ -100", Calc.once("x\\neq -100"));
+        assertEquals("x < -100 or x > 100", Calc.once("|x|>100"));
+        assertEquals("x ≤ -100 or x ≥ 100", Calc.once("x^2\\geq 10000"));
+        // past the end is still past the end
+        assertEquals("Uncalculable — Answer beyond ±100", Calc.once("x>100.001"));
+        assertEquals("Uncalculable — Answer beyond ±100", Calc.once("x\\geq 200"));
+        // root on the end + endless ones after it
+        assertEquals("Uncalculable — Too many solutions", Calc.once("\\sin(\\pi x)>0"));
+        assertEquals("Uncalculable — Too many solutions", Calc.once("\\sin(\\pi x)\\neq 0"));
+    }
+
+    @Test
     void touchingRootsBetweenGridPointsAreFound() {
         assertEquals("x = 1.41", Calc.once("(x-\\sqrt{2})^2=0"));
         assertTrue(Calc.once("\\cos(x)=1").endsWith("(and 21 more)"), Calc.once("\\cos(x)=1"));
