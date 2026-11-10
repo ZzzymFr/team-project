@@ -155,14 +155,7 @@ public final class LimitCalculator {
                 richardson.forget();
             }
             if (samples.size() >= MIN_SAMPLES && isSettled(samples, richardson)) {
-                double value = snapped(richardson.value, richardson.error, y);
-                if (FarLimit.canGoFrom(side, h) && sinceBlind < MIN_SAMPLES) {
-                    return FarLimit.limit(side, h, y);
-                }
-                if (FarLimit.canGoFrom(side, h) && isStaircase(samples, value)) {
-                    return farOr(side, h, y, value);
-                }
-                return value;
+                return settledAnswer(side, h, samples, richardson, sinceBlind < MIN_SAMPLES);
             }
             if (!farChecked && samples.size() >= EARLY_FAR && steadyGrowth(samples) != 0
                     && FarLimit.canGoFrom(side, h)) {
@@ -191,6 +184,20 @@ public final class LimitCalculator {
             return overflow;
         }
         throw new UncalculableException(UncalculableReason.LIMIT);
+    }
+
+    // blind or staircase runs only look settled, ask far out
+    private static double settledAnswer(LimitSide side, double h, List<Double> samples, Richardson richardson,
+                                        boolean blind) {
+        double nearest = samples.get(samples.size() - 1);
+        double value = snapped(richardson.value, richardson.error, nearest);
+        if (!FarLimit.canGoFrom(side, h)) {
+            return value;
+        }
+        if (blind) {
+            return FarLimit.limit(side, h, nearest);
+        }
+        return isStaircase(samples, value) ? farOr(side, h, nearest, value) : value;
     }
 
     // still growing at x=1e300 -> thats the answer, anything else the normal run decides
