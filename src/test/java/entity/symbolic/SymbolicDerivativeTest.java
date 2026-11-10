@@ -151,6 +151,27 @@ class SymbolicDerivativeTest {
         assertEquals("\\frac{x^{2}-1}{x^{2}}", d("\\frac{d}{dx}\\frac{(x+1)^2}{x}"));
     }
 
+    private String partial(String body, int order) {
+        Expr e = SymbolicDerivative.partial(parse(body), "x", order, functions);
+        return ExprWriter.latex(OutputDataMapper.of(e));
+    }
+
+    @Test
+    void partialForValuesHoldsOtherLettersStill() {
+        assertEquals("2xy", partial("x^2y", 1));
+        assertEquals("6x", partial("x^3", 2));
+        define("f", "t", "t^{3}");
+        assertEquals("6x", partial("f(x)", 2));
+    }
+
+    @Test
+    void partialForValuesWontRoundNumbers() {
+        assertEquals("0.5", partial("0.5x", 1));
+        assertThrows(UncalculableException.class, () -> partial("0.1234567891234x", 1));
+        assertThrows(UncalculableException.class, () -> partial("x\\sum_{n=1}^{3}\\frac{1}{n}", 1));
+        assertEquals("0.25x", d("\\frac{d}{dx}0.1234567891234x^2"));
+    }
+
     @Test
     void unrelatedFractionsStayApart() {
         assertEquals("-\\frac{1}{(x+1)^{2}}-\\frac{1}{x^{2}}", d("\\frac{d}{dx}(\\frac{1}{x}+\\frac{1}{x+1})"));

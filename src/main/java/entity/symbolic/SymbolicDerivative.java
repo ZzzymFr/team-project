@@ -63,19 +63,31 @@ public final class SymbolicDerivative {
     }
 
     private final Map<String, UserFunction> functions;
+    private final boolean exactNumbers;
     private final NodeVisitor<Expr> outsideDerivative = new Converter(false);
     private final NodeVisitor<Expr> insideDerivative = new Converter(true);
     private int callDepth;
 
-    private SymbolicDerivative(Map<String, UserFunction> functions) {
+    private SymbolicDerivative(Map<String, UserFunction> functions, boolean exactNumbers) {
         this.functions = functions;
+        this.exactNumbers = exactNumbers;
     }
 
     public static Expr differentiate(Node node, Map<String, UserFunction> functions) {
         try {
-            return Simplifier.simplify(new SymbolicDerivative(functions).convert(node, false));
+            return Simplifier.simplify(new SymbolicDerivative(functions, false).convert(node, false));
         } catch (ArithmeticException e) {
             throw new UncalculableException(UncalculableReason.TOO_MUCH_WORK);  // rational overflowed
+        }
+    }
+
+    // for values: other letters held still, throws if a number cant be kept exactly
+    public static Expr partial(Node body, String variable, int order, Map<String, UserFunction> functions) {
+        try {
+            SymbolicDerivative s = new SymbolicDerivative(functions, true);
+            return nth(s.convert(body, true), variable, order, false);
+        } catch (ArithmeticException e) {
+            throw new UncalculableException(UncalculableReason.TOO_MUCH_WORK);
         }
     }
 
@@ -94,7 +106,7 @@ public final class SymbolicDerivative {
 
         @Override
         public Expr visitNumber(NumberNode node) {
-            return number(node.getValue(), node.getDecimals());
+            return checked(number(node.getValue(), node.getDecimals()), node.getValue());
         }
 
         @Override
@@ -199,6 +211,13 @@ public final class SymbolicDerivative {
         return Expr.num(Rational.of(Math.round(value * DECIMAL_SCALE), DECIMAL_SCALE), true);
     }
 
+    private Expr checked(Expr number, double value) {
+        if (exactNumbers && number.value().toDouble() != value) {
+            throw new UncalculableException(UncalculableReason.TOO_MUCH_WORK);
+        }
+        return number;
+    }
+
     private Expr binary(BinaryNode b, boolean inDerivative) {
         switch (b.getOp()) {
             case ADD:
@@ -291,7 +310,7 @@ public final class SymbolicDerivative {
             if (Double.isNaN(value)) {
                 throw new UndefinedException();
             }
-            return number(value, 0);
+            return checked(number(value, 0), value);
         }
         if (inDerivative && node instanceof UnaryNode) {
             UnaryNode.Op op = ((UnaryNode) node).getOp();
