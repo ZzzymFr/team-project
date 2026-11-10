@@ -23,7 +23,7 @@ final class FarLimit {
         return side.reaches(h / SHRINK);
     }
 
-    // nearest = last sample of the normal run
+    // nearest = last sample of the normal run, NaN = nothing clean out there (cot x, e^x/e^x)
     static double limit(LimitSide side, double h, double nearest) {
         return limit(side, h, nearest, Integer.MAX_VALUE);
     }
@@ -53,11 +53,11 @@ final class FarLimit {
                 break;
             }
         }
+        if (values.isEmpty()) {
+            return Double.NaN;
+        }
         if (k == 0) {
             values.add(0, nearest);
-        }
-        if (values.isEmpty()) {
-            throw new UncalculableException(UncalculableReason.LIMIT);
         }
         if (Double.isInfinite(stop) && headsTo(values, stop)) {
             return stop;

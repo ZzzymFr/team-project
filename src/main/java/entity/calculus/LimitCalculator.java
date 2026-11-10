@@ -216,17 +216,22 @@ public final class LimitCalculator {
 
     // far end cant tell (e^x/(e^x+1) is inf/inf there): ok if the samples were closing in before the repeats
     private static double farUnlessClosedIn(LimitSide side, double h, List<Double> samples, double value) {
+        double far;
         try {
-            return FarLimit.limit(side, h, samples.get(samples.size() - 1));
+            far = FarLimit.limit(side, h, samples.get(samples.size() - 1));
         } catch (UncalculableException e) {
-            if (closedIn(samples)) {
-                return value;
-            }
-            throw e;
+            far = Double.NaN;
         }
+        if (!Double.isNaN(far)) {
+            return far;
+        }
+        if (closedIn(samples)) {
+            return value;
+        }
+        throw new UncalculableException(UncalculableReason.LIMIT);
     }
 
-    // x-10^{20} repeats from the first sample, e^x/(e^x+1) got to 1-5e-10 first
+    // x-10^{20} repeats from the first sample, e^x/(e^x+1) moved in on 1 before e^x swallowed the 1
     private static boolean closedIn(List<Double> samples) {
         int end = samples.size() - 1;
         double repeated = samples.get(end);
@@ -241,7 +246,7 @@ public final class LimitCalculator {
         if (last <= ACCEPTED * size) {
             return true;
         }
-        return end >= 1 && last < Math.abs(samples.get(end - 1) - repeated) && last <= WALKED_OFF * size;
+        return end >= 1 && last <= Math.abs(samples.get(end - 1) - repeated) / 2;
     }
 
     // still growing at x=1e300 -> thats the answer, anything else the normal run decides
@@ -276,7 +281,8 @@ public final class LimitCalculator {
 
     private static double farOr(LimitSide side, double h, double nearest, double value) {
         try {
-            return FarLimit.check(side, h, nearest);
+            double far = FarLimit.check(side, h, nearest);
+            return Double.isNaN(far) ? value : far;
         } catch (UncalculableException e) {
             return value;
         }
@@ -295,7 +301,15 @@ public final class LimitCalculator {
                 // see what far out says
             }
         }
-        return FarLimit.limit(side, h, samples.get(samples.size() - 1));
+        double far = FarLimit.limit(side, h, samples.get(samples.size() - 1));
+        if (!Double.isNaN(far)) {
+            return far;
+        }
+        // nothing clean far out (cot x), the normal run decides like before
+        if (blind && !closedIn(samples)) {
+            throw new UncalculableException(UncalculableReason.LIMIT);
+        }
+        return trusted(fromSamples(samples, richardson), samples);
     }
 
     // nearest samples walking away from it = not the limit

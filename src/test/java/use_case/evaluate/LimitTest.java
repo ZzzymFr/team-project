@@ -184,6 +184,14 @@ class LimitTest {
         assertEquals("= ∞", Calc.once("\\lim_{x\\to\\infty}1.5^x"));
         assertEquals("= 0", Calc.once("\\lim_{n\\to\\infty}\\frac{2^n}{n!}"));
         assertEquals("= 1", Calc.once("\\lim_{n\\to\\infty}\\sqrt[n]{n}"));
+        assertEquals("= 1", Calc.once("\\lim_{x\\to\\infty}\\frac{e^x}{e^{x}+x^{10}}"));
+    }
+
+    @Test
+    void nothingCleanFarOutLeavesTheNormalAnswer() {
+        assertEquals("= undefined", Calc.once("\\lim_{x\\to 0}\\cot x"));
+        assertEquals("= ∞", Calc.once("\\lim_{x\\to 0^+}\\cot x"));
+        assertEquals("= ∞", Calc.once("\\lim_{x\\to 0}\\csc^2 x"));
     }
 
     @Test
