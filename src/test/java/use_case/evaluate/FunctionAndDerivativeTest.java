@@ -3,6 +3,7 @@ package use_case.evaluate;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class FunctionAndDerivativeTest {
@@ -25,6 +26,14 @@ class FunctionAndDerivativeTest {
         assertEquals("= 12", c.show("\\frac{\\partial g}{\\partial x}(3,2)"));
         c.show("h(x)=|x|");
         assertEquals("= undefined", c.show("h'(0)"));
+    }
+
+    @Test
+    void xIsNeverAFunctionName() {
+        Calc c = new Calc();
+        assertFalse(c.show("x(y)=3").startsWith("Defined"), c.show("x(y)=3"));
+        assertEquals("x = -2 or x = 2", c.show("x^2=4"));
+        assertEquals("Defined y(x) = x^2", c.show("y(x)=x^2"));
     }
 
     @Test
