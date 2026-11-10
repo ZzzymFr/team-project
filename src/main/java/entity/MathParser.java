@@ -7,6 +7,7 @@ import entity.node.DerivativeNode;
 import entity.node.FunctionNode;
 import entity.node.LimitNode;
 import entity.node.LiteralNode;
+import entity.node.NamedFunction;
 import entity.node.Node;
 import entity.node.NumberNode;
 import entity.node.PlusMinusNode;
@@ -38,8 +39,7 @@ public final class MathParser {
             "\\leftrightarrow", "\\in", "\\notin", "\\subset", "\\cup", "\\cap", "\\perp", "\\rangle",
             "\\}");
     // a bare arg like \sin 2x ends before these
-    private static final List<String> NAMED_FUNCTIONS = Arrays.asList("\\sin", "\\cos", "\\tan", "\\ln",
-            "\\log", "\\lim", "\\sum", "\\prod");
+    private static final List<String> NAMED_FUNCTIONS = namedFunctions();
 
     private final List<String> tokens;
     private final Map<String, UserFunction> functions;
@@ -72,6 +72,17 @@ public final class MathParser {
             }
             throw e;
         }
+    }
+
+    private static List<String> namedFunctions() {
+        List<String> names = new ArrayList<>(Arrays.asList("\\lim", "\\sum", "\\prod"));
+        for (NamedFunction function : NamedFunction.values()) {
+            NamedFunction.Syntax syntax = function.getSyntax();
+            if (syntax == NamedFunction.Syntax.NAMED || syntax == NamedFunction.Syntax.LOG) {
+                names.add(function.getLatex());
+            }
+        }
+        return names;
     }
 
     public int getPlusMinusCount() {
@@ -342,22 +353,15 @@ public final class MathParser {
             Node bottom = parseRestOfGroup("}");
             return new BinaryNode(BinaryNode.Op.DIVIDE, top, bottom);
         }
-        if (token.equals("\\sqrt")) {
-            return parseSqrt();
+        NamedFunction function = NamedFunction.of(token);
+        if (function != null) {
+            return parseNamedFunction(function);
         }
         if (token.equals("\\lim")) {
             return parseLimit();
         }
         if (token.equals("\\sum") || token.equals("\\prod")) {
             return parseSeries(token.equals("\\prod"));
-        }
-        if (token.equals("\\log")) {
-            return parseLog();
-        }
-        if (token.equals("\\sin") || token.equals("\\cos") || token.equals("\\tan") || token.equals("\\ln")) {
-            Node power = parseFunctionPower(token);
-            Node value = new FunctionNode(token, parseNamedFunctionArgument(), null);
-            return power == null ? value : new BinaryNode(BinaryNode.Op.POWER, value, power);
         }
         if (token.equals("\\infty")) {
             return new LiteralNode(new NumberValue(Double.POSITIVE_INFINITY), true);
@@ -824,6 +828,20 @@ public final class MathParser {
         return Integer.parseInt(token);
     }
 
+    private Node parseNamedFunction(NamedFunction function) {
+        switch (function.getSyntax()) {
+            case LOG:
+                return parseLog();
+            case ROOT:
+                return parseSqrt();
+            default:
+                String name = function.getLatex();
+                Node power = parseFunctionPower(name);
+                Node value = new FunctionNode(name, parseNamedFunctionArgument(), null);
+                return power == null ? value : new BinaryNode(BinaryNode.Op.POWER, value, power);
+        }
+    }
+
     private Node parseSqrt() {
         Node degree = null;
         if (peekIs("[")) {
@@ -923,15 +941,14 @@ public final class MathParser {
         }
         return isNumber(token) || MathLexer.isLetter(token)
                 || token.equals("(") || token.equals("{") || token.equals("[")
-                || token.equals("\\pi") || token.equals("\\frac") || token.equals("\\sqrt")
-                || token.equals("\\log") || token.equals("\\ln") || token.equals("\\lim")
+                || token.equals("\\pi") || token.equals("\\frac") || token.equals("\\lim")
                 || token.equals("\\sum") || token.equals("\\prod")
                 || token.equals("\\infty") || token.equals("\\top") || token.equals("\\bot")
                 || token.equals("\\vec") || token.equals("\\hat") || token.equals("\\bar")
                 || token.equals("\\overline")
                 // inside |..| a | closes it, so 5|x| only outside
                 || token.equals("|") && absoluteDepth == 0
-                || token.equals("\\sin") || token.equals("\\cos") || token.equals("\\tan");
+                || NamedFunction.of(token) != null;
     }
 
     private boolean isNumber(String token) {

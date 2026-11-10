@@ -62,30 +62,22 @@ public final class NoiseScale {
         double x = number(node.getArgument(), context);
         double sx = of(node.getArgument(), context);
         double own = Math.abs(value);
-        switch (node.getName()) {
-            case "\\sin":
-                return Math.abs(Math.cos(x)) * sx + own;
-            case "\\cos":
-                return Math.abs(Math.sin(x)) * sx + own;
-            case "\\tan":
-                return (1 + value * value) * sx + own;
-            case "\\ln":
-                return sx / Math.abs(x) + own;
-            case "\\log":
-                if (node.getExtra() == null) {
-                    return sx / (Math.abs(x) * Math.log(10)) + own;
-                }
-                double base = number(node.getExtra(), context);
-                double logBase = Math.abs(Math.log(base));
-                return sx / (Math.abs(x) * logBase)
-                        + Math.abs(value) * of(node.getExtra(), context) / (Math.abs(base) * logBase) + own;
-            default:
-                if (x == 0) {
-                    return Double.NaN;
-                }
-                double degree = node.getExtra() == null ? 2 : number(node.getExtra(), context);
-                return Math.abs(value / (degree * x)) * sx + own;
+        NamedFunction function = NamedFunction.of(node.getName());
+        if (node.getExtra() == null) {
+            return function.noise(x, value, sx) + own;
         }
+        // only log base / root degree get here
+        if (function == NamedFunction.LOG) {
+            double base = number(node.getExtra(), context);
+            double logBase = Math.abs(Math.log(base));
+            return sx / (Math.abs(x) * logBase)
+                    + Math.abs(value) * of(node.getExtra(), context) / (Math.abs(base) * logBase) + own;
+        }
+        if (x == 0) {
+            return Double.NaN;
+        }
+        double degree = number(node.getExtra(), context);
+        return Math.abs(value / (degree * x)) * sx + own;
     }
 
     private static double number(Node node, Context context) {
@@ -133,6 +125,10 @@ public final class NoiseScale {
 
         @Override
         public Boolean visitFunction(FunctionNode node) {
+            NamedFunction function = NamedFunction.of(node.getName());
+            if (function == null || !function.hasNoise()) {
+                return false;
+            }
             for (Node child : node.children()) {
                 if (!isSupported(child)) {
                     return false;
