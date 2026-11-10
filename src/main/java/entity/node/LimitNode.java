@@ -70,23 +70,28 @@ public class LimitNode extends Node {
     @Override
     public Value evaluate(Context context) {
         double point = Values.toNumber(target.evaluate(context));
-        boolean[] lost = {false};
-        double limit = LimitCalculator.limit(t -> sample(context.withVariable(variable, t), lost),
-                t -> NoiseScale.noiseOf(body, context.withVariable(variable, t)), point, side);
-        if (Double.isNaN(limit) && lost[0]) {
+        Losses losses = new Losses();
+        double limit = LimitCalculator.limit(t -> sample(t, context, losses),
+                t -> NoiseScale.noiseOf(body, context.withVariable(variable, t)),
+                t -> t == losses.absorbedAt, point, side);
+        if (Double.isNaN(limit) && losses.nan) {
             // inf-inf in the samples, not a real "no limit"
             throw new UncalculableException(UncalculableReason.TOO_BIG);
         }
         return new NumberValue(limit);
     }
 
-    private double sample(Context context, boolean[] lost) {
+    private double sample(double t, Context outerContext, Losses losses) {
+        Context context = outerContext.withVariable(variable, t);
         boolean outer = context.isAbsorbed();
         context.setAbsorbed(false);
+        losses.absorbedAt = Double.NaN;
         try {
             double value = DerivativeNode.numberAt(body, context);
             if (Double.isNaN(value) && context.isAbsorbed()) {
-                lost[0] = true;
+                losses.nan = true;
+            } else if (context.isAbsorbed()) {
+                losses.absorbedAt = t;
             }
             return value;
         } catch (UndefinedException e) {
@@ -94,6 +99,12 @@ public class LimitNode extends Node {
         } finally {
             context.setAbsorbed(outer || context.isAbsorbed());
         }
+    }
+
+    // what rounding lost in the samples, absorbedAt = last sample that lost something
+    private static final class Losses {
+        private boolean nan;
+        private double absorbedAt = Double.NaN;
     }
 
     @Override

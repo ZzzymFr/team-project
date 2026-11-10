@@ -35,7 +35,7 @@ final class FarLimit {
         for (; k >= 1 && values.size() <= GROWTH_STEPS; k--) {
             double at = h / Math.pow(SHRINK, k);
             double y = side.valueAt(at);
-            if (Double.isFinite(y) && !isNoisy(side.noiseAt(at), y)) {
+            if (Double.isFinite(y) && isClean(side, at, y)) {
                 values.add(0, y);
             } else if (values.isEmpty()) {
                 stop = Double.isFinite(y) ? Double.NaN : y;
@@ -56,8 +56,14 @@ final class FarLimit {
         return settled(values);
     }
 
-    private static boolean isNoisy(double noise, double y) {
-        return Double.isFinite(noise) && noise > CLEAN * Math.max(1, Math.abs(y));
+    // lost something to rounding and no idea how much it matters (sqrt(x^2+x)-x) -> skip
+    private static boolean isClean(LimitSide side, double at, double y) {
+        boolean absorbed = side.absorbedAt(at);
+        double noise = side.noiseAt(at);
+        if (!Double.isFinite(noise)) {
+            return !absorbed;
+        }
+        return noise <= CLEAN * Math.max(1, Math.abs(y));
     }
 
     private static boolean headsTo(List<Double> values, double infinity) {

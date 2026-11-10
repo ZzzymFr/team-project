@@ -111,7 +111,17 @@ class LimitTest {
     }
 
     @Test
+    void constantThatSwallowsXIsNotTheLimit() {
+        assertEquals("= ∞", Calc.once("\\lim_{x\\to\\infty}(x-10^{20})"));
+        assertEquals("= -∞", Calc.once("\\lim_{x\\to\\infty}(10^{20}-x)"));
+        assertEquals("= ∞", Calc.once("\\lim_{x\\to\\infty}(x-10^{100})"));
+        assertEquals("= -1×10^20", Calc.once("\\lim_{x\\to 3}(x-10^{20})"));
+        assertEquals("= 1000000000000", Calc.once("\\lim_{x\\to\\infty}1000000000000+\\frac{1}{x}"));
+    }
+
+    @Test
     void tinyConstantsAtZero() {
+        assertEquals("= 0", Calc.once("\\lim_{x\\to 0}\\frac{x^2}{x^2+10^{-20}}"));
         assertEquals("= 0", Calc.once("\\lim_{x\\to 0}\\frac{x}{x+10^{-12}}"));
         // -10^{-12}/x -> -inf so e^... -> 0
         assertEquals("= 0", Calc.once("\\lim_{x\\to 0^+}e^{-10^{-12}/x}"));

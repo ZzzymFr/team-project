@@ -6,6 +6,7 @@ import entity.UncalculableReason;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.DoublePredicate;
 import java.util.function.DoubleUnaryOperator;
 
 public final class LimitCalculator {
@@ -54,31 +55,38 @@ public final class LimitCalculator {
 
     // noise = rough float noise of f at x (NaN = unknown), noisy samples are dropped
     public static double limit(DoubleUnaryOperator f, DoubleUnaryOperator noise, double target, int side) {
+        return limit(f, noise, x -> false, target, side);
+    }
+
+    // absorbed = rounding swallowed part of f at x (x-10^{20} at small x)
+    public static double limit(DoubleUnaryOperator f, DoubleUnaryOperator noise, DoublePredicate absorbed,
+                               double target, int side) {
         if (Double.isNaN(target)) {
             return Double.NaN;
         }
         if (Double.isInfinite(target)) {
             double sign = Math.signum(target);
-            return oneSided(new LimitSide(t -> f.applyAsDouble(sign / t), t -> noise.applyAsDouble(sign / t), FAR_REACH));
+            DoubleUnaryOperator x = t -> sign / t;
+            return oneSided(new LimitSide(f.compose(x), noise.compose(x), t -> absorbed.test(x.applyAsDouble(t)),
+                    FAR_REACH));
         }
-        if (side > 0) {
-            return oneSided(near(f, noise, target, 1));
+        if (side != 0) {
+            return oneSided(near(f, noise, absorbed, target, side > 0 ? 1 : -1));
         }
-        if (side < 0) {
-            return oneSided(near(f, noise, target, -1));
-        }
-        double left = oneSided(near(f, noise, target, -1));
+        double left = oneSided(near(f, noise, absorbed, target, -1));
         if (Double.isNaN(left)) {
             return Double.NaN;
         }
-        return combine(left, oneSided(near(f, noise, target, 1)));
+        return combine(left, oneSided(near(f, noise, absorbed, target, 1)));
     }
 
-    private static LimitSide near(DoubleUnaryOperator f, DoubleUnaryOperator noise, double target, int direction) {
+    private static LimitSide near(DoubleUnaryOperator f, DoubleUnaryOperator noise, DoublePredicate absorbed,
+                                  double target, int direction) {
         double step = direction * Math.max(1, Math.abs(target));
+        DoubleUnaryOperator x = h -> target + h * step;
         // next to a nonzero target x+h runs out of digits long before 1e-300
         double reach = target == 0 ? FAR_REACH : Double.POSITIVE_INFINITY;
-        return new LimitSide(h -> f.applyAsDouble(target + h * step), h -> noise.applyAsDouble(target + h * step), reach);
+        return new LimitSide(f.compose(x), noise.compose(x), h -> absorbed.test(x.applyAsDouble(h)), reach);
     }
 
     private static double combine(double left, double right) {
@@ -111,9 +119,13 @@ public final class LimitCalculator {
         // first bad sample of the run, later inf/inf NaNs dont matter
         double overflow = Double.NaN;
         boolean farChecked = false;
+        // x swallowed by rounding (x-10^{20}): same value again, says nothing about the limit
+        int sinceBlind = MIN_SAMPLES;
+        double previous = Double.NaN;
         for (int k = 0; k < POSITIONS && samples.size() < SAMPLES; k++) {
             double y = side.valueAt(h);
             double yNoise = Double.isFinite(y) ? side.noiseAt(h) : Double.NaN;
+            boolean lostSome = Double.isFinite(y) && side.absorbedAt(h);
             h = h / SHRINK;
             if (Double.isFinite(yNoise) && yNoise > CLEAN * Math.max(1, Math.abs(y))) {
                 // roundoff from here on, (10^6+h)^2-10^12 etc
@@ -135,12 +147,17 @@ public final class LimitCalculator {
             }
             anyFinite = true;
             badRun = 0;
+            sinceBlind = lostSome && y == previous ? 0 : sinceBlind + 1;
+            previous = y;
             samples.add(y);
             richardson.add(y);
             if (departs(samples, richardson.value)) {
                 richardson.forget();
             }
             if (samples.size() >= MIN_SAMPLES && isSettled(samples, richardson)) {
+                if (sinceBlind < MIN_SAMPLES && FarLimit.canGoFrom(side, h)) {
+                    return FarLimit.limit(side, h, y);
+                }
                 return snapped(richardson.value, richardson.error, y);
             }
             if (!farChecked && samples.size() >= EARLY_FAR && steadyGrowth(samples) != 0
@@ -162,7 +179,7 @@ public final class LimitCalculator {
         if (samples.size() >= MIN_SAMPLES) {
             boolean oscillates = steadyGrowth(samples) == 0 && turns(samples) >= OSCILLATION_TURNS;
             if (!oscillates && FarLimit.canGoFrom(side, h)) {
-                return nearOrFar(side, h, samples, richardson);
+                return nearOrFar(side, h, samples, richardson, sinceBlind < MIN_SAMPLES);
             }
             return trusted(fromSamples(samples, richardson), samples);
         }
@@ -182,8 +199,9 @@ public final class LimitCalculator {
     }
 
     // growth has to hold up far out, an unsure answer gets checked there too
-    private static double nearOrFar(LimitSide side, double h, List<Double> samples, Richardson richardson) {
-        if (steadyGrowth(samples) == 0) {
+    private static double nearOrFar(LimitSide side, double h, List<Double> samples, Richardson richardson,
+                                    boolean blind) {
+        if (!blind && steadyGrowth(samples) == 0) {
             try {
                 double value = fromSamples(samples, richardson);
                 if (!contradicts(samples, value)) {

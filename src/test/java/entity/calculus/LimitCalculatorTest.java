@@ -111,6 +111,18 @@ class LimitCalculatorTest {
     }
 
     @Test
+    void absorbedSamplesDontSettle() {
+        double inf = Double.POSITIVE_INFINITY;
+        DoubleUnaryOperator noNoise = x -> Double.NaN;
+        // x lost in x-1e20 until x is huge
+        assertEquals(inf, LimitCalculator.limit(x -> x - 1e20, noNoise, x -> x - 1e20 == -1e20, inf, 0));
+        assertEquals(-inf, LimitCalculator.limit(x -> 1e20 - x, noNoise, x -> 1e20 - x == 1e20, inf, 0));
+        assertEquals(1e12, LimitCalculator.limit(x -> 1e12 + 1 / x, noNoise, x -> 1e12 + 1 / x == 1e12, inf, 0), 1e-3);
+        // near a nonzero point x really doesnt matter
+        assertEquals(-1e20, LimitCalculator.limit(x -> x - 1e20, noNoise, x -> true, 3, 0), 0);
+    }
+
+    @Test
     void growthOnlyCountsIfItKeepsGrowing() {
         double inf = Double.POSITIVE_INFINITY;
         assertEquals(inf, LimitCalculator.limit(x -> Math.pow(x, 0.001), inf, 0));
