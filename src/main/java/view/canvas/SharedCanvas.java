@@ -226,6 +226,10 @@ public class SharedCanvas {
         return canvas.registerNewInk(last, session);
     }
 
+    public long formulaIdOf(Stroke s) {
+        return canvas.formulaIdOf(s);
+    }
+
     public Rectangle formulaBounds(long id) {
         return canvas.formulaBounds(id);
     }

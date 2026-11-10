@@ -953,6 +953,12 @@ public class DrawingCanvas extends JPanel {
         return book.isBound(s);
     }
 
+    // -1 if loose
+    public long formulaIdOf(Stroke s) {
+        Formula f = book.holding(s);
+        return f == null ? -1 : f.getId();
+    }
+
     // world box of a formula, null if gone
     public Rectangle formulaBounds(long id) {
         Formula f = book.get(id);

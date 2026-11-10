@@ -47,12 +47,17 @@ public class FormulaBook {
     }
 
     public boolean isBound(Stroke s) {
+        return holding(s) != null;
+    }
+
+    // formula the stroke is part of, null if loose
+    public Formula holding(Stroke s) {
         for (Formula f : formulas.values()) {
             if (f.getStrokes().contains(s)) {
-                return true;
+                return f;
             }
         }
-        return false;
+        return null;
     }
 
     public void put(Formula f) {
