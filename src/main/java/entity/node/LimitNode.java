@@ -7,22 +7,29 @@ import entity.value.NumberValue;
 import entity.value.Value;
 import entity.value.Values;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.TreeSet;
 
 public class LimitNode extends Node {
     private final String variable;
     private final Node target;
     private final int side;
     private final Node body;
+    // answer only hangs on these, solver asks the same x many times
+    private final List<String> free;
 
     public LimitNode(String variable, Node target, int side, Node body) {
         this.variable = variable;
         this.target = target;
         this.side = side;
         this.body = body;
+        Set<String> names = new TreeSet<>();
+        collectFreeVariables(names);
+        this.free = new ArrayList<>(names);
     }
 
     public String getVariable() {
@@ -67,6 +74,10 @@ public class LimitNode extends Node {
 
     @Override
     public Value evaluate(Context context) {
+        return context.once(this, free, () -> limitOf(context));
+    }
+
+    private Value limitOf(Context context) {
         double point = Values.toNumber(target.evaluate(context));
         Losses losses = new Losses();
         double limit = LimitCalculator.limit(t -> sample(t, context, losses),

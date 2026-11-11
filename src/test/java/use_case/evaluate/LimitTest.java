@@ -2,7 +2,10 @@ package use_case.evaluate;
 
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTimeout;
 
 class LimitTest {
     @Test
@@ -185,6 +188,17 @@ class LimitTest {
         assertEquals("= 0", Calc.once("\\lim_{n\\to\\infty}\\frac{2^n}{n!}"));
         assertEquals("= 1", Calc.once("\\lim_{n\\to\\infty}\\sqrt[n]{n}"));
         assertEquals("= 1", Calc.once("\\lim_{x\\to\\infty}\\frac{e^x}{e^{x}+x^{10}}"));
+    }
+
+    @Test
+    void limitWithoutTheUnknownIsWorkedOutOnce() {
+        // solver tries ~20000 x, these lims have no x in them
+        assertEquals("x = 1", assertTimeout(Duration.ofMillis(300),
+                () -> Calc.once("\\lim_{t\\to\\infty}\\frac{t}{t+10^{10}}=x")));
+        assertEquals("x > 2", assertTimeout(Duration.ofMillis(300),
+                () -> Calc.once("(\\lim_{t\\to 0}\\frac{\\sin t}{t})x>2")));
+        assertEquals("Uncalculable — Limit unclear", assertTimeout(Duration.ofMillis(300),
+                () -> Calc.once("\\lim_{t\\to\\infty}\\frac{1}{\\ln t}=x")));
     }
 
     @Test
