@@ -20,12 +20,21 @@ public final class HistoryBoardPresenter {
     }
     public void refresh() {
         try {
-            List<HistoryItem> items = history.list().stream().map(HistoryItem::new).toList();
+            // Earlier versions accidentally auto-saved every partial recognition.
+            // Keep those legacy files intact but do not display unconfirmed previews.
+            List<HistoryItem> items = history.list().stream()
+                    .filter(entry -> entry.kind() == HistoryEntry.Kind.CALCULATION
+                            || entry.kind() == HistoryEntry.Kind.GRAPH)
+                    .map(HistoryItem::new).toList();
             model.setItems(items);
         } catch (IOException e) {
             System.err.println("Math Lab history load failed: " + e.getMessage());
             model.setItems(List.of());
         }
+    }
+    public boolean undoDelete() {
+        try { return history.undoDelete(); }
+        catch (IOException e) { System.err.println("Math Lab history restore failed: " + e.getMessage()); return false; }
     }
     public boolean delete(String id) {
         try { return history.delete(id); }

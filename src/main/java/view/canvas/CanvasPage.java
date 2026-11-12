@@ -218,7 +218,7 @@ public abstract class CanvasPage extends JPanel {
         hint.setText(hintFor(sharedCanvas.getTool(), sharedCanvas.getEraserMode()));
 
         // The tool and eraser mode belong to the shared canvas, so every page shows the same ones.
-        GlassSegmentedControl tools = new GlassSegmentedControl("Pen", "Eraser", "Lasso");
+        GlassSegmentedControl tools = new GlassSegmentedControl("Pen", "Eraser", "Lasso", "Box");
         tools.setSelectedIndex(sharedCanvas.getTool().ordinal());
         tools.addSelectionListener(i -> sharedCanvas.setTool(DrawingCanvas.Tool.values()[i]));
 

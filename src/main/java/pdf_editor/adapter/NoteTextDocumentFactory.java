@@ -6,6 +6,10 @@ import javax.swing.text.BadLocationException;
 import javax.swing.text.SimpleAttributeSet;
 import javax.swing.text.StyleConstants;
 import javax.swing.text.StyledDocument;
+import javax.swing.text.Element;
+import javax.swing.text.AttributeSet;
+import java.util.ArrayList;
+import java.util.List;
 import java.awt.Color;
 import java.awt.Font;
 
@@ -30,6 +34,23 @@ public final class NoteTextDocumentFactory {
             }
         } catch (BadLocationException ex) { throw new IllegalStateException(ex); }
         return pane;
+    }
+    /** Convert Swing styled text to immutable domain spans at the view-adapter boundary. */
+    public static List<PdfDocument.NoteSpan> toSpans(JTextPane pane) {
+        StyledDocument doc = pane.getStyledDocument();
+        List<PdfDocument.NoteSpan> spans = new ArrayList<>();
+        try {
+            for (int i = 0; i < doc.getLength(); ) {
+                Element element = doc.getCharacterElement(i);
+                int end = Math.min(doc.getLength(), element.getEndOffset());
+                AttributeSet attr = element.getAttributes();
+                spans.add(new PdfDocument.NoteSpan(doc.getText(i, end - i),
+                        StyleConstants.isBold(attr), StyleConstants.isItalic(attr),
+                        StyleConstants.isUnderline(attr), Math.max(8, StyleConstants.getFontSize(attr))));
+                i = end;
+            }
+        } catch (BadLocationException e) { throw new IllegalStateException(e); }
+        return spans;
     }
     private static SimpleAttributeSet attributes(PdfDocument.NoteSpan span) {
         SimpleAttributeSet attrs = new SimpleAttributeSet();

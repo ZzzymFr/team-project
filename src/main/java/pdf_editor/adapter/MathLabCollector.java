@@ -35,15 +35,6 @@ public final class MathLabCollector {
                 persist(() -> history.recordCalculation(latex, result));
             });
     }
-    public void acceptRecognizedFormula(String latex) {
-        if (latex != null && !latex.trim().isEmpty()) onEdt(() -> {
-            if (library.items().stream().noneMatch(m -> !m.isGraph()
-                    && !m.hasResult() && m.formula().trim().equals(latex.trim()))) {
-                library.addFormula(latex);
-            }
-            persist(() -> history.recordFormula(latex));
-        });
-    }
     public void acceptGraph(String title, BufferedImage image) {
         if (image != null) onEdt(() -> {
             MathLibrary.Material material = library.addGraph(title == null ? "Graph" : title, image);

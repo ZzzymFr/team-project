@@ -81,7 +81,8 @@ public final class DocEditorPanel extends JPanel implements PdfWorkspacePort {
         });
         workspace.setBackground(DESK);
         workspace.add(pageScroll, BorderLayout.CENTER);
-        workspace.add(new PageRuler(), BorderLayout.NORTH);
+        // A decorative ruler misrepresented measurements and did not scroll with the page.
+        // Keep the desk clean until a real, scroll-synchronised editing ruler is added.
         setupLibrary();
         workspace.add(libraryPanel, BorderLayout.WEST);
         libraryPanel.setVisible(false);
@@ -114,13 +115,8 @@ public final class DocEditorPanel extends JPanel implements PdfWorkspacePort {
         JPanel nameRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 8));
         nameRow.setOpaque(false);
         nameRow.setBorder(BorderFactory.createEmptyBorder(BoardTheme.TOP + 4, 8, 0, 60));
-        JLabel mark = new JLabel("▤"); mark.setForeground(new Color(0x007AFF));
-        mark.setFont(BoardTheme.font(20f));
         title.setFont(BoardTheme.font(15f));
-        nameRow.add(mark); nameRow.add(title);
-        JLabel docStatus = new JLabel("Export to save as PDF");
-        docStatus.setFont(BoardTheme.font(11f)); docStatus.setForeground(MUTED);
-        nameRow.add(docStatus);
+        nameRow.add(title);
         top.add(nameRow, BorderLayout.NORTH);
 
         JPanel tabsRow = new JPanel(new BorderLayout());
@@ -134,12 +130,12 @@ public final class DocEditorPanel extends JPanel implements PdfWorkspacePort {
         tabs.add(new Tab("View", viewRibbon()));
         for (Tab tab : tabs) names.add(tab.button);
         tabsRow.add(names, BorderLayout.CENTER);
-        JButton export = flatButton("Export PDF", this::export);
-        export.setBackground(new Color(0x007AFF));
-        export.setForeground(Color.WHITE);
-        export.setOpaque(true);
-        export.setFont(BoardTheme.font(12f));
-        names.add(export);
+        JButton export = new RoundedActionButton("Export PDF", this::export, true);
+        export.setToolTipText("Save your document as a PDF file");
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
+        actions.setOpaque(false);
+        actions.add(export);
+        tabsRow.add(actions, BorderLayout.EAST);
         top.add(tabsRow, BorderLayout.CENTER);
         ribbonHolder.setBorder(BorderFactory.createMatteBorder(1, 0, 1, 0, DIVIDER));
         ribbonHolder.setBackground(Color.WHITE);
@@ -164,7 +160,16 @@ public final class DocEditorPanel extends JPanel implements PdfWorkspacePort {
         command(row, RibbonButton.letter("B", Font.BOLD, false, false, "Bold selected note"), () -> setNoteStyle("bold"));
         command(row, RibbonButton.letter("I", Font.ITALIC, false, false, "Italic selected note"), () -> setNoteStyle("italic"));
         command(row, RibbonButton.letter("U", Font.PLAIN, true, false, "Underline selected note"), () -> setNoteStyle("underline"));
-        command(row, RibbonButton.dropdown("Font size", 85, "Set size of selected note"), this::setNoteFontSize);
+        JComboBox<Integer> sizes = new JComboBox<>(new Integer[] {8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 48, 60, 72});
+        sizes.setSelectedItem(16);
+        sizes.setToolTipText("Font size — applies to highlighted text or the selected text box");
+        sizes.setFont(BoardTheme.font(12f));
+        sizes.setFocusable(false);
+        sizes.addActionListener(e -> {
+            Integer size = (Integer) sizes.getSelectedItem();
+            if (size != null) applyNoteFontSize(size);
+        });
+        row.add(sizes);
         command(row, RibbonButton.labeled(DocIcons::formula, "Edit math"), this::editFormula);
         command(row, RibbonButton.labeled(DocIcons::comment, "Edit note"), this::editNote);
         return row;
@@ -180,12 +185,13 @@ public final class DocEditorPanel extends JPanel implements PdfWorkspacePort {
     }
     private JPanel layoutRibbon() {
         JPanel row = ribbon();
-        JLabel label = new JLabel("A4 · Portrait · Editable page elements");
-        label.setFont(BoardTheme.font(12f)); label.setForeground(MUTED);
-        row.add(label);
         command(row, RibbonButton.labeled(DocIcons::pageBreak, "Add page"), this::addPage);
         command(row, RibbonButton.labeled(DocIcons::pageBreak, "Delete page"), this::deletePage);
         command(row, RibbonButton.labeled(DocIcons.align(0), "Auto layout"), this::autoLayout);
+        command(row, RibbonButton.labeled(DocIcons::pageBreak, "Move page"), this::moveToPageMenu);
+        command(row, RibbonButton.letter("↑", Font.PLAIN, false, false, "Bring selected object forward one layer"), () -> arrange(1));
+        command(row, RibbonButton.letter("↓", Font.PLAIN, false, false, "Send selected object backward one layer"), () -> arrange(-1));
+        command(row, RibbonButton.labeled(DocIcons::comment, "Arrange…"), this::arrangeMenu);
         return row;
     }
     private JPanel viewRibbon() {
@@ -220,12 +226,37 @@ public final class DocEditorPanel extends JPanel implements PdfWorkspacePort {
         return bar;
     }
     private JButton flatButton(String text, Runnable task) {
-        JButton b = new JButton(text);
-        b.setFont(BoardTheme.font(12f));
-        b.setFocusable(false);
-        b.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
-        b.addActionListener(e -> task.run());
-        return b;
+        return new RoundedActionButton(text, task, false);
+    }
+    /** Readable rounded buttons with a real opaque fill; unlike platform LAF translucent defaults. */
+    private static final class RoundedActionButton extends JButton {
+        private final boolean primary;
+        private boolean over;
+        RoundedActionButton(String text, Runnable action, boolean primary) {
+            super(text);this.primary = primary;
+            setFont(BoardTheme.font(12f));
+            setFocusable(false);setContentAreaFilled(false);setOpaque(false);
+            setBorder(BorderFactory.createEmptyBorder(8, 13, 8, 13));
+            setForeground(primary ? Color.WHITE : new Color(42, 57, 79));
+            addActionListener(e -> action.run());
+            addMouseListener(new java.awt.event.MouseAdapter() {
+                @Override public void mouseEntered(MouseEvent e) {over = true;repaint();}
+                @Override public void mouseExited(MouseEvent e) {over = false;repaint();}
+            });
+        }
+        @Override protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            int w = getWidth(), h = getHeight();
+            Color top = primary ? (over ? new Color(41, 143, 255) : new Color(0, 122, 255))
+                    : (over ? new Color(228, 237, 249, 252) : new Color(247, 249, 253, 242));
+            Color end = primary ? new Color(0, 93, 216) : new Color(239, 243, 249);
+            g2.setPaint(new GradientPaint(0, 0, top, 0, h, end));
+            g2.fillRoundRect(0, 0, w - 1, h - 1, 17, 17);
+            g2.setColor(primary ? new Color(255, 255, 255, 95) : new Color(189, 198, 213, 145));
+            g2.drawRoundRect(0, 0, w - 1, h - 1, 17, 17);
+            g2.dispose();super.paintComponent(g);
+        }
     }
     private void setupLibrary() {
         libraryPanel.setBackground(Color.WHITE);
@@ -235,7 +266,12 @@ public final class DocEditorPanel extends JPanel implements PdfWorkspacePort {
         header.setBorder(BorderFactory.createEmptyBorder(10, 9, 6, 6));
         JLabel name = new JLabel("Library");name.setFont(BoardTheme.font(14f));
         header.add(name, BorderLayout.CENTER);
-        header.add(flatButton("×", this::toggleLibrary), BorderLayout.EAST);
+        JPanel libraryActions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 3, 0));
+        libraryActions.setOpaque(false);
+        libraryActions.add(flatButton("Undo", () -> library.undoDelete()));
+        libraryActions.add(flatButton("Delete", this::deleteLibraryItem));
+        libraryActions.add(flatButton("×", this::toggleLibrary));
+        header.add(libraryActions, BorderLayout.EAST);
         libraryPanel.add(header, BorderLayout.NORTH);
         libraryList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         libraryList.setFixedCellHeight(76);
@@ -262,6 +298,20 @@ public final class DocEditorPanel extends JPanel implements PdfWorkspacePort {
             @Override public int getSourceActions(JComponent component) { return COPY; }
         });
         libraryList.addMouseListener(new java.awt.event.MouseAdapter() {
+            private void popup(MouseEvent e) {
+                if (!e.isPopupTrigger()) return;
+                libraryList.setSelectedIndex(libraryList.locationToIndex(e.getPoint()));
+                JPopupMenu menu = new JPopupMenu();
+                item(menu, "Add to PDF", () -> {
+                    MathLibrary.Material selected = libraryList.getSelectedValue();
+                    if (selected != null) addMaterial(selected, 85, 110);
+                });
+                item(menu, "Delete from Library", DocEditorPanel.this::deleteLibraryItem);
+                item(menu, "Undo Library delete", library::undoDelete);
+                menu.show(libraryList, e.getX(), e.getY());
+            }
+            @Override public void mousePressed(MouseEvent e) { popup(e); }
+            @Override public void mouseReleased(MouseEvent e) { popup(e); }
             @Override public void mouseClicked(MouseEvent e) {
                 if (e.getClickCount() == 2 && SwingUtilities.isLeftMouseButton(e)) {
                     MathLibrary.Material chosen = libraryList.getSelectedValue();
@@ -278,17 +328,32 @@ public final class DocEditorPanel extends JPanel implements PdfWorkspacePort {
     private void refreshLibrary() {
         libraryModel.clear();for (MathLibrary.Material material : library.items()) libraryModel.addElement(material);
     }
+    private void deleteLibraryItem() {
+        MathLibrary.Material selected = libraryList.getSelectedValue();
+        if (selected != null) library.delete(selected.id());
+    }
     private void toggleLibrary() { libraryPanel.setVisible(!libraryPanel.isVisible()); workspace.revalidate();workspace.repaint(); }
     private void updateStatus() {
         pageCount.setText("Page " + (controller.currentPage() + 1) + " of " + controller.pageCount());
         paper.repaint();
     }
-    private void changePage(int target) {controller.switchPage(target);updateStatus();}
+    private void changePage(int target) {paper.finishInlineEdit();controller.switchPage(target);updateStatus();}
     private void zoom(double z) {
         double actual = paper.setZoom(z);
         updatingZoom = true;
         try {zoomSlider.setValue((int) Math.round(100 * actual));zoomValue.setText((int) Math.round(100 * actual) + "%");}
         finally {updatingZoom = false;}
+        // CenteredDesk computes its preferred size from the zoomed page; invalidate
+        // the viewport view too, otherwise its GridBag positions the new page at the
+        // old (100%) dimensions and it looks left aligned at Fit Page.
+        JComponent desk = (JComponent) pageScroll.getViewport().getView();
+        desk.revalidate();
+        Dimension desired = desk.getPreferredSize();
+        desk.setSize(Math.max(desired.width, pageScroll.getViewport().getWidth()),
+                Math.max(desired.height, pageScroll.getViewport().getHeight()));
+        desk.doLayout();
+        pageScroll.getViewport().revalidate();
+        pageScroll.revalidate();
         workspace.repaint();
     }
     @Override public void fitWhenOpened() {
@@ -315,15 +380,16 @@ public final class DocEditorPanel extends JPanel implements PdfWorkspacePort {
                 Math.max(0, paper.pageX(spot.x)), Math.max(0, paper.pageY(spot.y)));
         return true;
     }
-    private void addPage() {controller.addPage();updateStatus();}
+    private void addPage() {paper.finishInlineEdit();controller.addPage();updateStatus();}
     private void deletePage() {
+        paper.finishInlineEdit();
         if (!controller.deletePage()) JOptionPane.showMessageDialog(this, "The document must contain one page.");
         updateStatus();
     }
-    private void undo() {controller.undo();updateStatus();}
-    private void redo() {controller.redo();updateStatus();}
+    private void undo() {paper.finishInlineEdit();controller.undo();updateStatus();}
+    private void redo() {paper.finishInlineEdit();controller.redo();updateStatus();}
     private void autoLayout() {controller.autoLayout();updateStatus();}
-    private void addNote() {controller.addNote();updateStatus();editNote();}
+    private void addNote() {paper.finishInlineEdit();controller.addNote();updateStatus();editNote();}
     private void insertFormula() {
         String latex = JOptionPane.showInputDialog(this, "LaTeX formula", "Insert formula", JOptionPane.PLAIN_MESSAGE);
         if (latex == null || latex.isBlank()) return;
@@ -344,10 +410,9 @@ public final class DocEditorPanel extends JPanel implements PdfWorkspacePort {
         if (change != null) {controller.editSelectedFormula(change.formula(), change.result()); updateStatus();}
     }
     private void editNote() {
-        PdfDocument.Placement selected = controller.selected();
-        if (selected == null || !selected.isNote()) {JOptionPane.showMessageDialog(this, "Select a text box first.");return;}
-        List<PdfDocument.NoteSpan> spans = RichNoteEditor.edit(this, selected);
-        if (spans != null) {controller.updateRichNote(spans);updateStatus();}
+        if (!paper.editNoteInline()) {
+            JOptionPane.showMessageDialog(this, "Select a text box first, or double-click an empty page to type.");
+        }
     }
     private void setNoteStyle(String style) {
         pdf_editor.use_case.NoteFormatting.Style requested = switch (style) {
@@ -355,40 +420,89 @@ public final class DocEditorPanel extends JPanel implements PdfWorkspacePort {
             case "italic" -> pdf_editor.use_case.NoteFormatting.Style.ITALIC;
             default -> pdf_editor.use_case.NoteFormatting.Style.UNDERLINE;
         };
-        if (!controller.toggleSelectedNoteStyle(requested))
-            JOptionPane.showMessageDialog(this, "Select a text box first.");
+        if (paper.isEditingNote()) {
+            paper.toggleInlineStyle(switch (requested) {
+                case BOLD -> javax.swing.text.StyleConstants.Bold;
+                case ITALIC -> javax.swing.text.StyleConstants.Italic;
+                case UNDERLINE -> javax.swing.text.StyleConstants.Underline;
+            });
+        } else if (!controller.toggleSelectedNoteStyle(requested)) {
+            JOptionPane.showMessageDialog(this, "Select or edit a text box first.");
+        }
         updateStatus();
     }
-    private void setNoteFontSize() {
-        PdfDocument.Placement selected = controller.selected();
-        if (selected == null || !selected.isNote()) {
-            JOptionPane.showMessageDialog(this, "Select a text box first.");return;
+    private void applyNoteFontSize(int size) {
+        if (paper.isEditingNote()) paper.setInlineFontSize(size);
+        else controller.resizeSelectedNote(size);
+        updateStatus();
+    }
+    private void arrange(int direction) {
+        paper.finishInlineEdit();
+        controller.arrange(direction);
+        updateStatus();
+    }
+    private void arrangeMenu() {
+        if (controller.selected() == null) {JOptionPane.showMessageDialog(this, "Select a page object first.");return;}
+        JPopupMenu menu = new JPopupMenu();
+        item(menu, "Bring forward", () -> arrange(1));
+        item(menu, "Send backward", () -> arrange(-1));
+        item(menu, "Bring to front", () -> arrange(2));
+        item(menu, "Send to back", () -> arrange(-2));
+        item(menu, "Move to page…", this::moveToPageMenu);
+        menu.show(this, Math.max(12, getWidth() / 3), 100);
+    }
+    /** Build destinations once for the ribbon and the document context menu. */
+    private JMenu pageDestinations() {
+        JMenu destinations = new JMenu("Move to page");
+        for (int i = 0; i < controller.pageCount(); i++) {
+            final int destination = i;
+            if (i != controller.currentPage()) {
+                JMenuItem target = new JMenuItem("Page " + (i + 1));
+                target.addActionListener(e -> {
+                    paper.finishInlineEdit(); controller.moveSelectedToPage(destination); updateStatus();
+                });
+                destinations.add(target);
+            }
         }
-        String value = JOptionPane.showInputDialog(this, "Font size (8–72)", selected.noteSize());
-        if (value == null) return;
-        try {
-            controller.resizeSelectedNote(Integer.parseInt(value.trim()));
-            updateStatus();
-        } catch (IllegalArgumentException bad) {
-            JOptionPane.showMessageDialog(this, "Enter a font size from 8 to 72.");
+        JMenuItem newPage = new JMenuItem("New page");
+        newPage.addActionListener(e -> {
+            paper.finishInlineEdit(); controller.moveSelectedToPage(-1); updateStatus();
+        });
+        destinations.add(newPage);
+        return destinations;
+    }
+    private void moveToPageMenu() {
+        if (controller.selected() == null) {JOptionPane.showMessageDialog(this, "Select a page object first.");return;}
+        JPopupMenu menu = new JPopupMenu();
+        JMenu choices = pageDestinations();
+        while (choices.getItemCount() > 0) {
+            JMenuItem destination = choices.getItem(0);
+            choices.remove(0);
+            menu.add(destination);
         }
+        menu.show(this, Math.max(12, getWidth() / 3), 106);
     }
     private void contextMenu(MouseEvent event) {
         JPopupMenu menu = new JPopupMenu();
         PdfDocument.Placement selected = controller.selected();
         if (selected == null) {
-            item(menu, "Add text box", this::addNote);
+            item(menu, "Type here", () -> {
+                controller.addNoteAt(paper.pageX(event.getX()), paper.pageY(event.getY()));
+                updateStatus();editNote();
+            });
             item(menu, "Insert formula", this::insertFormula);
             item(menu, "Add canvas handwriting", this::insertCanvasInk);
         } else {
-            if (selected.isNote()) item(menu, "Edit text / formatting...", this::editNote);
+            if (selected.isNote()) item(menu, "Type / edit text in place", this::editNote);
             else if (!selected.material().isGraph()) {
                 item(menu, "Edit formula / LaTeX / keyboard math...", this::editFormula);
                 if (selected.material().hasResult()) item(menu, "Split formula and answer", () -> {controller.splitSelected();updateStatus();});
             }
-            item(menu, "Bring to front", () -> {controller.arrange(2);updateStatus();});
-            item(menu, "Send to back", () -> {controller.arrange(-2);updateStatus();});
-            item(menu, "Move to next page", () -> {controller.moveSelectedToPage(-1);updateStatus();});
+            item(menu, "Bring forward one layer", () -> arrange(1));
+            item(menu, "Send backward one layer", () -> arrange(-1));
+            item(menu, "Bring to front", () -> arrange(2));
+            item(menu, "Send to back", () -> arrange(-2));
+            menu.add(pageDestinations());
             item(menu, "Delete selected item", () -> {controller.deleteSelected();updateStatus();});
         }
         menu.show(paper, event.getX(), event.getY());
@@ -421,35 +535,28 @@ public final class DocEditorPanel extends JPanel implements PdfWorkspacePort {
         catch (IOException bad) {error("Export failed", bad);}
     }
     private void error(String message, Exception e) {JOptionPane.showMessageDialog(this, message + ": " + e.getMessage());}
-    /** Small Word-style ruler; decorative, never owns page or business state. */
-    private final class PageRuler extends JComponent {
-        @Override public Dimension getPreferredSize() { return new Dimension(10, 20); }
-        @Override protected void paintComponent(Graphics g) {
-            Graphics2D g2 = (Graphics2D) g.create();
-            g2.setColor(DESK);g2.fillRect(0, 0, getWidth(), getHeight());
-            int width = (int) Math.round(PdfDocument.PAGE_WIDTH * paper.zoom());
-            int left = (getWidth() - width) / 2;
-            g2.setColor(new Color(255, 255, 255, 220));
-            g2.fillRect(left, 0, width, 19);
-            g2.setColor(new Color(155, 158, 167));
-            double cm = width / 21.0;
-            for (int i = 0; i <= 42; i++) {
-                int x = left + (int) Math.round(i * cm / 2.0);
-                g2.drawLine(x, 19, x, i % 2 == 0 ? 13 : 16);
-            }
-            g2.dispose();
-        }
-    }
     private final class Tab {
         private final String text;
         private final JPanel ribbon;
         private final JToggleButton button;
         private Tab(String text, JPanel ribbon) {
             this.text = text;this.ribbon = ribbon;
-            button = new JToggleButton(text);
-            button.setBorder(BorderFactory.createEmptyBorder(6, 12, 6, 12));
-            button.setBackground(Color.WHITE);
+            button = new JToggleButton(text) {
+                @Override protected void paintComponent(Graphics g) {
+                    Graphics2D g2 = (Graphics2D) g.create();
+                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                    if (isSelected() || getModel().isRollover()) {
+                        g2.setColor(isSelected() ? new Color(225, 237, 254) : new Color(244, 246, 250));
+                        g2.fillRoundRect(0, 0, getWidth(), getHeight(), 13, 13);
+                    }
+                    g2.dispose(); super.paintComponent(g);
+                }
+            };
+            button.setContentAreaFilled(false);
+            button.setOpaque(false);
+            button.setBorder(BorderFactory.createEmptyBorder(8, 13, 8, 13));
             button.setFocusable(false);
+            button.setRolloverEnabled(true);
             button.setFont(BoardTheme.font(12f));
             button.addActionListener(e -> select());
         }

@@ -18,24 +18,23 @@ class OneBoardHistoryIntegrationTest {
     @TempDir Path storage;
     private void flush() throws Exception { SwingUtilities.invokeAndWait(() -> {}); }
 
-    @Test void recognizesOnceAndReloadsAcrossSession() throws Exception {
+    @Test void previewRecognitionDoesNotCreateHistoryOnDisk() throws Exception {
         HistoryInteractor history = new HistoryInteractor(new FileHistoryRepository(storage));
-        RecordingFormulaRecognizer recognizer = new RecordingFormulaRecognizer(i -> "x^2+1", history);
+        var recognizer = (pdf_editor.use_case.SelectedInkRecognitionGateway) i -> "x^2+1";
         recognizer.recognize(new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB));
-        recognizer.recognize(new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB));
-        assertEquals(1, new HistoryInteractor(new FileHistoryRepository(storage)).list().size());
+        assertTrue(new HistoryInteractor(new FileHistoryRepository(storage)).list().isEmpty());
     }
-    @Test void brokenRecognizerNeverWritesHistory() throws Exception {
-        HistoryInteractor history = new HistoryInteractor(new FileHistoryRepository(storage));
-        RecordingFormulaRecognizer recognizer = new RecordingFormulaRecognizer(i -> { throw new IOException("bad model"); }, history);
-        assertThrows(IOException.class, () -> recognizer.recognize(new BufferedImage(1,1,2)));
-        assertTrue(history.list().isEmpty());
+    @Test void failedPreviewRecognitionCannotPolluteLibrary() throws Exception {
+        MathLibrary library = new MathLibrary();
+        var selected = new pdf_editor.use_case.SelectionToLibrary(
+                i -> { throw new IOException("bad model"); }, library);
+        assertThrows(IOException.class, () -> selected.recognize(new BufferedImage(1,1,2)));
+        assertTrue(library.items().isEmpty());
     }
-    @Test void autosavedCalculationUpgradesFormulaWithoutDuplicates() throws Exception {
+    @Test void onlyCalculatedResultsAreStoredAndDeduplicated() throws Exception {
         HistoryInteractor history = new HistoryInteractor(new FileHistoryRepository(storage));
         MathLibrary library = new MathLibrary();
         MathLabCollector collector = new MathLabCollector(library, history);
-        collector.acceptRecognizedFormula("x+2"); flush();
         collector.acceptCalculation(12L, "x+2", "3"); flush();
         collector.acceptCalculation(12L, "x+2", "3"); flush();
         assertEquals(1, history.list().size());
@@ -51,6 +50,16 @@ class OneBoardHistoryIntegrationTest {
         assertEquals(HistoryEntry.Kind.GRAPH, saved.kind());
         assertEquals(120, HistoryMaterialMapper.toPdfMaterial(saved).imageWidth());
         assertArrayEquals(saved.png(), HistoryMaterialMapper.toPdfMaterial(saved).imagePng());
+    }
+    @Test void legacyUnconfirmedFormulaIsNotDisplayedButRemainsOnDisk() throws Exception {
+        HistoryInteractor history = new HistoryInteractor(new FileHistoryRepository(storage));
+        assertTrue(history.recordFormula(".") );
+        HistoryViewModel model = new HistoryViewModel();
+        HistoryBoardPresenter presenter = new HistoryBoardPresenter(history, model);
+        presenter.refresh();
+        assertTrue(model.getItems().isEmpty());
+        assertEquals(1, history.list().size());
+        assertEquals(HistoryEntry.Kind.FORMULA, history.list().get(0).kind());
     }
     @Test void deletionNotifiesBoardPresentationAndPersists() throws Exception {
         HistoryInteractor history = new HistoryInteractor(new FileHistoryRepository(storage));

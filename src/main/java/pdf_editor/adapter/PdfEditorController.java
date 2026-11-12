@@ -61,8 +61,9 @@ public final class PdfEditorController {
         PdfDocument.Placement placed = editor.place(page, material, x, y, width, height);
         select(placed.id()); return placed;
     }
-    public PdfDocument.Placement addNote() {
-        PdfDocument.Placement placed = editor.addNote(page, "Double-click to edit note", 75, 95);
+    public PdfDocument.Placement addNote() { return addNoteAt(75, 95); }
+    public PdfDocument.Placement addNoteAt(float x, float y) {
+        PdfDocument.Placement placed = editor.addNote(page, "", x, y);
         select(placed.id()); return placed;
     }
     public void updateRichNote(List<PdfDocument.NoteSpan> spans) {

@@ -4,9 +4,11 @@ import data_access.InMemoryFunctionDataAccessObject;
 import history.data_access.FileHistoryRepository;
 import history.use_case.HistoryInteractor;
 import history.adapter.HistoryBoardPresenter;
-import history.adapter.RecordingFormulaRecognizer;
 import view.board.PdfPanel;
 import pdf_editor.view.CanvasPdfDragController;
+import pdf_editor.view.CanvasLibrarySelectionMenu;
+import pdf_editor.adapter.SelectedInkRegistry;
+import pdf_editor.use_case.SelectionToLibrary;
 import data_access.QuickChartGraphRenderer;
 import entity.LatexFunctionParser;
 import interface_adapter.MathLabViewModel;
@@ -57,7 +59,7 @@ public class StackedAppBuilder {
     }
 
     public StackedAppBuilder setFormulaRecognizer(FormulaRecognizer recognizer) {
-        sharedCanvas.setFormulaRecognizer(new RecordingFormulaRecognizer(recognizer, history, pdfStudio::addRecognizedFormula));
+        sharedCanvas.setFormulaRecognizer(recognizer);
         return this;
     }
 
@@ -97,6 +99,9 @@ public class StackedAppBuilder {
         drawing.setBackground(BoardTheme.CANVAS);
         drawing.setGridVisible(false);
         CanvasPdfDragController.install(drawing);
+        CanvasLibrarySelectionMenu.install(drawing,
+                new SelectionToLibrary(sharedCanvas::recognizeFormula, pdfStudio.getLibrary()),
+                new SelectedInkRegistry(drawing, pdfStudio.getLibrary()));
         AnswerCanvasPage page = new AnswerCanvasPage(sharedCanvas, evaluate, mathViewModel, results,
                 graph, graphViewModel, graphCheck::canGraph, BoardTheme.CANVAS, ToolbarSpot.TOP_Y);
         sharedCanvas.attachTo(page);
@@ -110,7 +115,8 @@ public class StackedAppBuilder {
             catch (RuntimeException empty) { return null; }
         });
         BoardWindow board = new BoardWindow(page, drawing,
-                host -> new HistoryPanel(historyViewModel, host), pdfPanel, historyPresenter::delete);
+                host -> new HistoryPanel(historyViewModel, host, historyPresenter::undoDelete),
+                pdfPanel, historyPresenter::delete);
         pdfStudio.onOpen(() -> { board.setPdfOverlay(false); board.setPdfOpen(true); });
 
         JFrame frame = new JFrame("Math Lab");

@@ -67,7 +67,7 @@ import java.util.function.UnaryOperator;
  */
 public class DrawingCanvas extends JPanel {
     /** The drawing tools. */
-    public enum Tool { PEN, ERASER, LASSO }
+    public enum Tool { PEN, ERASER, LASSO, RECTANGLE }
 
     /** How the eraser works: rub out just the ink under it, or remove each stroke it touches. */
     public enum EraserMode { PRECISE, STROKE }
@@ -119,6 +119,7 @@ public class DrawingCanvas extends JPanel {
     private long revisions;                       // only goes up, undo too
     private final List<LongConsumer> formulaListeners = new ArrayList<>();
     private final List<Consumer<Stroke>> strokeListeners = new ArrayList<>();
+    private final List<Runnable> inkListeners = new ArrayList<>();
     private final List<Runnable> actionListeners = new ArrayList<>();  // user started doing something
     private final List<Runnable> viewListeners = new ArrayList<>();    // pan / zoom
     private Tool tool = Tool.PEN;
@@ -139,6 +140,7 @@ public class DrawingCanvas extends JPanel {
 
     // lasso (world coordinates)
     private List<InkPoint> lassoPath; // the loop being drawn
+    private Point2D rectangleStart;
     private final Set<Stroke> selection = new HashSet<>();
     private final Set<Long> selectedAnswers = new HashSet<>();  // formula ids
     private Point2D moveStart;        // where a drag of the selection started
@@ -234,7 +236,7 @@ public class DrawingCanvas extends JPanel {
                     }
                 }
                 lastErasePoint = null;
-                if (tool == Tool.LASSO) {
+                if (tool == Tool.LASSO || tool == Tool.RECTANGLE) {
                     finishLasso();
                 }
             }
@@ -253,7 +255,7 @@ public class DrawingCanvas extends JPanel {
                 if (tool == Tool.ERASER) {
                     eraserAt = e.getPoint();
                     repaint();
-                } else if (tool == Tool.LASSO && !spaceDown) {
+                } else if ((tool == Tool.LASSO || tool == Tool.RECTANGLE) && !spaceDown) {
                     int handle = handleAt(e.getPoint());
                     Rectangle bounds = selectionBounds();
                     boolean overSelection = bounds != null && bounds.contains(toWorld(e.getPoint()));
@@ -603,6 +605,7 @@ public class DrawingCanvas extends JPanel {
         clearSelection();
         lassoPath = new ArrayList<>();
         lassoPath.add(worldPoint(e));
+        rectangleStart = tool == Tool.RECTANGLE ? p : null;
     }
 
     private void dragLasso(MouseEvent e) {
@@ -619,7 +622,19 @@ public class DrawingCanvas extends JPanel {
             moveDx = (int) Math.round(p.getX() - moveStart.getX());
             moveDy = (int) Math.round(p.getY() - moveStart.getY());
         } else if (lassoPath != null) {
-            lassoPath.add(worldPoint(e));
+            if (tool == Tool.RECTANGLE && rectangleStart != null) {
+                Point2D end = toWorld(e.getPoint());
+                int left = (int) Math.min(rectangleStart.getX(), end.getX());
+                int right = (int) Math.max(rectangleStart.getX(), end.getX());
+                int top = (int) Math.min(rectangleStart.getY(), end.getY());
+                int bottom = (int) Math.max(rectangleStart.getY(), end.getY());
+                long when = System.currentTimeMillis();
+                lassoPath = new ArrayList<>(List.of(
+                        new InkPoint(left, top, when), new InkPoint(right, top, when),
+                        new InkPoint(right, bottom, when), new InkPoint(left, bottom, when)));
+            } else {
+                lassoPath.add(worldPoint(e));
+            }
         }
         repaint();
     }
@@ -654,6 +669,7 @@ public class DrawingCanvas extends JPanel {
                 }
             }
             lassoPath = null;
+            rectangleStart = null;
         }
         repaint();
     }
@@ -846,6 +862,7 @@ public class DrawingCanvas extends JPanel {
                 }
             }
             fire(actionListeners);  // after the notes above, so listeners can drop them
+            fire(inkListeners);
         }
     }
 
@@ -867,6 +884,7 @@ public class DrawingCanvas extends JPanel {
         selection.clear();
         selectedAnswers.clear();
         repaint();
+        fire(inkListeners);
     }
 
     private void saveForUndo() {
@@ -902,6 +920,7 @@ public class DrawingCanvas extends JPanel {
         for (long id : book.strokesReplaced(removed, added, this::nextRevision)) {
             notifyChanged(id);
         }
+        fire(inkListeners);
     }
 
     private void notifyChanged(long id) {
@@ -951,6 +970,24 @@ public class DrawingCanvas extends JPanel {
     // pen stroke finished (after the formula check)
     public void addStrokeListener(Consumer<Stroke> listener) {
         strokeListeners.add(listener);
+    }
+    /** Called after actual ink changes, including erase, transform, clear and undo. */
+    public void addInkChangeListener(Runnable listener) {
+        inkListeners.add(java.util.Objects.requireNonNull(listener));
+    }
+    /** Snapshot only the deliberately selected strokes, not the whole canvas. */
+    public List<Stroke> selectedInkSnapshot() {
+        List<Stroke> selected = new ArrayList<>();
+        for (Stroke stroke : strokes) if (selection.contains(stroke)) selected.add(stroke);
+        return List.copyOf(selected);
+    }
+    public boolean containsAllInk(List<Stroke> source) {
+        return source != null && !source.isEmpty() && strokes.containsAll(source);
+    }
+    public BufferedImage selectedInkImage() {
+        List<Stroke> selected = selectedInkSnapshot();
+        if (selected.isEmpty()) throw new IllegalStateException("Select handwriting first with Box or Lasso.");
+        return imageOf(selected);
     }
 
     // left press with a tool, tool/mode switch, undo, clear, delete

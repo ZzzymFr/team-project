@@ -14,6 +14,7 @@ public final class HistoryInteractor {
     private final HistoryRepository repository;
     private final Clock clock;
     private final CopyOnWriteArrayList<Runnable> listeners = new CopyOnWriteArrayList<>();
+    private final java.util.Deque<HistoryEntry> deleted = new java.util.ArrayDeque<>();
 
     public Runnable onChange(Runnable listener) {
         listeners.add(Objects.requireNonNull(listener));
@@ -75,10 +76,22 @@ public final class HistoryInteractor {
         if (id == null) return null;
         return list().stream().filter(record -> record.id().equals(id)).findFirst().orElse(null);
     }
-    public boolean delete(String id) throws IOException {
-        boolean deleted = id != null && repository.deleteById(id);
-        if (deleted) changed();
-        return deleted;
+    public synchronized boolean delete(String id) throws IOException {
+        HistoryEntry item = find(id);
+        if (item == null || !repository.deleteById(id)) return false;
+        deleted.push(item);
+        while (deleted.size() > 30) deleted.removeLast();
+        changed();
+        return true;
+    }
+    /** Restore the most recently user-deleted record, preserving its identity and timestamp. */
+    public synchronized boolean undoDelete() throws IOException {
+        if (deleted.isEmpty()) return false;
+        HistoryEntry item = deleted.peek();
+        if (!repository.saveIfAbsent(item)) return false;
+        deleted.pop();
+        changed();
+        return true;
     }
 
     private HistoryEntry newEntry(HistoryEntry.Kind kind, String title, String formula, String result,

@@ -69,7 +69,6 @@ public final class PdfStudioLauncher implements Us4InputBoundary {
         else SwingUtilities.invokeLater(prune);
     }
     public void addFormulaResult(String latex, String result) { addCalculation(latex, result); }
-    public void addRecognizedFormula(String latex) { collector.acceptRecognizedFormula(latex); }
     @Override public void addGraph(String latex, BufferedImage image) { collector.acceptGraph(latex, image); }
     public void addGraphPng(String latex, Path png) throws IOException {
         BufferedImage image = ImageIO.read(png.toFile());

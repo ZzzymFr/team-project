@@ -47,6 +47,7 @@ public class BoardWindow extends JPanel implements HistoryPanel.DragHost {
     private double historyRatio = 0.24;  // kept while the app runs
     private double pdfRatio = 0.56;
     private boolean pdfOverlay;
+    private int lastPageWidth = -1;
     private final Function<String, Boolean> deleteHistory;
 
     public BoardWindow(JComponent page, DrawingCanvas canvas,
@@ -200,10 +201,12 @@ public class BoardWindow extends JPanel implements HistoryPanel.DragHost {
         historyDivider.setVisible(historyOpen);
         pdf.setVisible(pdfOpen);
         pdfDivider.setVisible(pdfOpen);
-        // History and PDF may stay open together. Split reserves space for PDF;
-        // Overlay paints PDF over the right side without shrinking the canvas.
-        int hw = historyOpen ? Math.min(SplitMath.panelWidth(historyRatio, w), Math.max(0, w - 260)) : 0;
-        int pw = pdfOpen ? Math.min(SplitMath.panelWidth(pdfRatio, w), Math.max(0, w - hw - 170)) : 0;
+        // In split mode the Canvas really owns a smaller viewport: panels never overlap it.
+        // Ratio constraints are based on the remaining width after History.
+        int hw = historyOpen ? Math.min(SplitMath.panelWidth(historyRatio, w), Math.max(0, w - 340)) : 0;
+        int remaining = Math.max(0, w - hw);
+        int pw = pdfOpen ? Math.max(0, Math.min(SplitMath.panelWidth(pdfRatio, w),
+                Math.max(0, remaining - (pdfOverlay ? 0 : 250)))) : 0;
         if (historyOpen) {
             history.setBounds(0, 0, hw, h);
             historyDivider.setBounds(hw - half, 0, SplitDivider.HIT, h);
@@ -212,8 +215,14 @@ public class BoardWindow extends JPanel implements HistoryPanel.DragHost {
             pdf.setBounds(w - pw, 0, pw, h);
             pdfDivider.setBounds(w - pw - half, 0, SplitDivider.HIT, h);
         }
-        page.setBounds(hw, 0, Math.max(0, w - hw - (pdfOpen && !pdfOverlay ? pw : 0)), h);
-        page.validate();
+        int canvasWidth = Math.max(0, w - hw - (pdfOpen && !pdfOverlay ? pw : 0));
+        page.setBounds(hw, 0, canvasWidth, h);
+        page.doLayout();
+        // Keep the same ink in the centre of the visible viewport when splitting / resizing.
+        if (lastPageWidth > 0 && lastPageWidth != canvasWidth && page.isShowing()) {
+            canvas.panBy((canvasWidth - lastPageWidth) / 2.0, 0);
+        }
+        lastPageWidth = canvasWidth;
 
         int m = GlassBar.MARGIN;
         Dimension hb = historyBar.getPreferredSize();
@@ -250,6 +259,7 @@ public class BoardWindow extends JPanel implements HistoryPanel.DragHost {
         }
         Point c = SwingUtilities.convertPoint(canvas, 0, 0, this);
         Graphics2D cg = (Graphics2D) g.create();
+        cg.clip(page.getBounds());
         cg.clipRect(c.x, c.y, canvas.getWidth(), canvas.getHeight());
         cg.translate(c.x, c.y);
         canvas.paintContent(cg);

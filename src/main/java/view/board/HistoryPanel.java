@@ -8,6 +8,7 @@ import org.scilab.forge.jlatexmath.TeXIcon;
 import view.answer.AnswerFont;
 
 import javax.swing.BorderFactory;
+import javax.swing.JButton;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JComponent;
@@ -57,17 +58,34 @@ public class HistoryPanel extends JPanel {
     private final DragHost host;
 
     public HistoryPanel(HistoryViewModel viewModel, DragHost host) {
+        this(viewModel, host, () -> { });
+    }
+    public HistoryPanel(HistoryViewModel viewModel, DragHost host, Runnable undoDelete) {
         super(new BorderLayout());
         this.host = host;
         setBackground(BoardTheme.PANEL);
         list.setLayout(new BoxLayout(list, BoxLayout.Y_AXIS));
         list.setOpaque(false);
-        list.setBorder(BorderFactory.createEmptyBorder(TOP_ROOM, 16, 16, 16));
+        list.setBorder(BorderFactory.createEmptyBorder(8, 16, 16, 16));
         JScrollPane scroll = new JScrollPane(list);
         scroll.setBorder(null);
         scroll.setOpaque(false);
         scroll.getViewport().setOpaque(false);
         scroll.getVerticalScrollBar().setUnitIncrement(16);
+        JPanel header = new JPanel(new BorderLayout());
+        header.setOpaque(false);
+        header.setBorder(BorderFactory.createEmptyBorder(TOP_ROOM + 4, 16, 8, 10));
+        JLabel title = new JLabel("Saved calculations");
+        title.setFont(BoardTheme.font(13f));
+        header.add(title, BorderLayout.WEST);
+        JButton undo = new JButton("Undo delete");
+        undo.setFont(BoardTheme.font(11f));
+        undo.setFocusPainted(false);
+        undo.setContentAreaFilled(false);
+        undo.setBorder(BorderFactory.createEmptyBorder(4, 7, 4, 7));
+        undo.addActionListener(e -> undoDelete.run());
+        header.add(undo, BorderLayout.EAST);
+        add(header, BorderLayout.NORTH);
         add(scroll, BorderLayout.CENTER);
         viewModel.addPropertyChangeListener(e -> {
             if (HistoryViewModel.ITEMS_PROPERTY.equals(e.getPropertyName())) {
@@ -122,7 +140,7 @@ public class HistoryPanel extends JPanel {
                 }
             } catch (java.io.IOException badImage) { /* domain already validates PNG signature */ }
         }
-        TeXIcon icon = typeset(item.getLatex());
+        TeXIcon icon = typeset(entity.EquationDisplay.formula(item.getLatex(), item.getAnswer()));
         Rectangle2D formula = formulaBox(item, icon);
         Rectangle2D answer = AnswerFont.visualBounds(answerText(item), answerSize());
         int w = (int) Math.ceil(formula.getWidth() + GAP + answer.getWidth()) + 8;
@@ -147,14 +165,11 @@ public class HistoryPanel extends JPanel {
         if (icon != null) {
             return new Rectangle2D.Double(0, 0, icon.getIconWidth(), icon.getIconHeight());
         }
-        return AnswerFont.visualBounds(item.getLatex(), answerSize());
+        return AnswerFont.visualBounds(entity.EquationDisplay.formula(item.getLatex(), item.getAnswer()), answerSize());
     }
 
     private static String answerText(HistoryItem item) {
-        String a = item.getAnswer() == null ? "" : item.getAnswer().trim();
-        if (a.startsWith("=")) {
-            a = a.substring(1).trim();  // result text may already carry the =
-        }
+        String a = entity.EquationDisplay.answer(item.getAnswer());
         return a.isEmpty() ? "" : "= " + a;
     }
 
@@ -166,7 +181,7 @@ public class HistoryPanel extends JPanel {
             icon.setForeground(Color.BLACK);
             icon.paintIcon(null, g, x, (int) Math.round((h - formula.getHeight()) / 2));
         } else {
-            AnswerFont.draw(g, item.getLatex(), answerSize(), x, (h - formula.getHeight()) / 2);
+            AnswerFont.draw(g, entity.EquationDisplay.formula(item.getLatex(), item.getAnswer()), answerSize(), x, (h - formula.getHeight()) / 2);
         }
         Rectangle2D answer = AnswerFont.visualBounds(answerText(item), answerSize());
         AnswerFont.draw(g, answerText(item), answerSize(), x + formula.getWidth() + GAP,
@@ -191,14 +206,14 @@ public class HistoryPanel extends JPanel {
 
         Row(HistoryItem item) {
             this.item = item;
-            this.icon = typeset(item.getLatex());
-            setToolTipText("Drag onto the canvas");
+            this.icon = typeset(entity.EquationDisplay.formula(item.getLatex(), item.getAnswer()));
+            setToolTipText("Drag to Canvas / PDF. Right-click to delete, or double-click to add to PDF.");
             setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
             setAlignmentX(LEFT_ALIGNMENT);
             MouseAdapter m = new MouseAdapter() {
                 @Override
                 public void mousePressed(MouseEvent e) {
-                    if (SwingUtilities.isLeftMouseButton(e)) {
+                    if (SwingUtilities.isLeftMouseButton(e) && e.getX() <= getWidth() - 30) {
                         picture = picture(item);
                         int ph = picture.getHeight() / PICTURE_SCALE;
                         grab = new Point(e.getX() - CONTENT_X, e.getY() - (ROW_H - ph) / 2);
@@ -229,6 +244,10 @@ public class HistoryPanel extends JPanel {
             };
             addMouseListener(new MouseAdapter() {
                 @Override public void mouseClicked(MouseEvent e) {
+                    if (SwingUtilities.isLeftMouseButton(e) && e.getX() > getWidth() - 30) {
+                        host.deleteHistory(item);
+                        return;
+                    }
                     if (e.getClickCount() == 2 && SwingUtilities.isLeftMouseButton(e)) host.importIntoPdf(item);
                 }
                 @Override public void mousePressed(MouseEvent e) { popup(e); }
@@ -296,6 +315,11 @@ public class HistoryPanel extends JPanel {
             } else {
                 paintContent(g2, item, icon, CONTENT_X, ROW_H);
             }
+            // Subtle delete affordance at the trailing edge, never part of the drag payload.
+            g2.setClip(null);
+            g2.setColor(new Color(130, 139, 153));
+            g2.setFont(BoardTheme.font(16f));
+            g2.drawString("×", getWidth() - 23, ROW_H / 2 + 5);
             g2.dispose();
         }
     }

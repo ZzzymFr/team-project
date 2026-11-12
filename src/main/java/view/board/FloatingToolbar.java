@@ -23,7 +23,7 @@ public final class FloatingToolbar {
     private final DrawingCanvas canvas;
     private final JComponent area;
     private final GlassBar bar;
-    private final GlassBar.Item[] tools = new GlassBar.Item[3];
+    private final GlassBar.Item[] tools = new GlassBar.Item[4];
     private final GlassBar.Item pen;
     private final Spring sx = new Spring();
     private final Spring sy = new Spring();
@@ -58,6 +58,7 @@ public final class FloatingToolbar {
         pen = tools[0] = bar.segment("Pen", Icons::pencil, 1, () -> use(DrawingCanvas.Tool.PEN));
         tools[1] = bar.segment("Eraser", Icons::eraser, 1, () -> use(DrawingCanvas.Tool.ERASER));
         tools[2] = bar.segment("Lasso", Icons::lasso, 1, () -> use(DrawingCanvas.Tool.LASSO));
+        tools[3] = bar.segment("Box", Icons::lasso, 1, () -> use(DrawingCanvas.Tool.RECTANGLE));
         bar.separator();
         GlassBar.Item first = null;
         for (Color c : BoardTheme.SWATCHES) {
