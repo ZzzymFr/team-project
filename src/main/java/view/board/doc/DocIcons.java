@@ -93,6 +93,46 @@ final class DocIcons {
         g.draw(new Line2D.Double(2.7, -7, 2.7, 7));
     }
 
+    static void deletePage(Graphics2D g) {
+        prep(g);
+        g.draw(new RoundRectangle2D.Double(-7.5, -8, 12, 16, 2, 2));
+        g.draw(new Line2D.Double(-3.5, -3, 0.5, -3));
+        g.draw(new Line2D.Double(4, 2, 9, 2));
+        g.draw(new Line2D.Double(6.5, -0.5, 6.5, 4.5));
+    }
+
+    static void movePage(Graphics2D g) {
+        prep(g);
+        g.draw(new RoundRectangle2D.Double(-8, -7.5, 10, 15, 2, 2));
+        g.draw(new Line2D.Double(-4, -3, 0, -3));
+        g.draw(new Line2D.Double(2, 0, 9, 0));
+        g.draw(new Line2D.Double(6, -3, 9, 0));
+        g.draw(new Line2D.Double(6, 3, 9, 0));
+    }
+
+    static void layers(Graphics2D g) {
+        prep(g);
+        Path2D p = new Path2D.Double();
+        p.moveTo(-8, -3); p.lineTo(0, -7); p.lineTo(8, -3);
+        p.lineTo(0, 1); p.closePath(); g.draw(p);
+        g.draw(new Line2D.Double(-8, 1, 0, 5));
+        g.draw(new Line2D.Double(0, 5, 8, 1));
+        g.draw(new Line2D.Double(-8, 5, 0, 9));
+        g.draw(new Line2D.Double(0, 9, 8, 5));
+    }
+
+    static void fitPage(Graphics2D g) {
+        prep(g);
+        g.draw(new Line2D.Double(-9, -3, -9, -8));
+        g.draw(new Line2D.Double(-9, -8, -4, -8));
+        g.draw(new Line2D.Double(9, -3, 9, -8));
+        g.draw(new Line2D.Double(9, -8, 4, -8));
+        g.draw(new Line2D.Double(-9, 3, -9, 8));
+        g.draw(new Line2D.Double(-9, 8, -4, 8));
+        g.draw(new Line2D.Double(9, 3, 9, 8));
+        g.draw(new Line2D.Double(9, 8, 4, 8));
+    }
+
     static void pageBreak(Graphics2D g) {
         prep(g);
         g.draw(new Line2D.Double(-6, -8, -6, -3));

@@ -121,7 +121,7 @@ public final class DocEditorPanel extends JPanel implements PdfWorkspacePort {
         nameRow.setBorder(BorderFactory.createEmptyBorder(BoardTheme.TOP + 4, 8, 0, 60));
         title.setFont(BoardTheme.font(15f));
         // A small native vector document glyph (no external image or licensing dependency).
-        JLabel documentGlyph = new JLabel(new ImageIcon(documentIcon()));
+        JComponent documentGlyph = DocumentGlyphs.component(24, Icons::document);
         documentGlyph.setToolTipText("Math Lab document");
         nameRow.add(documentGlyph);
         nameRow.add(title);
@@ -148,11 +148,6 @@ public final class DocEditorPanel extends JPanel implements PdfWorkspacePort {
         ribbonHolder.setBackground(Color.WHITE);
         top.add(ribbonHolder, BorderLayout.SOUTH);
         return top;
-    }
-
-    private static BufferedImage documentIcon() {
-        // High-contrast vector icon; no tinted tile or low-resolution asset.
-        return DocumentGlyphs.image(24);
     }
 
     private JPanel ribbon() {
@@ -192,25 +187,25 @@ public final class DocEditorPanel extends JPanel implements PdfWorkspacePort {
         command(row, RibbonButton.labeled(DocIcons::comment, "Text box"), this::addNote);
         command(row, RibbonButton.labeled(DocIcons::image, "Capture area"), () -> regionCapture.run());
         command(row, RibbonButton.labeled(DocIcons::pageBreak, "New page"), this::addPage);
-        command(row, RibbonButton.labeled(Icons::history, "Library"), this::toggleLibrary);
+        command(row, RibbonButton.labeled(Icons::library, "Library"), this::toggleLibrary);
         return row;
     }
     private JPanel layoutRibbon() {
         JPanel row = ribbon();
         command(row, RibbonButton.labeled(DocIcons::pageBreak, "Add page"), this::addPage);
-        command(row, RibbonButton.labeled(DocIcons::pageBreak, "Delete page"), this::deletePage);
+        command(row, RibbonButton.labeled(DocIcons::deletePage, "Delete page"), this::deletePage);
         command(row, RibbonButton.labeled(DocIcons.align(0), "Auto layout"), this::autoLayout);
-        command(row, RibbonButton.labeled(DocIcons::pageBreak, "Move page"), this::moveToPageMenu);
+        command(row, RibbonButton.labeled(DocIcons::movePage, "Move page"), this::moveToPageMenu);
         command(row, RibbonButton.letter("↑", Font.PLAIN, false, false, "Bring selected object forward one layer"), () -> arrange(1));
         command(row, RibbonButton.letter("↓", Font.PLAIN, false, false, "Send selected object backward one layer"), () -> arrange(-1));
-        command(row, RibbonButton.labeled(DocIcons::comment, "Arrange…"), this::arrangeMenu);
+        command(row, RibbonButton.labeled(DocIcons::layers, "Arrange…"), this::arrangeMenu);
         return row;
     }
     private JPanel viewRibbon() {
         JPanel row = ribbon();
-        command(row, RibbonButton.labeled(Icons::document, "Preview"), this::preview);
-        command(row, RibbonButton.labeled(DocIcons.align(0), "Fit page"), this::fitWhenOpened);
-        command(row, RibbonButton.labeled(Icons::history, "Library"), this::toggleLibrary);
+        command(row, RibbonButton.labeled(Icons::preview, "Preview"), this::preview);
+        command(row, RibbonButton.labeled(DocIcons::fitPage, "Fit page"), this::fitWhenOpened);
+        command(row, RibbonButton.labeled(Icons::library, "Library"), this::toggleLibrary);
         command(row, RibbonButton.letter("−", Font.PLAIN, false, false, "Zoom out"), () -> zoom(paper.zoom() / 1.15));
         command(row, RibbonButton.letter("+", Font.PLAIN, false, false, "Zoom in"), () -> zoom(paper.zoom() * 1.15));
         return row;

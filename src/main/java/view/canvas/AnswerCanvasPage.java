@@ -120,7 +120,7 @@ public class AnswerCanvasPage extends CanvasPage {
         this(sharedCanvas, controller, viewModel, resultSink);
         this.graphable = graphable;
         graphing = new PopupGraphing(sharedCanvas, graphController, graphViewModel, this::showMessage,
-                getCanvasArea());
+                getCanvasArea(), this::publishFormulaOnly);
         addCanvasOverlay(graphing.rangeBar());
         useBoardLook(background, messageTop);
     }
@@ -311,7 +311,7 @@ public class AnswerCanvasPage extends CanvasPage {
     private void graph(FormulaCapture capture, String latex) {
         hidePopup();
         Rectangle world = getSharedCanvas().formulaBounds(capture.getId());
-        graphing.graph(latex, world);
+        graphing.graph(latex, world, capture);
     }
 
     /** Publish only after an explicit Calculate action, never while merely recognizing ink. */

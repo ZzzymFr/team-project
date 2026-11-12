@@ -2,6 +2,7 @@ package view.board.doc;
 
 import pdf_editor.use_case.PreviewZoomModel;
 import view.board.BoardTheme;
+import view.board.Icons;
 
 import javax.swing.*;
 import java.awt.*;
@@ -28,7 +29,7 @@ public final class WordPreviewDialog {
         header.setOpaque(false);
         JPanel heading = new JPanel(new FlowLayout(FlowLayout.LEFT, 7, 0));
         heading.setOpaque(false);
-        heading.add(new JLabel(DocumentGlyphs.icon(20)));
+        heading.add(DocumentGlyphs.component(20, Icons::preview));
         JLabel title = new JLabel("PDF preview"); title.setFont(BoardTheme.font(17f));
         heading.add(title); header.add(heading, BorderLayout.WEST);
         JLabel counter = new JLabel(); counter.setFont(BoardTheme.font(12f));

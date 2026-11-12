@@ -4,6 +4,7 @@ import interface_adapter.graph.AxisRangeParser;
 import interface_adapter.graph.GraphController;
 import interface_adapter.graph.GraphState;
 import interface_adapter.graph.GraphViewModel;
+import view.FormulaCapture;
 
 import javax.swing.JComponent;
 import javax.swing.SwingUtilities;
@@ -32,6 +33,8 @@ final class PopupGraphing {
     private final GraphViewModel viewModel;
     private final Messages messages;
     private final JComponent area;
+    private final java.util.function.BiConsumer<FormulaCapture, String> graphSaved;
+    private FormulaCapture pendingCapture;
     private final GraphRangeBar ranges;
     private final ExecutorService executor = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "popup-graph");
@@ -43,12 +46,14 @@ final class PopupGraphing {
     private Rectangle pending;       // where the card goes when the graph comes back
 
     PopupGraphing(SharedCanvas canvas, GraphController controller, GraphViewModel viewModel,
-                  Messages messages, JComponent area) {
+                  Messages messages, JComponent area,
+                  java.util.function.BiConsumer<FormulaCapture, String> graphSaved) {
         this.canvas = canvas;
         this.controller = controller;
         this.viewModel = viewModel;
         this.messages = messages;
         this.area = area;
+        this.graphSaved = java.util.Objects.requireNonNull(graphSaved);
         this.ranges = new GraphRangeBar(this::regraph);
         viewModel.addPropertyChangeListener(this::changed);
         canvas.addViewListener(this::placeRanges);
@@ -69,7 +74,8 @@ final class PopupGraphing {
         ranges.setRangeText(x, y);
     }
 
-    void graph(String latex, Rectangle formulaWorld) {
+    void graph(String latex, Rectangle formulaWorld, FormulaCapture capture) {
+        pendingCapture = capture;
         lastLatex = latex;
         lastFormula = formulaWorld;
         run(latex, formulaWorld);
@@ -115,6 +121,12 @@ final class PopupGraphing {
             messages.show(state.getError(), true, ERROR_MESSAGE_MILLIS);
         } else if (state.getGraphImage() != null) {
             canvas.showGraph(state.getGraphImage(), pending);
+            // Explicit, successful Graph is the publication boundary for formula-only material.
+            // Regraphing a range does not create duplicates: the source revision is tracked by the page.
+            if (pendingCapture != null && state.getLatex() != null
+                    && state.getLatex().equals(lastLatex)) {
+                graphSaved.accept(pendingCapture, state.getLatex());
+            }
             messages.show("Graph of " + state.getLatex(), false, SUCCESS_MESSAGE_MILLIS);
             placeRanges();
         }

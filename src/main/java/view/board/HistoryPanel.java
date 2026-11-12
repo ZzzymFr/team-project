@@ -170,7 +170,7 @@ public class HistoryPanel extends JPanel {
 
     private static String answerText(HistoryItem item) {
         String a = entity.EquationDisplay.answer(item.getAnswer());
-        return a.isEmpty() ? "" : "= " + a;
+        return a.isEmpty() ? "" : entity.EquationDisplay.separator(item.getLatex(), item.getAnswer()).trim() + " " + a;
     }
 
     // formula then answer, vertically centred in height h

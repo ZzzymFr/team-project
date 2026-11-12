@@ -53,6 +53,27 @@ public final class Icons {
         g.draw(new Line2D.Double(-3, 4, 3.5, 4));
     }
 
+    /** A three-book stack for the material library, not a history clock. */
+    public static void library(Graphics2D g) {
+        prep(g);
+        g.draw(new RoundRectangle2D.Double(-8.5, -7.5, 5, 15, 1.2, 1.2));
+        g.draw(new RoundRectangle2D.Double(-2, -7.5, 5, 15, 1.2, 1.2));
+        g.draw(new RoundRectangle2D.Double(4.5, -5.5, 3.8, 13, 1.2, 1.2));
+        g.draw(new Line2D.Double(-7.1, 4.5, -4.8, 4.5));
+        g.draw(new Line2D.Double(-0.6, 4.5, 1.7, 4.5));
+    }
+
+    /** Distinct open-eye outline for read-only preview. */
+    public static void preview(Graphics2D g) {
+        prep(g);
+        Path2D outline = new Path2D.Double();
+        outline.moveTo(-9, 0);
+        outline.curveTo(-4, -7, 4, -7, 9, 0);
+        outline.curveTo(4, 7, -4, 7, -9, 0);
+        g.draw(outline);
+        g.draw(new Ellipse2D.Double(-2.8, -2.8, 5.6, 5.6));
+    }
+
     public static void equalCircle(Graphics2D g) {
         prep(g);
         g.draw(new Ellipse2D.Double(-8.5, -8.5, 17, 17));

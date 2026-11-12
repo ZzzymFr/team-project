@@ -20,10 +20,11 @@ public final class HistoryBoardPresenter {
     }
     public void refresh() {
         try {
-            // Earlier versions accidentally auto-saved every partial recognition.
-            // Keep those legacy files intact but do not display unconfirmed previews.
+            // Formula-only entries are produced after an explicit Graph/Calculate action.
+            // They have no numerical answer but must be visible and reusable.
             List<HistoryItem> items = history.list().stream()
-                    .filter(entry -> entry.kind() == HistoryEntry.Kind.CALCULATION
+                    .filter(entry -> (entry.kind() == HistoryEntry.Kind.FORMULA && meaningfulFormula(entry.formula()))
+                            || entry.kind() == HistoryEntry.Kind.CALCULATION
                             || entry.kind() == HistoryEntry.Kind.GRAPH)
                     .map(HistoryItem::new).toList();
             model.setItems(items);
@@ -32,6 +33,11 @@ public final class HistoryBoardPresenter {
             model.setItems(List.of());
         }
     }
+    /** A bare punctuation recognition from legacy versions is not a saved mathematical expression. */
+    static boolean meaningfulFormula(String latex) {
+        return latex != null && latex.codePoints().anyMatch(Character::isLetterOrDigit);
+    }
+
     public boolean undoDelete() {
         try { return history.undoDelete(); }
         catch (IOException e) { System.err.println("Math Lab history restore failed: " + e.getMessage()); return false; }
