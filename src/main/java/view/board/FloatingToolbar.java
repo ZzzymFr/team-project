@@ -122,9 +122,12 @@ public final class FloatingToolbar {
         return true;
     }
 
-    // picking a colour goes back to the pen
+    // picking a colour recolours a lasso pick, else goes back to the pen
     private boolean useColor(Color c) {
         canvas.setInkColor(c);
+        if (canvas.recolorSelection(c)) {
+            return true;
+        }
         if (canvas.getTool() != DrawingCanvas.Tool.PEN) {
             canvas.setTool(DrawingCanvas.Tool.PEN);
             bar.select(pen);

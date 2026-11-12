@@ -1,5 +1,6 @@
 package view;
 
+import entity.Stroke;
 import interface_adapter.AnswerKind;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -9,8 +10,11 @@ import view.answer.CanvasAnswer;
 import java.awt.Color;
 import java.awt.event.MouseEvent;
 import java.awt.geom.Rectangle2D;
+import java.awt.image.BufferedImage;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 // answer on the canvas acts like a piece of ink: colour, erase, select, move
@@ -89,6 +93,49 @@ class DrawingCanvasAnswerObjectTest {
         assertEquals(a.getX() + 100, moved.getX(), 1);
         assertEquals(a.getY() + 50, moved.getY(), 1);
         assertEquals(1, canvas.getFormulas().size(), "formula still bound");
+    }
+
+    private void boxAround(Rectangle2D box) {
+        canvas.setTool(DrawingCanvas.Tool.RECTANGLE);
+        drag((int) box.getX() - 5, (int) box.getY() - 5, (int) box.getMaxX() + 5, (int) box.getMaxY() + 5);
+    }
+
+    @Test
+    void recolouringASelectedAnswer() {
+        CanvasAnswer a = answered("2");
+        boxAround(a.getBox());
+        assertTrue(canvas.recolorSelection(Color.BLUE));
+        assertEquals(Color.BLUE, canvas.getAnswers().get(0).getColor());
+        assertTrue(canvas.hasSelection(), "still picked after recolour");
+    }
+
+    @Test
+    void recolouringInkAndAnswerKeepsTheFormulaAndCanUndo() {
+        CanvasAnswer a = answered("2");
+        List<Stroke> before = canvas.getStrokes();
+        long revision = canvas.getFormulas().get(0).getRevision();
+        boxAround(new Rectangle2D.Double(95, 95, a.getBox().getMaxX() - 95, 50));
+        assertTrue(canvas.recolorSelection(Color.BLUE));
+        assertEquals(Color.BLUE, canvas.getAnswers().get(0).getColor());
+        assertEquals(before, canvas.getStrokes(), "same stroke objects");
+        assertEquals(revision, canvas.getFormulas().get(0).getRevision(), "no recalc");
+        assertEquals(Color.BLUE.getRGB(), pixelOfStroke());
+        canvas.undo();
+        assertEquals(Color.BLACK, canvas.getAnswers().get(0).getColor());
+        assertEquals(Color.BLACK.getRGB(), pixelOfStroke());
+    }
+
+    @Test
+    void nothingSelectedNothingRecoloured() {
+        answered("2");
+        assertFalse(canvas.recolorSelection(Color.BLUE));
+        assertEquals(Color.BLACK, canvas.getAnswers().get(0).getColor());
+    }
+
+    // middle of the "1" stroke at (100, 120) on screen
+    private int pixelOfStroke() {
+        BufferedImage img = canvas.toImage();
+        return img.getRGB(100, 120) | 0xff000000;
     }
 
     @Test

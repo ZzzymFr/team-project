@@ -802,6 +802,27 @@ public class DrawingCanvas extends JPanel {
         repaint();
     }
 
+    // lasso'd strokes + answers get a new colour, one undo step; false if nothing picked
+    public boolean recolorSelection(Color color) {
+        if (nothingSelected() || color == null) {
+            return false;
+        }
+        saveForUndo();
+        for (Stroke s : selection) {
+            strokeColors.put(s, color);  // same stroke objects, formulas + library refs stay
+        }
+        for (long id : selectedAnswers) {
+            Formula f = book.get(id);
+            if (f != null && f.getAnswer() != null) {
+                book.put(f.withAnswer(f.getAnswer().withColor(color)));
+            }
+        }
+        repaint();
+        fire(actionListeners);
+        fire(inkListeners);
+        return true;
+    }
+
     public void clearSelection() {
         if (!selection.isEmpty() || !selectedAnswers.isEmpty()) {
             selection.clear();
@@ -853,6 +874,7 @@ public class DrawingCanvas extends JPanel {
         if (!history.isEmpty()) {
             Snapshot back = history.pop();
             replaceStrokes(back.strokes);
+            strokeColors.putAll(back.colors);  // undoes a recolour
             book = back.book;  // answers come back as they were, no recalc
             currentStroke = null;
             selection.clear();
@@ -890,7 +912,7 @@ public class DrawingCanvas extends JPanel {
     }
 
     private void saveForUndo() {
-        history.push(new Snapshot(new ArrayList<>(strokes), book.copy()));
+        history.push(new Snapshot(new ArrayList<>(strokes), colorsNow(), book.copy()));
         if (history.size() > HISTORY_LIMIT) {
             history.removeLast();
         }
@@ -952,12 +974,23 @@ public class DrawingCanvas extends JPanel {
         return ++revisions;
     }
 
+    // colour of every stroke on the board right now
+    private Map<Stroke, Color> colorsNow() {
+        Map<Stroke, Color> now = new HashMap<>();
+        for (Stroke s : strokes) {
+            now.put(s, colorOf(s));
+        }
+        return now;
+    }
+
     private static final class Snapshot {
         final List<Stroke> strokes;
+        final Map<Stroke, Color> colors;
         final FormulaBook book;
 
-        Snapshot(List<Stroke> strokes, FormulaBook book) {
+        Snapshot(List<Stroke> strokes, Map<Stroke, Color> colors, FormulaBook book) {
             this.strokes = strokes;
+            this.colors = colors;
             this.book = book;
         }
     }
