@@ -208,8 +208,13 @@ public class AnswerCanvasPage extends CanvasPage {
     }
 
     private void hidePopup() {
-        shown = null;
         hover.forget();
+        closePopup();
+    }
+
+    // just take it down, hover keeps its state
+    private void closePopup() {
+        shown = null;
         if (popup.isVisible()) {
             popup.setVisible(false);
             getCanvasArea().repaint();
@@ -415,8 +420,9 @@ public class AnswerCanvasPage extends CanvasPage {
 
     private final class HoverHost implements PopupHover.Host {
         @Override
-        public boolean canOffer() {
-            return inFront() && !popup.isVisible() && !pauseTimer.isRunning() && reading == 0
+        public boolean canOffer(long id) {
+            boolean showingIt = popup.isVisible() && shown != null && shown.getId() == id;
+            return inFront() && !showingIt && !pauseTimer.isRunning() && reading == 0
                     && !getSharedCanvas().isBusy();
         }
 
@@ -430,6 +436,7 @@ public class AnswerCanvasPage extends CanvasPage {
             }
             Read r = reads.get(id);
             generation++;
+            closePopup();  // some other formula's popup gives way
             if (r != null && r.revision == capture.getRevision()) {
                 present(capture, r.latex, r.problem);
             } else {

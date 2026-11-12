@@ -518,6 +518,64 @@ class AnswerCanvasPageTest {
         assertTrue(answerIs("2"));
     }
 
+    // mouse comes to rest at (x, y), no button down
+    private void hover(int x, int y) throws Exception {
+        onEdt(() -> canvas.dispatchEvent(new MouseEvent(canvas, MouseEvent.MOUSE_MOVED, 0, 0, x, y, 0, false)));
+    }
+
+    private void writeWithEqualsAt(int x, int y) throws Exception {
+        onEdt(() -> {
+            stroke(x, y, x, y + 50);
+            stroke(x + 15, y + 20, x + 45, y + 20);
+            stroke(x + 15, y + 30, x + 45, y + 30);
+        });
+    }
+
+    @Test
+    void hoverWaitsOutABusyMoment() throws Exception {
+        shared.setFormulaRecognizer(image -> image.getHeight() < 60 ? "x" : "1+1=");
+        openPage();
+        writeWithEquals();
+        waitPopup("1+1=");
+        onEdt(() -> canvas.setTool(DrawingCanvas.Tool.ERASER));
+        waitFor(() -> page.visiblePopup() == null, "popup closed");
+
+        onEdt(() -> {
+            canvas.setTool(DrawingCanvas.Tool.PEN);
+            page.setPopupDelay(700);
+        });
+        drag(400, 300, 600, 300);   // some other ink, its pause is still running
+        hover(130, 125);            // rest on A's "=" and don't move again
+        waitPopup("1+1=");
+        assertTrue(popup().getX() < 300, "popup sits by A");
+    }
+
+    @Test
+    void hoverTakesOverAnotherFormulasPopup() throws Exception {
+        shared.setFormulaRecognizer(image -> "1+1=");
+        openPage();
+        writeWithEquals();                  // A
+        waitPopup("1+1=");
+        writeWithEqualsAt(400, 300);        // B
+        waitFor(() -> page.visiblePopup() != null && page.visiblePopup().getX() > 300, "B's popup");
+
+        hover(130, 125);                    // A's "="
+        waitFor(() -> page.visiblePopup() != null && page.visiblePopup().getX() < 300, "A's popup");
+    }
+
+    @Test
+    void hoverWorksWithTheLasso() throws Exception {
+        shared.setFormulaRecognizer(image -> "1+1=");
+        openPage();
+        writeWithEquals();
+        waitPopup("1+1=");
+        onEdt(() -> canvas.setTool(DrawingCanvas.Tool.LASSO));
+        waitFor(() -> page.visiblePopup() == null, "popup closed");
+
+        hover(130, 125);
+        waitPopup("1+1=");
+    }
+
     @Test
     void draggingThePickAwayCancelsThePopup() throws Exception {
         AtomicInteger calls = new AtomicInteger();
