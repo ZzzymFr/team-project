@@ -23,9 +23,6 @@ public class app {
                 // Fall back to the default look.
             }
             frame = new StackedAppBuilder()
-                    .addGraphPage()
-                    .addPdfPage()
-                    .addAnswerPage()
                     .setFormulaRecognizer(new VitalMiniFormulaRecognizer(model))
                     .build();
             frame.addWindowListener(new WindowAdapter() {

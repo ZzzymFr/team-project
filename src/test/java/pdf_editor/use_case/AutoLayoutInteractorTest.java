@@ -13,6 +13,7 @@ class AutoLayoutInteractorTest {
         editor.addNote(0, "Top notes", 40, 720);
         var graph = new BufferedImage(600, 400, BufferedImage.TYPE_INT_ARGB);
         library.addGraph("y=x^2", graph);
+        library.addFormula("y=x^2");
         AutoLayoutInteractor layout = new AutoLayoutInteractor(editor);
         int last = layout.importMaterials(0, library.items());
         assertEquals(1, last);

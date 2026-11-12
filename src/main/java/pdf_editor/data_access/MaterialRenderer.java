@@ -1,6 +1,7 @@
 package pdf_editor.data_access;
 
 import pdf_editor.domain.PdfMaterial;
+import entity.EquationDisplay;
 
 import org.scilab.forge.jlatexmath.TeXConstants;
 import org.scilab.forge.jlatexmath.TeXFormula;
@@ -43,10 +44,10 @@ public final class MaterialRenderer {
                 } else if (formula.isEmpty()) {
                     drawFormula(g, result, width, height, 0);
                 } else {
-                    // One equals sign: formula = result, in a horizontal layout.
-                    formula = formula.replaceFirst("\\s*=+\\s*$", "");
-                    result = result.replaceFirst("^\\s*=+\\s*", "");
-                    String leftText = formula + "=";
+                    // Preserve an already complete equation; use an implication for its solution.
+                    formula = EquationDisplay.formula(formula, result);
+                    result = EquationDisplay.answer(result);
+                    String leftText = formula + EquationDisplay.latexSeparator(formula, result);
                     // Typeset at the actual raster resolution instead of painting a 20px
                     // icon and enlarging its already-rasterized pixels.
                     TeXIcon[] icons = fittedPair(leftText, result, width - 20, height - 12);

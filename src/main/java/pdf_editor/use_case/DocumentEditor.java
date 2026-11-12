@@ -47,17 +47,19 @@ public final class DocumentEditor {
         validatePage(page);
         float w = validSize(width, 45f, PdfDocument.PAGE_WIDTH);
         float h = validSize(height, 35f, PdfDocument.PAGE_HEIGHT);
-        checkpoint();
+        // Validate and construct before recording undo. A failed placement must not
+        // consume a checkpoint or invalidate an existing redo history.
         PdfDocument.Placement p = PdfDocument.Placement.material(material,
                 clamp(x, 0, PdfDocument.PAGE_WIDTH - w), clamp(y, 0, PdfDocument.PAGE_HEIGHT - h), w, h);
+        checkpoint();
         document.add(page, p);
         return p;
     }
     public PdfDocument.Placement addNote(int page, String text, float x, float y) {
         validatePage(page);
-        checkpoint();
         PdfDocument.Placement p = PdfDocument.Placement.note(text,
                 clamp(x, 0, PdfDocument.PAGE_WIDTH - 260), clamp(y, 0, PdfDocument.PAGE_HEIGHT - 95), 260, 95);
+        checkpoint();
         document.add(page, p);
         return p;
     }

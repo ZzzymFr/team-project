@@ -6,7 +6,11 @@ import java.util.List;
 import java.util.Map;
 
 public class MathLexer {
-    private static final String[] PLAIN_NAMES = {"sqrt", "sin", "cos", "tan", "log", "ln", "pi"};
+    private static final String[] PLAIN_NAMES = {
+            "arcsin", "arccos", "arctan", "sinh", "cosh", "tanh", "sqrt",
+            "sin", "cos", "tan", "cot", "sec", "csc",
+            "exp", "log", "ln", "max", "min", "gcd", "pi"
+    };
 
     private static final String SYMBOLS = "+-*/^(){}[]|!=_,'<>%:;?";
 

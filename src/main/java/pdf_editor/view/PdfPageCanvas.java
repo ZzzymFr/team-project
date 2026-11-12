@@ -11,6 +11,7 @@ import pdf_editor.MathLibrary;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.datatransfer.DataFlavor;
+import java.awt.image.BufferedImage;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.List;
@@ -29,8 +30,14 @@ public final class PdfPageCanvas extends JPanel {
     private final PageZoomModel zoomModel = new PageZoomModel();
     public double zoom() { return zoomModel.zoom(); }
     public double setZoom(double zoom) {
+        finishInlineEdit();
         zoomModel.set(zoom);
-        updateSize(); revalidate(); repaint();
+        updateSize();
+        if (inlineNote != null) {
+            PdfDocument.Placement note = controller.selected();
+            if (note != null) positionInlineEditor(note);
+        }
+        revalidate(); repaint();
         return zoomModel.zoom();
     }
     public double adjustZoom(double rotation) { return setZoom(zoomModel.adjustWheel(rotation)); }
@@ -43,12 +50,86 @@ public final class PdfPageCanvas extends JPanel {
         setPreferredSize(new Dimension((int)Math.ceil(PdfDocument.PAGE_WIDTH * z) + MARGIN * 2,
                 (int)Math.ceil(PdfDocument.PAGE_HEIGHT * z) + MARGIN * 2));
     }
+    public float pageX(int screenX) { return toPageX(screenX); }
+    public float pageY(int screenY) { return toPageY(screenY); }
     private float toPageX(int screenX) { return PageCoordinateMapper.screenToPage(screenX, MARGIN, zoom()); }
     private float toPageY(int screenY) { return PageCoordinateMapper.screenToPage(screenY, MARGIN, zoom()); }
     private Point anchor;
     private float oldX, oldY, oldW, oldH;
     private boolean resizing;
     private boolean dragStarted;
+    private InlineNoteEditor inlineNote;
+    private String editingId;
+    private int liveEditorHeight;
+    /** Begin Word-like in-place editing of the selected text object, without opening another window. */
+    public boolean editNoteInline() {
+        PdfDocument.Placement note = controller.selected();
+        if (note == null || !note.isNote()) return false;
+        finishInlineEdit();
+        editingId = note.id();
+        liveEditorHeight = Math.max(42, Math.round(note.height() * (float) zoom()));
+        inlineNote = new InlineNoteEditor(note, zoom(), spans -> {
+            // Other mouse events may have moved the selection; target the original stable ID.
+            String next = controller.selected() == null ? null : controller.selected().id();
+            controller.select(editingId);
+            if (controller.selected() != null) {
+                controller.updateRichNote(spans);
+                float desiredHeight = Math.max(note.height(), liveEditorHeight / (float) zoom());
+                if (desiredHeight > note.height())
+                    controller.transform(note.x(), note.y(), note.width(), desiredHeight);
+            }
+            controller.select(next);
+            InlineNoteEditor old = inlineNote;
+            inlineNote = null;
+            editingId = null;
+            if (old != null) remove(old);
+            revalidate(); repaint();
+        }, () -> growInlineNote());
+        setLayout(null);
+        positionInlineEditor(note);
+        add(inlineNote, 0);
+        revalidate(); repaint();
+        SwingUtilities.invokeLater(() -> { if (inlineNote != null) inlineNote.requestFocusInWindow(); });
+        return true;
+    }
+    public boolean isEditingNote() { return inlineNote != null; }
+    public void toggleInlineStyle(Object style) { if (inlineNote != null) inlineNote.toggleStyle(style); }
+    public void setInlineFontSize(int size) { if (inlineNote != null) inlineNote.fontSize(size); }
+    public void finishInlineEdit() {
+        // Re-measure synchronously before commit, even when a pending document event
+        // has not yet reached the EDT (e.g., typing and immediately clicking away).
+        if (inlineNote != null) growInlineNote();
+        InlineNoteEditor editing = inlineNote;
+        if (editing != null) editing.finish();
+    }
+    private void positionInlineEditor(PdfDocument.Placement note) {
+        if (inlineNote == null) return;
+        int x = Math.round(note.x() * (float)zoom()) + MARGIN;
+        int y = Math.round(note.y() * (float)zoom()) + MARGIN;
+        int w = Math.max(65, Math.round(note.width() * (float)zoom()));
+        int h = Math.max(42, Math.round(note.height() * (float)zoom()));
+        liveEditorHeight = Math.max(liveEditorHeight, h);
+        inlineNote.setBounds(x, y, w, liveEditorHeight);
+    }
+    private void growInlineNote() {
+        InlineNoteEditor editing = inlineNote;
+        if (editing == null) return;
+        // Measure with the actual content width; do not expand the visible component to 32K px.
+        int desired = editing.getPreferredSize().height + 2;
+        if (inlineNote != editing) return;  // focus may have committed this note during layout
+        liveEditorHeight = Math.max(liveEditorHeight, Math.min(2200, desired));
+        PdfDocument.Placement note = controller.placements().stream()
+                .filter(p -> p.id().equals(editingId)).findFirst().orElse(null);
+        if (note != null && inlineNote == editing) positionInlineEditor(note);
+        if (inlineNote == editing) editing.repaint();
+    }
+    @Override public void doLayout() {
+        super.doLayout();
+        if (inlineNote != null) {
+            PdfDocument.Placement note = controller.selected();
+            if (note != null && note.isNote()) positionInlineEditor(note);
+        }
+    }
 
     public PdfPageCanvas(PdfEditorController controller, Listener listener) {
         this.controller = Objects.requireNonNull(controller);
@@ -57,23 +138,41 @@ public final class PdfPageCanvas extends JPanel {
         setBackground(new Color(243, 247, 253));
         setTransferHandler(new TransferHandler() {
             @Override public boolean canImport(TransferSupport support) {
-                return support.isDataFlavorSupported(DataFlavor.stringFlavor);
+                return support.isDataFlavorSupported(DataFlavor.stringFlavor)
+                        || support.isDataFlavorSupported(DataFlavor.imageFlavor);
             }
             @Override public boolean importData(TransferSupport support) {
                 if (!canImport(support)) return false;
                 try {
+                    Point location = support.getDropLocation().getDropPoint();
+                    if (support.isDataFlavorSupported(DataFlavor.imageFlavor)) {
+                        java.awt.Image source = (java.awt.Image) support.getTransferable()
+                                .getTransferData(DataFlavor.imageFlavor);
+                        BufferedImage image = imageAsBuffered(source);
+                        MathLibrary.Material region = MathLibrary.region("Canvas selection", image);
+                        float width = Math.min(440, Math.max(85, image.getWidth()));
+                        float height = width * image.getHeight() / Math.max(1f, image.getWidth());
+                        if (height > 575) { width *= 575f / height; height = 575f; }
+                        controller.place(region, toPageX(location.x), toPageY(location.y), width, height);
+                        repaint(); return true;
+                    }
                     String id = (String) support.getTransferable().getTransferData(DataFlavor.stringFlavor);
                     MathLibrary.Material material = controller.library().find(id);
                     if (material == null) return false;
-                    Point location = support.getDropLocation().getDropPoint();
-                    controller.place(material, toPageX(location.x), toPageY(location.y),
-                            material.isGraph() ? 260 : 300, material.isGraph() ? 180 : 100);
+                    float itemWidth = material.isGraph() ? 260f : 300f;
+                    float itemHeight = material.isGraph()
+                            ? Math.max(25f, itemWidth * material.imageHeight() / Math.max(1f, material.imageWidth()))
+                            : 100f;
+                    if (itemHeight > 575f) { itemWidth *= 575f / itemHeight; itemHeight = 575f; }
+                    controller.place(material, toPageX(location.x), toPageY(location.y), itemWidth, itemHeight);
                     repaint(); return true;
                 } catch (Exception ignored) { return false; }
             }
         });
         MouseAdapter mouse = new MouseAdapter() {
             @Override public void mousePressed(MouseEvent e) {
+                // A single click on empty paper exits the current text box (PPT behaviour).
+                finishInlineEdit();
                 controller.selectAt(toPageX(e.getX()), toPageY(e.getY()));
                 PdfDocument.Placement p = controller.selected();
                 anchor = null; dragStarted = false;
@@ -103,15 +202,28 @@ public final class PdfPageCanvas extends JPanel {
                 if (e.isPopupTrigger()) listener.contextMenu(e);
             }
             @Override public void mouseClicked(MouseEvent e) {
-                if (e.getClickCount() == 2 && SwingUtilities.isLeftMouseButton(e)
-                        && controller.selected() != null) {
-                    if (controller.selected().isNote()) listener.editNote();
+                if (e.getClickCount() == 2 && SwingUtilities.isLeftMouseButton(e)) {
+                    if (controller.selected() == null) {
+                        controller.addNoteAt(toPageX(e.getX()), toPageY(e.getY()));
+                        listener.editNote();
+                    } else if (controller.selected().isNote()) listener.editNote();
                     else if (!controller.selected().material().isGraph()) listener.editFormula();
                 }
             }
         };
         addMouseListener(mouse); addMouseMotionListener(mouse);
     }
+    private static java.awt.image.BufferedImage imageAsBuffered(java.awt.Image image) {
+        if (image instanceof java.awt.image.BufferedImage buffered) return buffered;
+        if (image == null || image.getWidth(null) < 1 || image.getHeight(null) < 1)
+            throw new IllegalArgumentException("Unsupported canvas image");
+        java.awt.image.BufferedImage copy = new java.awt.image.BufferedImage(image.getWidth(null),
+                image.getHeight(null), java.awt.image.BufferedImage.TYPE_INT_ARGB);
+        java.awt.Graphics2D graphics = copy.createGraphics();
+        graphics.drawImage(image, 0, 0, null); graphics.dispose();
+        return copy;
+    }
+
     @Override protected void paintComponent(Graphics g) {
         super.paintComponent(g);
         Graphics2D g2 = (Graphics2D) g.create();
@@ -131,6 +243,7 @@ public final class PdfPageCanvas extends JPanel {
             PdfDocument.Placement selected = controller.selected();
             List<PdfDocument.Placement> placements = controller.placements();
             for (PdfDocument.Placement p : placements) {
+                if (inlineNote != null && p.id().equals(editingId)) continue;
                 int x = Math.round(p.x()) + MARGIN, y = Math.round(p.y()) + MARGIN;
                 int width = Math.round(p.width()), height = Math.round(p.height());
                 // Render at device-visible resolution on every paint/zoom: a single

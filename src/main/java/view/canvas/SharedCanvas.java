@@ -2,6 +2,7 @@ package view.canvas;
 
 import interface_adapter.AnswerKind;
 import view.answer.CanvasAnswer;
+import view.answer.Formula;
 import entity.Stroke;
 import interface_adapter.TextRun;
 import interface_adapter.recognize.FormulaRecognizer;
@@ -228,6 +229,10 @@ public class SharedCanvas {
 
     public long formulaIdOf(Stroke s) {
         return canvas.formulaIdOf(s);
+    }
+
+    public List<Formula> getFormulas() {
+        return canvas.getFormulas();
     }
 
     public Rectangle formulaBounds(long id) {
