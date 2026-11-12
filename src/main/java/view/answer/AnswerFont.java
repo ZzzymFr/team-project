@@ -3,14 +3,15 @@ package view.answer;
 import interface_adapter.TextRun;
 import view.stack.Fonts;
 
-import java.awt.Color;
 import java.awt.Font;
 import java.awt.FontFormatException;
 import java.awt.Graphics2D;
-import java.awt.RenderingHints;
+import java.awt.Shape;
 import java.awt.font.FontRenderContext;
 import java.awt.font.TextAttribute;
 import java.awt.font.TextLayout;
+import java.awt.geom.AffineTransform;
+import java.awt.geom.Path2D;
 import java.awt.geom.Rectangle2D;
 import java.io.IOException;
 import java.io.InputStream;
@@ -99,17 +100,24 @@ public final class AnswerFont {
         }
     }
 
-    public static void paint(Graphics2D world, CanvasAnswer a, Color color) {
-        Graphics2D g = (Graphics2D) world.create();
-        g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        g.setColor(color);
-        if (a.getRuns() == null) {
-            draw(g, a.getText(), a.getFontSize(), a.getX(), a.getY());
-        } else {
-            draw(g, a.getRuns(), a.getFontSize(), a.getX(), a.getY());
+    // glyph outline, origin at baseline start
+    public static Shape outline(String text, float size) {
+        return text.isEmpty() ? new Path2D.Double() : layout(text, size).getOutline(null);
+    }
+
+    // outline w/ exponents raised, same spots as draw(runs)
+    public static Shape outline(List<TextRun> runs, float size) {
+        Path2D all = new Path2D.Double();
+        double pen = 0;
+        for (TextRun run : runs) {
+            if (run.getText().isEmpty()) {
+                continue;
+            }
+            TextLayout layout = layout(run.getText(), sizeOf(run, size));
+            all.append(layout.getOutline(AffineTransform.getTranslateInstance(pen, -lift(run, size))), false);
+            pen += layout.getAdvance();
         }
-        g.dispose();
+        return all;
     }
 
     private static float sizeOf(TextRun run, float size) {

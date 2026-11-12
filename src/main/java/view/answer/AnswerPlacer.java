@@ -16,10 +16,10 @@ public final class AnswerPlacer {
 
     // runs null = plain text; below falls back to the right if it would hit other ink
     public static CanvasAnswer place(List<Stroke> ink, AnswerKind kind, String text, List<TextRun> runs, boolean error,
-                                     Predicate<Rectangle2D> hitsOtherInk) {
+                                     double penWidth, Predicate<Rectangle2D> hitsOtherInk) {
         double h = AnswerLayout.charHeight(ink);
-        float size = AnswerFont.sizeFor(h);
-        Rectangle2D text2d = runs == null ? AnswerFont.visualBounds(text, size) : AnswerFont.visualBounds(runs, size);
+        float size = AnswerInk.sizeFor(h);
+        Rectangle2D text2d = AnswerInk.bounds(text, runs, size, penWidth);
         double w = text2d.getWidth();
         double ht = text2d.getHeight();
         Point2D at = kind.isBelow() ? AnswerLayout.below(ink, h) : AnswerLayout.rightOf(ink, h, ht);

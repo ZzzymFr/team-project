@@ -90,7 +90,7 @@ class DrawingCanvasAnswersTest {
         assertTrue(a.getX() > 170, "x " + a.getX());
         assertFalse(a.getBox().intersects(new Rectangle2D.Double(100, 100, 70, 40)));
         assertEquals(120, a.getBox().getCenterY(), 2);  // lined up with "="
-        assertEquals(40, a.getHeight(), 3);  // as tall as the "1"
+        assertEquals(40 + 4, a.getHeight(), 3);  // as tall as the "1" incl its pen width
         assertFalse(a.isError());
     }
 
