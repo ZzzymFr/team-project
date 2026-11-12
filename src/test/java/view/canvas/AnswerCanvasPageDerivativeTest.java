@@ -60,6 +60,17 @@ class AnswerCanvasPageDerivativeTest {
         });
     }
 
+    private void drag(int... xy) throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            canvas.dispatchEvent(new MouseEvent(canvas, MouseEvent.MOUSE_PRESSED, 0, 0, xy[0], xy[1], 1, false, MouseEvent.BUTTON1));
+            for (int i = 2; i < xy.length; i += 2) {
+                canvas.dispatchEvent(new MouseEvent(canvas, MouseEvent.MOUSE_DRAGGED, 0, 0, xy[i], xy[i + 1], 1, false, MouseEvent.BUTTON1));
+            }
+            canvas.dispatchEvent(new MouseEvent(canvas, MouseEvent.MOUSE_RELEASED, 0, 0,
+                    xy[xy.length - 2], xy[xy.length - 1], 1, false, MouseEvent.BUTTON1));
+        });
+    }
+
     private void waitFor(BooleanSupplier condition, String what) throws Exception {
         AtomicBoolean met = new AtomicBoolean();
         for (int i = 0; i < 250 && !met.get(); i++) {
@@ -72,6 +83,11 @@ class AnswerCanvasPageDerivativeTest {
     private CanvasAnswer calculate(String latex) throws Exception {
         openPage(latex);
         write();
+        if (!latex.contains("=")) {
+            // no "=" means no popup unless it's lasso'd
+            SwingUtilities.invokeAndWait(() -> canvas.setTool(DrawingCanvas.Tool.LASSO));
+            drag(80, 80, 220, 80, 220, 170, 80, 170);
+        }
         waitFor(() -> page.visiblePopup() != null && latex.equals(page.visiblePopup().getLatex()), "popup");
         SwingUtilities.invokeAndWait(() -> page.visiblePopup().clickCalculate());
         waitFor(() -> canvas.getAnswers().size() == 1, "answer");

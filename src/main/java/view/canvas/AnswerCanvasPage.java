@@ -8,6 +8,7 @@ import interface_adapter.evaluate.EvaluateController;
 import interface_adapter.graph.GraphController;
 import interface_adapter.graph.GraphViewModel;
 import view.FormulaCapture;
+import view.answer.Formula;
 import view.stack.Fonts;
 
 import javax.swing.BorderFactory;
@@ -31,7 +32,7 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 
-// answer page: pause -> popup with the read formula -> Calculate -> answer on the canvas
+// answer page: pause after an "=" -> popup with the read formula -> Calculate -> answer on the canvas
 public class AnswerCanvasPage extends CanvasPage {
     static final int POPUP_DELAY_MILLIS = 1500;
     private static final int ERROR_MESSAGE_MILLIS = 7000;
@@ -49,7 +50,8 @@ public class AnswerCanvasPage extends CanvasPage {
     private final Set<Stroke> session = new LinkedHashSet<>();  // loose ink since the last pause
     private final Set<Long> waiting = new LinkedHashSet<>();    // written in the same go, popup still owed
     private Stroke targetStroke;      // new ink to pop up for, or
-    private long targetId = -1;       // an edited formula
+    private long targetId = -1;       // an edited formula, or
+    private boolean targetPick;       // the lasso pick
     private long generation;          // bumps on every user action, old results check it
     private FormulaCapture shown;     // formula the popup is about
     private int running;              // Calculate jobs still going
@@ -59,6 +61,7 @@ public class AnswerCanvasPage extends CanvasPage {
     private final Map<Long, Read> reads = new HashMap<>();  // last read per formula
     private int reading;              // recognize jobs still out
     private Predicate<String> graphable = latex -> false;
+    private final PopupGate gate = new PopupGate();
 
     // no evaluate feature, just a placeholder
     public AnswerCanvasPage(SharedCanvas sharedCanvas) {
@@ -92,6 +95,7 @@ public class AnswerCanvasPage extends CanvasPage {
 
         sharedCanvas.addFormulaChangeListener(this::formulaChanged);
         sharedCanvas.addStrokeListener(this::strokeDone);
+        sharedCanvas.addPickListener(this::picked);
         sharedCanvas.addUserActionListener(this::dismiss);
         sharedCanvas.addPageSwitchListener(this::dismiss);
         sharedCanvas.addViewListener(this::placePopup);
@@ -103,7 +107,7 @@ public class AnswerCanvasPage extends CanvasPage {
             }
         });
 
-        JLabel note = new JLabel("Write a formula, then pause — it will offer to calculate.");
+        JLabel note = new JLabel("Write a formula with an \"=\" (or lasso one) — it will offer to calculate.");
         note.setFont(Fonts.ui(Font.PLAIN, 13f));
         note.setForeground(new Color(100, 116, 139));
         note.setBorder(BorderFactory.createEmptyBorder(6, 0, 6, 0));
@@ -161,6 +165,7 @@ public class AnswerCanvasPage extends CanvasPage {
         session.add(s);
         targetStroke = s;
         targetId = -1;
+        targetPick = false;
         restartPause();
     }
 
@@ -171,6 +176,18 @@ public class AnswerCanvasPage extends CanvasPage {
         }
         targetStroke = null;
         targetId = id;
+        targetPick = false;
+        restartPause();
+    }
+
+    // lasso/box let go on some ink: offer it as one formula, no "=" needed
+    private void picked() {
+        if (!inFront()) {
+            return;
+        }
+        targetStroke = null;
+        targetId = -1;
+        targetPick = true;
         restartPause();
     }
 
@@ -185,6 +202,7 @@ public class AnswerCanvasPage extends CanvasPage {
         pauseTimer.stop();
         targetStroke = null;
         targetId = -1;
+        targetPick = false;
         generation++;
         hidePopup();
     }
@@ -207,7 +225,12 @@ public class AnswerCanvasPage extends CanvasPage {
             return;
         }
         FormulaCapture capture = null;
-        if (targetStroke != null) {
+        if (targetPick) {
+            capture = getSharedCanvas().registerSelection();
+            if (capture != null) {
+                gate.picked(capture.getId());
+            }
+        } else if (targetStroke != null) {
             capture = getSharedCanvas().registerNewInk(targetStroke, session);
             queueRest(capture);
             session.clear();
@@ -216,6 +239,7 @@ public class AnswerCanvasPage extends CanvasPage {
         }
         targetStroke = null;
         targetId = -1;
+        targetPick = false;
         if (capture == null) {
             capture = nextWaiting();
         }
@@ -260,7 +284,24 @@ public class AnswerCanvasPage extends CanvasPage {
         if (gen != generation || !inFront()) {
             return;  // user moved on
         }
+        if (!gate.allows(formula(capture.getId()), latex)) {
+            hover.forget();
+            FormulaCapture next = nextWaiting();  // no "=" yet, quietly try the next one
+            if (next != null) {
+                recognize(next, gen);
+            }
+            return;
+        }
         present(capture, latex, problem);
+    }
+
+    private Formula formula(long id) {
+        for (Formula f : getSharedCanvas().getFormulas()) {
+            if (f.getId() == id) {
+                return f;
+            }
+        }
+        return null;
     }
 
     private void present(FormulaCapture capture, String latex, String problem) {
@@ -400,6 +441,11 @@ public class AnswerCanvasPage extends CanvasPage {
         public void withdraw() {
             generation++;  // drops a read still on its way
             hidePopup();
+        }
+
+        @Override
+        public boolean wanted(Formula f) {
+            return gate.allows(f, latexOf(f.getId(), f.getRevision()));
         }
 
         @Override

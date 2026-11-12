@@ -27,6 +27,7 @@ final class PopupHover {
         boolean canOffer();                  // nothing else going on
         void offer(long formulaId);          // put the popup up for it (may read it first)
         void withdraw();                     // take it down
+        boolean wanted(Formula f);           // may it pop up at all
         Rectangle popupBounds();             // what you see of it, area coords; null if hidden
         String latexOf(long id, long revision);  // read already, null if not
     }
@@ -133,7 +134,7 @@ final class PopupHover {
     long formulaAt(Point p) {
         for (Formula f : canvas.getFormulas()) {
             Rectangle world = f.getAnswer() == null ? spotOf(f).world : null;
-            if (world != null && canvas.worldToScreen(world).contains(p)) {
+            if (world != null && canvas.worldToScreen(world).contains(p) && host.wanted(f)) {
                 return f.getId();
             }
         }
