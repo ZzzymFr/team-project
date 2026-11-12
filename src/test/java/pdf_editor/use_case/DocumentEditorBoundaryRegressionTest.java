@@ -52,6 +52,24 @@ class DocumentEditorBoundaryRegressionTest {
         assertTrue(editor.placements(0).isEmpty());
         assertFalse(editor.undo());
     }
+    @Test void invalidNoteLocationDoesNotConsumeUndoOrRedo() {
+        var placed = editor.place(0, library.addFormula("x"), 10, 20, 100, 70);
+        assertTrue(editor.undo());
+        assertThrows(IllegalArgumentException.class,
+                () -> editor.addNote(0, "note", Float.POSITIVE_INFINITY, 20));
+        assertFalse(editor.undo(), "Failed note insert must not create history");
+        assertTrue(editor.redo(), "Failed note insert must not erase redo");
+        assertNotNull(editor.find(0, placed.id()));
+    }
+    @Test void invalidFormulaPlacementDoesNotConsumeRedo() {
+        editor.place(0, library.addFormula("x"), 10, 20, 100, 70);
+        assertTrue(editor.undo());
+        assertThrows(IllegalArgumentException.class,
+                () -> editor.place(0, library.addFormula("y"), Float.NaN, 20, 100, 70));
+        assertTrue(editor.redo());
+        assertEquals(1, editor.placements(0).size());
+    }
+
     @Test void nestedTransactionRollsBackEverything() {
         assertThrows(IllegalStateException.class, () -> editor.transaction(() -> {
             editor.place(0, library.addFormula("x"), 1, 1, 100, 70);

@@ -168,7 +168,8 @@ public final class LimitCalculator {
             if (departs(samples, richardson.value)) {
                 richardson.forget();
             }
-            if (samples.size() >= MIN_SAMPLES && isSettled(samples, richardson)) {
+            if (samples.size() >= MIN_SAMPLES && (isSettled(samples, richardson)
+                    || isRoundoffPlateau(samples, yNoise))) {
                 return settledAnswer(side, h, samples, richardson, sinceBlind < MIN_SAMPLES);
             }
             if (!farChecked && samples.size() >= EARLY_FAR && steadyGrowth(samples) != 0
@@ -365,6 +366,27 @@ public final class LimitCalculator {
         }
         int digits = Math.max(1, (int) Math.floor(-Math.log10(Math.max(accuracy, ROUND_OFF))));
         return snapped(Rounding.toSignificant(richardson.value, digits), richardson.error, richardson.value);
+    }
+
+    /**
+     * A converging quotient can reach machine precision before the generic
+     * Richardson detector settles. E.g. cosh(x)/exp(x) approaches 1/2, but at
+     * x ~ 100 the reported derivative/noise dwarfs the tiny upward rounding
+     * drift. Require an actual approach from earlier samples, plus a run whose
+     * differences are bounded by measured floating-point noise: this does not
+     * accept a constant swallowed by a much larger term (x - 1e20).
+     */
+    private static boolean isRoundoffPlateau(List<Double> samples, double noise) {
+        int n = samples.size();
+        if (n < MIN_SAMPLES + 1 || !Double.isFinite(noise) || noise < 0
+                || !closedIn(samples)) return false;
+        double last = samples.get(n - 1);
+        double tolerance = Math.max(16 * noise, 32 * Math.ulp(last));
+        if (!Double.isFinite(last) || !Double.isFinite(tolerance)) return false;
+        for (int i = n - 4; i < n; i++) {
+            if (Math.abs(samples.get(i) - last) > tolerance) return false;
+        }
+        return true;
     }
 
     // small rel error not enough, oscillating goes to fromSamples

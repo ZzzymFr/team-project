@@ -49,6 +49,7 @@ class AutoLayoutBoundaryTest {
     @Test void pairedGraphAndFormulaStayTogetherWhenNearBottom() {
         var library = new MathLibrary();
         library.addGraph("y=x^2", new BufferedImage(400, 280, BufferedImage.TYPE_INT_RGB));
+        library.addFormula("y=x^2");
         var editor = new DocumentEditor();
         editor.addNote(0, "bottom", 20, 700);
         int last = new AutoLayoutInteractor(editor).importMaterials(0, library.items());

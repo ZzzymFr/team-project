@@ -14,6 +14,10 @@ class PdfMaterialTest {
         MathLibrary.Material graph = library.addGraph("y=x^2", image);
         image.setRGB(0,0, Color.BLUE.getRGB());
         assertTrue(graph.isGraph());
+        // addGraph represents only the image. The graph action publishes the
+        // source formula separately, so addGraph must not duplicate that card.
+        assertEquals(1, library.items().size());
+        library.addFormula("y=x^2");
         assertEquals(2, library.items().size());
         assertFalse(library.items().get(1).isGraph());
         byte[] bytes = graph.imagePng();

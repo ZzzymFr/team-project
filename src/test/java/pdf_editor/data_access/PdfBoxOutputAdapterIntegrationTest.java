@@ -86,7 +86,9 @@ class PdfBoxOutputAdapterIntegrationTest {
         try (PDDocument pdf = PDDocument.load(file.toFile())) {
             assertEquals(3, pdf.getNumberOfPages());
             String appendix = new PDFTextStripper().getText(pdf);
-            assertEquals(1, appendix.split("Formula: z^3", -1).length - 1);
+            // String.split takes a REGEX: a raw ^ is an anchor, not the
+            // literal caret in z^3. Count the exact string instead.
+            assertEquals(1, appendix.split(java.util.regex.Pattern.quote("Formula: z^3"), -1).length - 1);
         }
     }
 }

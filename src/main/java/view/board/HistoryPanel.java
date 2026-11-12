@@ -140,7 +140,7 @@ public class HistoryPanel extends JPanel {
                 }
             } catch (java.io.IOException badImage) { /* domain already validates PNG signature */ }
         }
-        TeXIcon icon = typeset(entity.EquationDisplay.formula(item.getLatex(), item.getAnswer()));
+        TeXIcon icon = typeset(HistoryAnswerArtwork.formulaLatex(item));
         Rectangle2D formula = formulaBox(item, icon);
         double answerWidth = HistoryAnswerArtwork.width(item, answerSize());
         double answerHeight = HistoryAnswerArtwork.height(item, answerSize());
@@ -166,7 +166,7 @@ public class HistoryPanel extends JPanel {
         if (icon != null) {
             return new Rectangle2D.Double(0, 0, icon.getIconWidth(), icon.getIconHeight());
         }
-        return AnswerFont.visualBounds(entity.EquationDisplay.formula(item.getLatex(), item.getAnswer()), answerSize());
+        return AnswerFont.visualBounds(HistoryAnswerArtwork.formulaLatex(item).replace("\\Rightarrow", " =>"), answerSize());
     }
 
     // formula then answer, vertically centred in height h
@@ -177,7 +177,7 @@ public class HistoryPanel extends JPanel {
             icon.setForeground(Color.BLACK);
             icon.paintIcon(null, g, x, (int) Math.round((h - formula.getHeight()) / 2));
         } else {
-            AnswerFont.draw(g, entity.EquationDisplay.formula(item.getLatex(), item.getAnswer()), answerSize(), x, (h - formula.getHeight()) / 2);
+            AnswerFont.draw(g, HistoryAnswerArtwork.formulaLatex(item).replace("\\Rightarrow", " =>"), answerSize(), x, (h - formula.getHeight()) / 2);
         }
         if (HistoryAnswerArtwork.width(item, answerSize()) > 0) {
             HistoryAnswerArtwork.paint(g, item, answerSize(), x + formula.getWidth() + GAP, h / 2.0);
@@ -202,7 +202,7 @@ public class HistoryPanel extends JPanel {
 
         Row(HistoryItem item) {
             this.item = item;
-            this.icon = typeset(entity.EquationDisplay.formula(item.getLatex(), item.getAnswer()));
+            this.icon = typeset(HistoryAnswerArtwork.formulaLatex(item));
             setToolTipText("Drag to Canvas / PDF. Right-click to delete, or double-click to add to PDF.");
             setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
             setAlignmentX(LEFT_ALIGNMENT);

@@ -122,7 +122,9 @@ public class AnswerPopup extends JPanel {
         int x = formula.x + formula.width - POPUP_LEFT - m;
         int y = formula.y - POPUP_GAP - d.height;
         if (y + m < EDGE) {
-            y = formula.y + formula.height + POPUP_GAP - m;
+            // The whole popup (not just its visible glass capsule) must clear
+            // the ink rectangle. Subtracting the glass margin caused overlap.
+            y = formula.y + formula.height + POPUP_GAP;
         }
         x = Math.max(EDGE - m, Math.min(x, areaWidth - d.width - EDGE));
         y = Math.max(EDGE - m, Math.min(y, areaHeight - d.height - EDGE));
