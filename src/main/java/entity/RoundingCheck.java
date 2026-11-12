@@ -74,7 +74,7 @@ final class RoundingCheck {
                 if (!atRoot && a != b && Values.areAlmostEqual(a, b)) {
                     return NOISY;
                 }
-                boolean approximate = operands.get(i).isApproximate() || operands.get(i + 1).isApproximate();
+                boolean approximate = operands.get(i).isApproximate(at) || operands.get(i + 1).isApproximate(at);
                 if (!atRoot && a != b && approximate
                         && Values.areApproximatelyEqual(a, b, Math.max(errors[i], errors[i + 1]))) {
                     return NOISY;

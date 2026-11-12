@@ -167,7 +167,7 @@ class MathParserTest {
 
     @Test
     void canBeInfiniteIsFalseForPlainArithmetic() {
-        assertFalse(new MathParser(MathLexer.tokenize("10^{400}"), new HashMap<>()).parse().canBeInfinite());
+        assertFalse(new MathParser(MathLexer.tokenize("10^{400}"), new HashMap<>()).parse().canBeInfinite(new Context(new HashMap<>())));
     }
 
     @Test

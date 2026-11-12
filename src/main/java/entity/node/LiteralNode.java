@@ -23,7 +23,7 @@ public class LiteralNode extends Node {
     }
 
     @Override
-    public boolean canBeInfinite() {
+    public boolean canBeInfinite(Context context) {
         return infinite;
     }
 

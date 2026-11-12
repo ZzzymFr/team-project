@@ -27,7 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-// pause -> popup with the formula -> Calculate -> answer on the canvas
+// pause after "=" (or a lasso pick) -> popup with the formula -> Calculate -> answer on the canvas
 class AnswerCanvasPageTest {
     private final DrawingCanvas canvas = new DrawingCanvas();
     private final SharedCanvas shared = new SharedCanvas(canvas);
@@ -67,14 +67,32 @@ class AnswerCanvasPageTest {
     }
 
     private void drag(int... xy) throws Exception {
-        SwingUtilities.invokeAndWait(() -> {
-            canvas.dispatchEvent(new MouseEvent(canvas, MouseEvent.MOUSE_PRESSED, 0, 0, xy[0], xy[1], 1, false, MouseEvent.BUTTON1));
-            for (int i = 2; i < xy.length; i += 2) {
-                canvas.dispatchEvent(new MouseEvent(canvas, MouseEvent.MOUSE_DRAGGED, 0, 0, xy[i], xy[i + 1], 1, false, MouseEvent.BUTTON1));
-            }
-            canvas.dispatchEvent(new MouseEvent(canvas, MouseEvent.MOUSE_RELEASED, 0, 0,
-                    xy[xy.length - 2], xy[xy.length - 1], 1, false, MouseEvent.BUTTON1));
+        SwingUtilities.invokeAndWait(() -> stroke(xy));
+    }
+
+    // EDT only
+    private void stroke(int... xy) {
+        canvas.dispatchEvent(new MouseEvent(canvas, MouseEvent.MOUSE_PRESSED, 0, 0, xy[0], xy[1], 1, false, MouseEvent.BUTTON1));
+        for (int i = 2; i < xy.length; i += 2) {
+            canvas.dispatchEvent(new MouseEvent(canvas, MouseEvent.MOUSE_DRAGGED, 0, 0, xy[i], xy[i + 1], 1, false, MouseEvent.BUTTON1));
+        }
+        canvas.dispatchEvent(new MouseEvent(canvas, MouseEvent.MOUSE_RELEASED, 0, 0,
+                xy[xy.length - 2], xy[xy.length - 1], 1, false, MouseEvent.BUTTON1));
+    }
+
+    // a "1" then an "=" in one go, ink box (100,100)-(145,150)
+    private void writeWithEquals() throws Exception {
+        onEdt(() -> {
+            stroke(100, 100, 100, 150);
+            stroke(115, 120, 145, 120);
+            stroke(115, 130, 145, 130);
         });
+    }
+
+    // lasso round a box, stays on lasso after
+    private void lasso(int left, int top, int right, int bottom) throws Exception {
+        onEdt(() -> canvas.setTool(DrawingCanvas.Tool.LASSO));
+        drag(left, top, right, top, right, bottom, left, bottom);
     }
 
     private void onEdt(Runnable r) throws Exception {
@@ -122,12 +140,12 @@ class AnswerCanvasPageTest {
 
     @Test
     void popupShowsFormulaAndWaitsForCalculate() throws Exception {
-        shared.setFormulaRecognizer(image -> "5\\times7");
+        shared.setFormulaRecognizer(image -> "5\\times7=");
         openPage();
         write();
         assertNull(popup(), "not before the pause");
 
-        waitPopup("5\\times7");
+        waitPopup("5\\times7=");
         AnswerPopup p = popup();
         assertTrue(p.isTypeset());
         assertTrue(p.hasCalculate());
@@ -143,6 +161,9 @@ class AnswerCanvasPageTest {
         shared.setFormulaRecognizer(image -> "\\frac{1}{2}+2^{3}");
         openPage();
         write();
+        Thread.sleep(300);
+        assertNull(popup(), "no = yet");
+        lasso(80, 80, 220, 170);
         waitPopup("\\frac{1}{2}+2^{3}");
         clickCalculate();
         assertNull(popup(), "popup goes when clicked");
@@ -180,14 +201,14 @@ class AnswerCanvasPageTest {
 
     @Test
     void penOrToolChangeClosesThePopup() throws Exception {
-        shared.setFormulaRecognizer(image -> "1+1");
+        shared.setFormulaRecognizer(image -> "1+1=");
         openPage();
         write();
-        waitPopup("1+1");
+        waitPopup("1+1=");
 
         drag(500, 400, 520, 420);  // writes somewhere else
         assertNull(popup());
-        waitPopup("1+1");          // the new ink gets its own
+        waitPopup("1+1=");          // the new ink gets its own
         onEdt(() -> canvas.setTool(DrawingCanvas.Tool.ERASER));
         assertNull(popup());
         Thread.sleep(300);
@@ -197,10 +218,10 @@ class AnswerCanvasPageTest {
 
     @Test
     void panAndZoomKeepThePopup() throws Exception {
-        shared.setFormulaRecognizer(image -> "1+1");
+        shared.setFormulaRecognizer(image -> "1+1=");
         openPage();
         write();
-        waitPopup("1+1");
+        waitPopup("1+1=");
         Point before = popup().getLocation();
 
         onEdt(() -> canvas.panBy(30, -20));  // up, so it stays below the ink
@@ -239,7 +260,7 @@ class AnswerCanvasPageTest {
         shared.setFormulaRecognizer(image -> {
             calls.incrementAndGet();
             release.await();
-            return "1+1";
+            return "1+1=";
         });
         openPage();
         write();
@@ -253,7 +274,7 @@ class AnswerCanvasPageTest {
     @Test
     void recognitionProblemShowsReasonWithoutCalculate() throws Exception {
         openPage();
-        write();
+        writeWithEquals();
         waitFor(() -> page.visiblePopup() != null && page.visiblePopup().getProblem() != null
                 && page.visiblePopup().getProblem().contains("not connected"), "the reason");
         assertFalse(popup().hasCalculate());
@@ -266,7 +287,7 @@ class AnswerCanvasPageTest {
             throw new UnsatisfiedLinkError("no native lib");
         });
         openPage();
-        write();
+        writeWithEquals();
         waitFor(() -> page.visiblePopup() != null && "no native lib".equals(page.visiblePopup().getProblem()), "the reason");
         assertFalse(popup().hasCalculate());
     }
@@ -276,6 +297,7 @@ class AnswerCanvasPageTest {
         shared.setFormulaRecognizer(image -> "\\int");
         openPage();
         write();
+        lasso(80, 80, 220, 170);
         waitPopup("\\int");
         clickCalculate();
 
@@ -333,11 +355,11 @@ class AnswerCanvasPageTest {
         AtomicInteger calls = new AtomicInteger();
         shared.setFormulaRecognizer(image -> {
             calls.incrementAndGet();
-            return "1+1";
+            return "1+1=";
         });
         openPage();
         write();
-        waitPopup("1+1");
+        waitPopup("1+1=");
         editFormula();
         onEdt(shared::undo);
         Thread.sleep(400);
@@ -350,7 +372,7 @@ class AnswerCanvasPageTest {
         AtomicInteger calls = new AtomicInteger();
         shared.setFormulaRecognizer(image -> {
             calls.incrementAndGet();
-            return "1+1";
+            return "1+1=";
         });
         openPage();
         GraphCanvasPage[] graph = new GraphCanvasPage[1];
@@ -371,10 +393,10 @@ class AnswerCanvasPageTest {
 
     @Test
     void switchingPageClosesThePopup() throws Exception {
-        shared.setFormulaRecognizer(image -> "1+1");
+        shared.setFormulaRecognizer(image -> "1+1=");
         openPage();
         write();
-        waitPopup("1+1");
+        waitPopup("1+1=");
         onEdt(() -> shared.attachTo(new GraphCanvasPage(shared)));
         assertNull(popup());
     }
@@ -384,18 +406,133 @@ class AnswerCanvasPageTest {
         AtomicReference<BufferedImage> seen = new AtomicReference<>();
         shared.setFormulaRecognizer(image -> {
             seen.set(image);
-            return "1+1";
+            return "1+1=";
         });
         openPage();
         write();                                     // A: 50 tall
-        waitPopup("1+1");
+        waitPopup("1+1=");
         clickCalculate();
-        waitFor(() -> answerIs("= 2"), "A's answer");
+        waitFor(() -> answerIs("2"), "A's answer");
 
         drag(400, 300, 420, 330);                    // B: 30 tall, far away
         waitFor(() -> page.visiblePopup() != null && seen.get().getHeight() == 30 + 1 + 2 * 18, "B's popup");
         assertTrue(popup().getX() > 300, "popup sits by B");
         clickCalculate();
         waitFor(() -> canvas.getAnswers().size() == 2, "both answers");
+    }
+
+    @Test
+    void formulaWrittenBeforeThePauseIsOfferedNext() throws Exception {
+        shared.setFormulaRecognizer(image -> "1+1=");
+        openPage();
+        onEdt(() -> page.setPopupDelay(400));
+        write();                                     // A
+        drag(400, 300, 420, 330);                    // B right after, no pause in between
+        waitFor(() -> page.visiblePopup() != null, "B's popup");
+        assertTrue(popup().getX() > 300, "newest one first");
+        clickCalculate();
+        waitFor(() -> canvas.getAnswers().size() == 1, "B's answer");
+
+        waitFor(() -> page.visiblePopup() != null, "A's popup");
+        assertTrue(popup().getX() < 300, "popup sits by A");
+        clickCalculate();
+        waitFor(() -> canvas.getAnswers().size() == 2, "both answers");
+    }
+
+    @Test
+    void noEqualsNoPopup() throws Exception {
+        AtomicInteger calls = new AtomicInteger();
+        shared.setFormulaRecognizer(image -> {
+            calls.incrementAndGet();
+            return "1+1";
+        });
+        openPage();
+        write();
+        waitFor(() -> calls.get() == 1, "the read");
+        Thread.sleep(300);
+        assertNull(popup());
+    }
+
+    @Test
+    void writingTheEqualsBringsThePopup() throws Exception {
+        AtomicReference<String> latex = new AtomicReference<>("1+1");
+        shared.setFormulaRecognizer(image -> latex.get());
+        openPage();
+        write();
+        Thread.sleep(300);
+        assertNull(popup(), "still writing");
+
+        latex.set("1+1=");
+        editFormula();
+        waitPopup("1+1=");
+    }
+
+    @Test
+    void problemWithNoEqualsInTheInkStaysQuiet() throws Exception {
+        openPage();
+        write();
+        Thread.sleep(400);
+        assertNull(popup());
+    }
+
+    @Test
+    void lassoPickJoinsFarApartInk() throws Exception {
+        AtomicReference<BufferedImage> seen = new AtomicReference<>();
+        shared.setFormulaRecognizer(image -> {
+            seen.set(image);
+            return "1+1";
+        });
+        openPage();
+        write();                       // (100,100)-(200,150)
+        drag(600, 100, 700, 150);      // way past the join gap
+        Thread.sleep(300);
+        assertNull(popup());
+        assertEquals(2, shared.getFormulas().size(), "two bits on their own");
+
+        lasso(80, 80, 720, 170);
+        waitPopup("1+1");
+        assertEquals(1, shared.getFormulas().size(), "one formula now");
+        assertTrue(seen.get().getWidth() > 600, "read as one, gap and all");
+        clickCalculate();
+        waitFor(() -> answerIs("= 2"), "the answer");
+        assertTrue(answers().get(0).getX() > 700, "right of the whole pick");
+    }
+
+    @Test
+    void lassoOnAnAnsweredFormulaKeepsTheAnswer() throws Exception {
+        AtomicInteger calls = new AtomicInteger();
+        shared.setFormulaRecognizer(image -> {
+            calls.incrementAndGet();
+            return "1+1=";
+        });
+        openPage();
+        write();
+        waitPopup("1+1=");
+        clickCalculate();
+        waitFor(() -> answerIs("2"), "the answer");
+
+        lasso(80, 80, 220, 170);
+        Thread.sleep(400);
+        assertNull(popup());
+        assertEquals(1, calls.get(), "not read again");
+        assertTrue(answerIs("2"));
+    }
+
+    @Test
+    void draggingThePickAwayCancelsThePopup() throws Exception {
+        AtomicInteger calls = new AtomicInteger();
+        shared.setFormulaRecognizer(image -> {
+            calls.incrementAndGet();
+            return "1+1";
+        });
+        openPage();
+        onEdt(() -> page.setPopupDelay(400));
+        write();
+        waitFor(() -> calls.get() == 1, "the read");
+        lasso(80, 80, 220, 170);
+        drag(150, 120, 300, 300);      // moves it before the pause is up
+        Thread.sleep(600);
+        assertNull(popup());
+        assertEquals(1, calls.get(), "never read as a pick");
     }
 }

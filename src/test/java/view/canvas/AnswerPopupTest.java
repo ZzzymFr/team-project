@@ -3,6 +3,7 @@ package view.canvas;
 import org.junit.jupiter.api.Test;
 
 import java.awt.Dimension;
+import java.awt.Rectangle;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -36,6 +37,15 @@ class AnswerPopupTest {
         popup.showProblem("Handwriting recognition is not connected yet.");
         assertFalse(popup.hasCalculate());
         assertEquals("Handwriting recognition is not connected yet.", popup.getProblem());
+    }
+
+    @Test
+    void popupPlacedBelowInkDoesNotOverlapInk() {
+        popup.showFormula("5\\times7", () -> { });
+        Rectangle ink = new Rectangle(100, 100, 101, 51);
+        Rectangle placed = popup.spotBeside(ink, 900, 560);
+        assertFalse(placed.intersects(ink), "Popup bounds must not cover the formula ink");
+        assertTrue(new Rectangle(0, 0, 900, 560).contains(placed));
     }
 
     @Test

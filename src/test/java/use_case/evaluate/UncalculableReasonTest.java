@@ -22,6 +22,16 @@ class UncalculableReasonTest {
     }
 
     @Test
+    void newVocabularyWithNoValue() {
+        reason("Integrals not supported", "\\iint", "\\iiint_D f", "\\oint_C x", "1+\\iint x");
+        reason("Has \"…\"", "\\vdots", "\\ddots", "1+\\vdots");
+        reason("Not a calculation", "\\nabla f", "\\sup x", "\\inf_{x}x", "\\limsup a_n", "\\liminf a_n",
+                "\\det A", "\\dim V", "\\ker T", "\\Pr(A)", "\\dot x", "\\ddot x", "2\\det A", "1+\\nabla");
+        reason("Not a calculation", "1\\equiv2", "a\\sim b", "x\\mapsto x^2", "x\\leftarrow1", "\\equiv",
+                "\\sim{1}", "1\\sup2");
+    }
+
+    @Test
     void derivatives() {
         reason("Function not defined", "z'(1)", "f'(x)=\\cos(e^{x})");
         Calc calc = new Calc();
@@ -65,7 +75,7 @@ class UncalculableReasonTest {
         reason("Infinite set", "\\{1\\}\\cup\\mathbb{N}");
         reason("A set has no value", "\\mathbb{R}");
         reason("Unknown set", "\\mathbb{X}", "\\forall x\\in\\mathbb{R}^{n}");
-        reason("Can't tell if rational", "\\pi\\in\\mathbb{Q}");
+        reason("Can't tell if rational", "\\ln 2\\in\\mathbb{Q}");
     }
 
     @Test
@@ -78,7 +88,9 @@ class UncalculableReasonTest {
     void solving() {
         reason("Too many solutions", "\\sin x>0");
         reason("Changes too fast", "\\sin(100\\pi x)=0");
-        reason("Answer beyond ±100", "x>500", "x<-500");
+        reason("Answer beyond ±100", "\\ln x>1000", "\\sqrt{x-200}>1");
+        assertEquals("x > 500", Calc.once("x>500"));
+        assertEquals("x < -500", Calc.once("x<-500"));
     }
 
     @Test

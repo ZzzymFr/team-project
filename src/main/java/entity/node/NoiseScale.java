@@ -5,7 +5,7 @@ import entity.value.NumberValue;
 import entity.value.Value;
 
 // how big float noise in a plain formula can get, so 10^{-10}>0 stays true
-final class NoiseScale {
+public final class NoiseScale {
     // a few dozen roundings worth of eps
     static final double TOLERANCE = 64 * Math.ulp(1.0);
     private static final double EXACT_INTEGERS = 0x1p53;
@@ -20,7 +20,7 @@ final class NoiseScale {
     }
 
     // rough abs float noise in a value, NaN if unknown
-    static double noiseOf(Node node, Context context) {
+    public static double noiseOf(Node node, Context context) {
         if (!isSupported(node)) {
             return Double.NaN;
         }
@@ -47,6 +47,9 @@ final class NoiseScale {
             case SUBTRACT:
                 return sa + sb + own;
             case MULTIPLY:
+            case DOT:
+            case CROSS:
+                // \cdot \times on numbers, a vector side gives NaN = unknown
                 return sa * Math.abs(b) + Math.abs(a) * sb + own;
             case DIVIDE:
                 return b == 0 ? Double.NaN : sa / Math.abs(b) + Math.abs(a) * sb / (b * b) + own;
@@ -62,30 +65,12 @@ final class NoiseScale {
         double x = number(node.getArgument(), context);
         double sx = of(node.getArgument(), context);
         double own = Math.abs(value);
-        switch (node.getName()) {
-            case "\\sin":
-                return Math.abs(Math.cos(x)) * sx + own;
-            case "\\cos":
-                return Math.abs(Math.sin(x)) * sx + own;
-            case "\\tan":
-                return (1 + value * value) * sx + own;
-            case "\\ln":
-                return sx / Math.abs(x) + own;
-            case "\\log":
-                if (node.getExtra() == null) {
-                    return sx / (Math.abs(x) * Math.log(10)) + own;
-                }
-                double base = number(node.getExtra(), context);
-                double logBase = Math.abs(Math.log(base));
-                return sx / (Math.abs(x) * logBase)
-                        + Math.abs(value) * of(node.getExtra(), context) / (Math.abs(base) * logBase) + own;
-            default:
-                if (x == 0) {
-                    return Double.NaN;
-                }
-                double degree = node.getExtra() == null ? 2 : number(node.getExtra(), context);
-                return Math.abs(value / (degree * x)) * sx + own;
+        NamedFunction function = NamedFunction.of(node.getName());
+        if (node.getExtra() == null) {
+            return function.noise(x, value, sx) + own;
         }
+        double extra = number(node.getExtra(), context);
+        return function.noise(x, extra, value, sx, of(node.getExtra(), context)) + own;
     }
 
     private static double number(Node node, Context context) {
@@ -123,6 +108,8 @@ final class NoiseScale {
                 case ADD:
                 case SUBTRACT:
                 case MULTIPLY:
+                case DOT:
+                case CROSS:
                 case DIVIDE:
                 case POWER:
                     return isSupported(node.getLeft()) && isSupported(node.getRight());
@@ -133,6 +120,10 @@ final class NoiseScale {
 
         @Override
         public Boolean visitFunction(FunctionNode node) {
+            NamedFunction function = NamedFunction.of(node.getName());
+            if (function == null || !function.hasNoise(node.getExtra() != null)) {
+                return false;
+            }
             for (Node child : node.children()) {
                 if (!isSupported(child)) {
                     return false;

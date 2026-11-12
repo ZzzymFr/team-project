@@ -29,8 +29,10 @@ public final class PdfExporter {
                 try (PDPageContentStream stream = new PDPageContentStream(pdf, page)) {
                     for (PdfDocument.Placement p : pageItems) {
                         if (p.width() < 1 || p.height() < 1) continue;
-                        int w = Math.min(2000, Math.max(1, Math.round(p.width() * 2)));
-                        int h = Math.min(2000, Math.max(1, Math.round(p.height() * 2)));
+                        // 4 raster pixels per PDF point (~288 DPI). For PNG graphs,
+                        // never discard source detail by first rasterizing at 1x.
+                        int w = Math.min(3200, Math.max(8, Math.round(p.width() * 4)));
+                        int h = Math.min(3200, Math.max(8, Math.round(p.height() * 4)));
                         BufferedImage image = p.isNote() ? NoteRenderer.render(p, w, h) : MaterialRenderer.render(p.material(), w, h);
                         PDImageXObject xobj = LosslessFactory.createFromImage(pdf, image);
                         stream.drawImage(xobj, p.x(), PdfDocument.PAGE_HEIGHT - p.y() - p.height(), p.width(), p.height());

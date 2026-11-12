@@ -17,5 +17,9 @@ As a student, I want to get the numerical result of an arithmetic expression/fun
 US3 – Graph functions - Haoyu Wang (api) \
 As a student, I want to enter a function such as y = x^2 + 1 and see its graph, so that I can understand how the function behaves.
 
-US4 – Export to LaTeX PDF - Eric Young \
+US4 – Export to LaTeX PDF - Eric Yang \
 As a student, I want to convert my expressions into LaTeX and export them as a PDF, so that I can put cleanly formatted math into my notes or assignments.
+
+US5 – Calculation History and Local Persistence - Eric Yang \
+As a student, I want my previously recognized expressions, calculated answers, and generated graphs to be saved locally and available in a History panel, so that I can reuse them in a later study session and drag them onto my editable PDF document without having to write them again.
+

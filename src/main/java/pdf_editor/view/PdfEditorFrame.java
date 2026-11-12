@@ -11,6 +11,7 @@ import view.glass.GlassButton;
 import view.stack.Fonts;
 
 import javax.swing.*;
+import javax.swing.event.ChangeListener;
 import java.awt.*;
 import java.awt.datatransfer.StringSelection;
 import java.awt.event.MouseEvent;
@@ -26,6 +27,10 @@ public final class PdfEditorFrame extends JFrame {
     private final DefaultListModel<MathLibrary.Material> listModel = new DefaultListModel<>();
     private final JList<MathLibrary.Material> shelf = new JList<>(listModel);
     private final PdfPageCanvas canvas;
+    private JScrollPane pageScroll;
+    private final JLabel pageZoomLabel = new JLabel("100%");
+    private final JSlider pageZoomSlider = new JSlider(35, 300, 100);
+    private boolean syncingZoom;
     private final JPanel editor = new JPanel(new BorderLayout(12, 12));
     private static final Color BACKDROP = new Color(243, 247, 253);
     private static final Color INK = new Color(35, 52, 77);
@@ -46,6 +51,7 @@ public final class PdfEditorFrame extends JFrame {
         this.canvas = new PdfPageCanvas(controller, new PdfPageCanvas.Listener() {
             @Override public void contextMenu(MouseEvent event) { showItemMenu(event); }
             @Override public void editNote() { PdfEditorFrame.this.editNote(); }
+            @Override public void editFormula() { PdfEditorFrame.this.editFormula(); }
         });
         setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
         setSize(1120, 850); setMinimumSize(new Dimension(830, 650));
@@ -110,9 +116,25 @@ public final class PdfEditorFrame extends JFrame {
         editor.add(left, BorderLayout.WEST);
         RoundedPanel stage = new RoundedPanel(new BorderLayout(), new Color(233, 240, 250), 24);
         stage.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
-        JScrollPane pageScroll = glassScroll(canvas);
+        // Center the sheet in the viewport when it fits. Scrollbars appear automatically when zoomed in.
+        JPanel pageCenter = new JPanel(new GridBagLayout());
+        pageCenter.setBackground(new Color(233, 240, 250));
+        pageCenter.add(canvas, new GridBagConstraints());
+        pageScroll = glassScroll(pageCenter);
+        pageScroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+        pageScroll.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED);
+        pageScroll.getHorizontalScrollBar().setUnitIncrement(30);
+        pageScroll.getHorizontalScrollBar().setUI(new GlassScrollBarUI());
+        pageScroll.getHorizontalScrollBar().setPreferredSize(new Dimension(0, 9));
         pageScroll.getViewport().setBackground(new Color(233, 240, 250));
+        // GridBagLayout's centered child is naturally sized to the page's preferred dimensions.
         stage.add(pageScroll, BorderLayout.CENTER);
+        pageScroll.addMouseWheelListener(e -> {
+            if (e.isControlDown()) { changePageZoom(canvas.zoom() * Math.pow(1.12, -e.getPreciseWheelRotation())); e.consume(); }
+        });
+        canvas.addMouseWheelListener(e -> {
+            if (e.isControlDown()) { changePageZoom(canvas.zoom() * Math.pow(1.12, -e.getPreciseWheelRotation())); e.consume(); }
+        });
         editor.add(stage, BorderLayout.CENTER);
         JPanel toolbar = editorToolbar();
         editor.add(toolbar, BorderLayout.NORTH);
@@ -240,8 +262,46 @@ public final class PdfEditorFrame extends JFrame {
         tools.add(menuButton("Arrange", arrangeMenu()));
         tools.add(button("+ Note", this::addNote));
         tools.add(button("Auto Layout", this::autoLayout));
+        tools.add(button("−", () -> changePageZoom(canvas.zoom() / 1.15)));
+        pageZoomSlider.setPreferredSize(new Dimension(112, 29));
+        pageZoomSlider.setOpaque(false);
+        pageZoomSlider.setToolTipText("A4 zoom (view only; PDF dimensions stay unchanged)");
+        pageZoomSlider.addChangeListener(e -> { if (!syncingZoom) changePageZoom(pageZoomSlider.getValue() / 100.0); });
+        tools.add(pageZoomSlider);
+        pageZoomLabel.setFont(Fonts.ui(Font.BOLD, 12f));
+        pageZoomLabel.setForeground(INK);
+        tools.add(pageZoomLabel);
+        tools.add(button("+", () -> changePageZoom(canvas.zoom() * 1.15)));
+        tools.add(button("Fit", this::fitPage));
+        tools.add(button("100%", () -> changePageZoom(1.0)));
         tools.add(button("Done / Preview", this::showPreview));
         return tools;
+    }
+    private void fitPage() {
+        if (pageScroll == null) return;
+        Dimension extent = pageScroll.getViewport().getExtentSize();
+        changePageZoom(canvas.fitZoom(extent.width, extent.height));
+    }
+    private void changePageZoom(double requested) {
+        // Preserve the current viewport center during zoom, just like a word processor.
+        if (pageScroll == null) return;
+        JViewport viewport = pageScroll.getViewport();
+        Dimension extent = viewport.getExtentSize();
+        Point before = viewport.getViewPosition();
+        double oldZoom = canvas.zoom();
+        double zoom = canvas.setZoom(requested);
+        syncingZoom = true;
+        pageZoomSlider.setValue((int) Math.round(zoom * 100));
+        syncingZoom = false;
+        pageZoomLabel.setText(Math.round(zoom * 100) + "%");
+        // Defer repositioning until scroll view layout knows its new size.
+        SwingUtilities.invokeLater(() -> {
+            Dimension size = viewport.getViewSize();
+            int x = (int)Math.round((before.x + extent.width / 2.0) * zoom / oldZoom - extent.width / 2.0);
+            int y = (int)Math.round((before.y + extent.height / 2.0) * zoom / oldZoom - extent.height / 2.0);
+            viewport.setViewPosition(new Point(Math.max(0, Math.min(x, Math.max(0, size.width - extent.width))),
+                    Math.max(0, Math.min(y, Math.max(0, size.height - extent.height)))));
+        });
     }
     private void autoLayout() {
         int count = controller.autoLayout();
@@ -256,11 +316,23 @@ public final class PdfEditorFrame extends JFrame {
     }
     private static void menuItem(JPopupMenu menu, String title, Runnable action) {
         JMenuItem item = new JMenuItem(title);
+        item.setOpaque(true);
+        item.setBackground(Color.WHITE);
+        item.setForeground(INK);
+        item.setBorder(BorderFactory.createEmptyBorder(9, 17, 9, 17));
         item.setFont(Fonts.ui(Font.PLAIN, 13f));
         item.addActionListener(e -> action.run()); menu.add(item);
     }
-    private JPopupMenu arrangeMenu() {
+    private static JPopupMenu styledPopup() {
         JPopupMenu menu = new JPopupMenu();
+        menu.setBackground(Color.WHITE);
+        menu.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(204, 217, 235), 1, true),
+                BorderFactory.createEmptyBorder(6, 5, 6, 5)));
+        return menu;
+    }
+    private JPopupMenu arrangeMenu() {
+        JPopupMenu menu = styledPopup();
         menuItem(menu, "Bring to Front", () -> arrange(2));
         menuItem(menu, "Bring Forward", () -> arrange(1));
         menu.addSeparator();
@@ -281,6 +353,15 @@ public final class PdfEditorFrame extends JFrame {
         List<PdfDocument.NoteSpan> spans = RichNoteEditor.edit(this, note);
         if (spans != null) { controller.updateRichNote(spans); canvas.repaint(); }
     }
+    private void editFormula() {
+        PdfDocument.Placement item = controller.selected();
+        if (item == null || item.isNote() || item.material().isGraph()) return;
+        FormulaEditDialog.Result edited = FormulaEditDialog.show(this, item.material());
+        if (edited != null && controller.editSelectedFormula(edited.formula(), edited.result())) {
+            canvas.repaint();
+            status.setText("Formula updated. Undo restores the previous version.");
+        }
+    }
     private void splitSelected() {
         if (!controller.splitSelected()) { status.setText("Select a combined formula + result item first."); return; }
         canvas.repaint();
@@ -288,8 +369,9 @@ public final class PdfEditorFrame extends JFrame {
     private void showItemMenu(MouseEvent e) {
         PdfDocument.Placement selected = controller.selected();
         if (selected == null) return;
-        JPopupMenu menu = new JPopupMenu();
+        JPopupMenu menu = styledPopup();
         if (selected.isNote()) menuItem(menu, "Edit Note...", this::editNote);
+        else if (!selected.material().isGraph()) menuItem(menu, "Edit Formula / LaTeX...", this::editFormula);
         else if (selected.material().hasResult() && !selected.material().isGraph())
             menuItem(menu, "Separate Formula and Result", this::splitSelected);
         if (menu.getComponentCount() > 0) menu.addSeparator();
@@ -298,6 +380,9 @@ public final class PdfEditorFrame extends JFrame {
         menuItem(menu, "Send Backward", () -> arrange(-1));
         menuItem(menu, "Send to Back", () -> arrange(-2));
         JMenu move = new JMenu("Move to Page");
+        move.setFont(Fonts.ui(Font.PLAIN, 13f));
+        move.setForeground(INK);
+        move.setBorder(BorderFactory.createEmptyBorder(8, 16, 8, 10));
         for (int target=0; target<controller.pageCount(); target++) {
             int index = target;
             if (index != controller.currentPage())

@@ -259,6 +259,34 @@ class HardCombinationTest {
     }
 
     @Test
+    void tinyConstantsWithCdotAndTimesCompareExactly() {
+        assertEquals("false", Calc.once("2\\cdot 10^{-10}=0"));
+        assertEquals("true", Calc.once("2\\cdot 10^{-10}>0"));
+        assertEquals("false", Calc.once("2\\times 10^{-10}=0"));
+        assertEquals("false", Calc.once("1+2\\cdot 10^{-10}=1"));
+        assertEquals("true", Calc.once("(1,2)\\cdot(3,4)=11"));
+        assertEquals("true", Calc.once("(1,0,0)\\times(0,1,0)=(0,0,1)"));
+        assertEquals("true", Calc.once("\\sqrt{2}\\cdot\\sqrt{2}=2"));
+        assertEquals("true", Calc.once("4\\times3=12"));
+        assertEquals("true", Calc.once("1+10^{-17}=1"));
+    }
+
+    @Test
+    void tinyConstantsInNewFunctionsCompareExactly() {
+        assertEquals("true", Calc.once("\\sinh(10^{-10})>0"));
+        assertEquals("true", Calc.once("\\arctan(10^{-10})\\neq0"));
+        assertEquals("true", Calc.once("\\exp(10^{-10})>1"));
+        assertEquals("true", Calc.once("\\max(10^{-10},0)>0"));
+        assertEquals("false", Calc.once("\\min(1+10^{-10},2)=1"));
+        assertEquals("true", Calc.once("\\cosh(1)^2-\\sinh(1)^2=1"));
+        assertEquals("true", Calc.once("\\exp(\\ln 5)=5"));
+        assertEquals("true", Calc.once("\\sec(1)\\cos(1)=1"));
+        assertEquals("true", Calc.once("\\cot(1)\\tan(1)=1"));
+        assertEquals("true", Calc.once("\\log_{2}8=3"));
+        assertEquals("true", Calc.once("\\sqrt[3]{27}=3"));
+    }
+
+    @Test
     void boundVariableShadowsFunction() {
         Calc calc = new Calc();
         calc.show("h(x)=x^2");
@@ -330,6 +358,19 @@ class HardCombinationTest {
         assertEquals("no solution", Calc.once("e^{-x}=0"));
         assertEquals("false", Calc.once("\\exists x\\in\\mathbb{R}, \\frac{1}{x}=0"));
         assertEquals("x = -2", Calc.once("\\frac{x}{x+1}=2"));
+    }
+
+    @Test
+    void curvedBoundariesPastTheRange() {
+        assertEquals("x > 148.41", Calc.once("\\ln x>5"));
+        assertEquals("x > 121", Calc.once("\\sqrt{x}>11"));
+        assertEquals("x > 138.98", Calc.once("1.005^x>2"));
+        assertEquals("x > 115.13", Calc.once("e^x>10^{50}"));
+        assertEquals("1 < x < 1000000", Calc.once("x^2-1000001x+1000000<0"));
+        // still endless / still past what doubles hold
+        assertEquals("Uncalculable — Too many solutions", Calc.once("\\sin x>0"));
+        assertEquals("Uncalculable — Too many solutions", Calc.once("\\tan x>0"));
+        assertEquals("Uncalculable — Answer beyond ±100", Calc.once("\\ln x>1000"));
     }
 
     @Test

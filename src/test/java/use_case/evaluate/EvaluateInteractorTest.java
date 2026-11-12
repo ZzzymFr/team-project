@@ -21,6 +21,8 @@ class EvaluateInteractorTest {
         String kind = "";
         List<ValueOutputData> values;
         List<Double> solutions;
+        List<IntervalOutputData> intervals;
+        List<Double> excluded;
         String text;
 
         @Override
@@ -42,11 +44,13 @@ class EvaluateInteractorTest {
         @Override
         public void prepareIntervalsView(String variable, List<IntervalOutputData> intervals) {
             kind = "intervals";
+            this.intervals = intervals;
         }
 
         @Override
         public void prepareExcludedView(String variable, List<Double> excluded) {
             kind = "excluded";
+            this.excluded = excluded;
         }
 
         @Override
@@ -274,5 +278,22 @@ class EvaluateInteractorTest {
         assertEquals("Write f(...) to use the function f.", calc.show("f+1"));
         assertEquals("The formula of f(x) can only use the variable x, but it uses f.", calc.show("f(x)=f(x)+1"));
         assertEquals("x = -3 or x = 3", calc.show("f(x)+1=11"));
+    }
+
+    @Test
+    void lonelyTinyRootsGoOutAsZero() {
+        run("x=10^{-13}");
+        assertEquals(List.of(0.0), presenter.solutions);
+        run("x>10^{-13}");
+        assertEquals(0.0, presenter.intervals.get(0).getLow());
+        run("x<10^{-13}");
+        assertEquals(0.0, presenter.intervals.get(0).getHigh());
+        // two different tiny roots side by side are real
+        run("x^2=10^{-30}");
+        assertEquals(-1e-15, presenter.solutions.get(0), 1e-20);
+        assertEquals(1e-15, presenter.solutions.get(1), 1e-20);
+        run("x^2<10^{-26}");
+        assertEquals(-1e-13, presenter.intervals.get(0).getLow(), 1e-20);
+        assertEquals(1e-13, presenter.intervals.get(0).getHigh(), 1e-20);
     }
 }

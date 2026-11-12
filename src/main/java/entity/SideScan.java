@@ -41,7 +41,7 @@ final class SideScan {
             return Double.POSITIVE_INFINITY;
         }
         // lost value can give NaN too (inf - inf)
-        if (Double.isInfinite(d) || context.isAbsorbed() || pair.isNoise()) {
+        if (Double.isInfinite(d) || context.isAbsorbed() || pair.isNoise(context)) {
             return Double.POSITIVE_INFINITY;
         }
         return d;
@@ -73,6 +73,24 @@ final class SideScan {
             }
         }
         return (low + high) / 2;
+    }
+
+    // root to the last bit, NaN if sign doesnt flip within maxWidth
+    double pinRoot(SidePair pair, double root, double maxWidth) {
+        double dRoot = difference(pair, root);
+        if (dRoot == 0 || !Double.isFinite(dRoot)) {
+            return Double.NaN;
+        }
+        for (double width = Math.ulp(root); width <= maxWidth; width *= 2) {
+            double dBelow = difference(pair, root - width);
+            if (dBelow * dRoot < 0) {
+                return bisect(pair, root - width, root, dBelow);
+            }
+            if (difference(pair, root + width) * dRoot < 0) {
+                return bisect(pair, root, root + width, dRoot);
+            }
+        }
+        return Double.NaN;
     }
 
     // defined end of the edge
@@ -182,8 +200,10 @@ final class SideScan {
             for (int k = 0; k <= SCAN_POINTS && roots.size() <= limit; k++) {
                 double point = sign * EquationSolver.SEARCH_END * Math.pow(10, k / (double) POINTS_PER_DECADE);
                 double d = scanValue(pair, point);
-                if (d != 0 && Double.isFinite(d) && Values.areAlmostEqual(pair.lastLeft, pair.lastRight)) {
-                    // within tol only rounding shows
+                // within tol only rounding shows. a root right on the range end isnt beyond it either
+                boolean onRangeEnd = k == 0 && d == 0;
+                if ((d != 0 && Double.isFinite(d) && Values.areAlmostEqual(pair.lastLeft, pair.lastRight))
+                        || onRangeEnd) {
                     d = Double.POSITIVE_INFINITY;
                 }
                 if (Double.isInfinite(d)) {

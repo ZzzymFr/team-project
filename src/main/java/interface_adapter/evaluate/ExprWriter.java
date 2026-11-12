@@ -4,7 +4,7 @@ import interface_adapter.TextRun;
 import use_case.evaluate.ExprOutputData;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
+import java.math.MathContext;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -12,7 +12,6 @@ import java.util.Map;
 
 // derivative answer -> latex (result text / pdf) or style A runs (canvas, exponents raised)
 public final class ExprWriter {
-    private static final int DECIMALS = 2;
     private static final Map<String, String> GREEK = Map.ofEntries(
             Map.entry("\\alpha", "α"), Map.entry("\\beta", "β"), Map.entry("\\gamma", "γ"),
             Map.entry("\\delta", "δ"), Map.entry("\\theta", "θ"), Map.entry("\\lambda", "λ"),
@@ -266,8 +265,9 @@ public final class ExprWriter {
 
     private void writeNumber(ExprOutputData n) {
         if (n.isDecimal()) {
-            BigDecimal shown = BigDecimal.valueOf(n.num())
-                    .divide(BigDecimal.valueOf(n.den()), DECIMALS, RoundingMode.HALF_UP).stripTrailingZeros();
+            // same rounding as a plain answer, 0.004 stays 0.004
+            BigDecimal exact = BigDecimal.valueOf(n.num()).divide(BigDecimal.valueOf(n.den()), MathContext.DECIMAL64);
+            BigDecimal shown = AnswerFormatter.shown(exact).stripTrailingZeros();
             emit(shown.signum() == 0 ? "0" : shown.toPlainString().replace("-", tex ? "-" : "−"));
         } else if (n.isInteger()) {
             emit(Long.toString(n.num()).replace("-", tex ? "-" : "−"));

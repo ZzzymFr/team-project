@@ -68,7 +68,7 @@ public class EquationSolver {
         this.step = step;
         this.leftPart = leftPart;
         this.rightPart = rightPart;
-        this.approximate = left.isApproximate() || right.isApproximate();
+        this.approximate = left.isApproximate(context) || right.isApproximate(context);
     }
 
     // number at that part or NaN

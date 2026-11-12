@@ -6,7 +6,11 @@ import java.util.List;
 import java.util.Map;
 
 public class MathLexer {
-    private static final String[] PLAIN_NAMES = {"sqrt", "sin", "cos", "tan", "log", "ln", "pi"};
+    private static final String[] PLAIN_NAMES = {
+            "arcsin", "arccos", "arctan", "sinh", "cosh", "tanh", "sqrt",
+            "sin", "cos", "tan", "cot", "sec", "csc",
+            "exp", "log", "ln", "max", "min", "gcd", "pi"
+    };
 
     private static final String SYMBOLS = "+-*/^(){}[]|!=_,'<>%:;?";
 
@@ -31,6 +35,11 @@ public class MathLexer {
         ALIASES.put("\\dfrac", "\\frac");
         ALIASES.put("\\tfrac", "\\frac");
         ALIASES.put("\\cdots", "\\ldots");
+        ALIASES.put("\\vdots", "\\ldots");
+        ALIASES.put("\\ddots", "\\ldots");
+        ALIASES.put("\\iint", "\\int");
+        ALIASES.put("\\iiint", "\\int");
+        ALIASES.put("\\oint", "\\int");
         ALIASES.put("\\prime", "'");
     }
 
@@ -206,6 +215,11 @@ public class MathLexer {
                 throw new UncalculableException(UncalculableReason.NOT_CALCULATION);
             case "\\div":
                 tokens.add("/");
+                break;
+            case "\\emptyset":
+            case "\\varnothing":
+                tokens.add("\\{");
+                tokens.add("\\}");
                 break;
             case "\\left":
             case "\\right":

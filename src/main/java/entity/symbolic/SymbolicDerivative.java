@@ -33,27 +33,61 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BinaryOperator;
 
 // d/dx written out: parser nodes -> Expr, each derivative swapped for its formula
 public final class SymbolicDerivative {
     private static final int MAX_CALL_DEPTH = 32;
     private static final double MAX_EXACT = 1e15;
     private static final long DECIMAL_SCALE = 1_000_000_000L;
+    private static final Expr MINUS_HALF = Expr.num(Rational.of(-1, 2), false);
+    // f(u) -> f'(u) * u', given u and u'
+    private static final Map<String, BinaryOperator<Expr>> RULES = new HashMap<>();
+
+    static {
+        RULES.put("sin", (u, du) -> Expr.mul(Expr.fn("cos", u), du));
+        RULES.put("cos", (u, du) -> Expr.mul(Expr.num(-1), Expr.fn("sin", u), du));
+        RULES.put("tan", (u, du) -> Expr.mul(Expr.pow(Expr.fn("cos", u), Expr.num(-2)), du));
+        RULES.put("ln", (u, du) -> Expr.mul(du, Expr.pow(u, Expr.num(-1))));
+        RULES.put("arcsin", (u, du) -> Expr.mul(du, Expr.pow(oneMinusSquare(u), MINUS_HALF)));
+        RULES.put("arccos", (u, du) -> Expr.mul(Expr.num(-1), du, Expr.pow(oneMinusSquare(u), MINUS_HALF)));
+        RULES.put("arctan", (u, du) -> Expr.mul(du,
+                Expr.pow(Expr.add(Expr.pow(u, Expr.num(2)), Expr.num(1)), Expr.num(-1))));
+        RULES.put("sinh", (u, du) -> Expr.mul(Expr.fn("cosh", u), du));
+        RULES.put("cosh", (u, du) -> Expr.mul(Expr.fn("sinh", u), du));
+        RULES.put("tanh", (u, du) -> Expr.mul(Expr.pow(Expr.fn("cosh", u), Expr.num(-2)), du));
+        RULES.put("cot", (u, du) -> Expr.mul(Expr.num(-1), Expr.pow(Expr.fn("sin", u), Expr.num(-2)), du));
+        RULES.put("sec", (u, du) -> Expr.mul(Expr.fn("sin", u), Expr.pow(Expr.fn("cos", u), Expr.num(-2)), du));
+        RULES.put("csc", (u, du) -> Expr.mul(Expr.num(-1), Expr.fn("cos", u),
+                Expr.pow(Expr.fn("sin", u), Expr.num(-2)), du));
+    }
 
     private final Map<String, UserFunction> functions;
+    private final boolean exactNumbers;
     private final NodeVisitor<Expr> outsideDerivative = new Converter(false);
     private final NodeVisitor<Expr> insideDerivative = new Converter(true);
     private int callDepth;
 
-    private SymbolicDerivative(Map<String, UserFunction> functions) {
+    private SymbolicDerivative(Map<String, UserFunction> functions, boolean exactNumbers) {
         this.functions = functions;
+        this.exactNumbers = exactNumbers;
     }
 
     public static Expr differentiate(Node node, Map<String, UserFunction> functions) {
         try {
-            return Simplifier.simplify(new SymbolicDerivative(functions).convert(node, false));
+            return Simplifier.simplify(new SymbolicDerivative(functions, false).convert(node, false));
         } catch (ArithmeticException e) {
             throw new UncalculableException(UncalculableReason.TOO_MUCH_WORK);  // rational overflowed
+        }
+    }
+
+    // for values: other letters held still, throws if a number cant be kept exactly
+    public static Expr partial(Node body, String variable, int order, Map<String, UserFunction> functions) {
+        try {
+            SymbolicDerivative s = new SymbolicDerivative(functions, true);
+            return nth(s.convert(body, true), variable, order, false);
+        } catch (ArithmeticException e) {
+            throw new UncalculableException(UncalculableReason.TOO_MUCH_WORK);
         }
     }
 
@@ -72,7 +106,7 @@ public final class SymbolicDerivative {
 
         @Override
         public Expr visitNumber(NumberNode node) {
-            return number(node.getValue(), node.getDecimals());
+            return checked(number(node.getValue(), node.getDecimals()), node.getValue());
         }
 
         @Override
@@ -110,6 +144,7 @@ public final class SymbolicDerivative {
 
         @Override
         public Expr visitFunction(FunctionNode node) {
+            checkDefined(node);
             Expr e = function(node, inDerivative);
             return e != null ? e : opaque(node, inDerivative);
         }
@@ -177,6 +212,13 @@ public final class SymbolicDerivative {
         return Expr.num(Rational.of(Math.round(value * DECIMAL_SCALE), DECIMAL_SCALE), true);
     }
 
+    private Expr checked(Expr number, double value) {
+        if (exactNumbers && number.value().toDouble() != value) {
+            throw new UncalculableException(UncalculableReason.TOO_MUCH_WORK);
+        }
+        return number;
+    }
+
     private Expr binary(BinaryNode b, boolean inDerivative) {
         switch (b.getOp()) {
             case ADD:
@@ -185,6 +227,9 @@ public final class SymbolicDerivative {
                 return Expr.add(convert(b.getLeft(), inDerivative),
                         Expr.mul(Expr.num(-1), convert(b.getRight(), inDerivative)));
             case MULTIPLY:
+            case DOT:
+            case CROSS:
+                // \cdot and \times on plain numbers, a vector side fails on its own
                 return Expr.mul(convert(b.getLeft(), inDerivative), convert(b.getRight(), inDerivative));
             case DIVIDE:
                 return Expr.mul(convert(b.getLeft(), inDerivative),
@@ -197,21 +242,19 @@ public final class SymbolicDerivative {
     }
 
     private Expr function(FunctionNode f, boolean inDerivative) {
+        String name = f.getName().substring(1);
         Expr arg = convert(f.getArgument(), inDerivative);
         Expr extra = f.getExtra() == null ? null : convert(f.getExtra(), inDerivative);
         switch (f.getName()) {
-            case "\\sin":
-            case "\\cos":
-            case "\\tan":
-            case "\\ln":
-                return Expr.fn(f.getName().substring(1), arg);
             case "\\log":
                 return Expr.log(arg, extra);
             case "\\sqrt":
                 Expr degree = extra == null ? Expr.num(2) : extra;
                 return Expr.pow(arg, Expr.pow(degree, Expr.num(-1)));
+            case "\\exp":
+                return Expr.pow(Expr.constE(), arg);
             default:
-                return null;
+                return RULES.containsKey(name) ? Expr.fn(name, arg) : null;
         }
     }
 
@@ -252,34 +295,19 @@ public final class SymbolicDerivative {
     }
 
     private Expr derivative(DerivativeNode node) {
-        boolean implicit = !node.isPartial();
-        if (node.getLeadingGroup() != null) {
-            Expr split = splitAtGroup(node.getBody(), node);
-            if (split != null) {
-                return split;
-            }
-        }
-        return nth(convert(node.getBody(), true), node.getVariable(), node.getOrder(), implicit);
+        return nth(convert(node.getBody(), true), node.getVariable(), node.getOrder(), !node.isPartial());
     }
 
-    // d/dx(..)+rest: parser put rest in the body, only the bracket gets differentiated
-    private Expr splitAtGroup(Node n, DerivativeNode node) {
-        if (n == node.getLeadingGroup()) {
-            return nth(convert(n, true), node.getVariable(), node.getOrder(), !node.isPartial());
+    // ln 0, cot 0: no letters and no value, dont write it out
+    private void checkDefined(Node node) {
+        Set<String> free = new HashSet<>();
+        node.collectFreeVariables(free);
+        if (free.isEmpty()) {
+            Value v = node.evaluate(new Context(functions));
+            if (v instanceof NumberValue && Double.isNaN(((NumberValue) v).getValue())) {
+                throw new UndefinedException();
+            }
         }
-        if (!(n instanceof BinaryNode)) {
-            return null;
-        }
-        BinaryNode b = (BinaryNode) n;
-        if (b.getOp() != BinaryNode.Op.ADD && b.getOp() != BinaryNode.Op.SUBTRACT) {
-            return null;
-        }
-        Expr left = splitAtGroup(b.getLeft(), node);
-        if (left == null) {
-            return null;
-        }
-        Expr right = convert(b.getRight(), false);
-        return Expr.add(left, b.getOp() == BinaryNode.Op.ADD ? right : Expr.mul(Expr.num(-1), right));
     }
 
     // no letters -> just its value (e.g. a sum); else can't do it
@@ -295,7 +323,7 @@ public final class SymbolicDerivative {
             if (Double.isNaN(value)) {
                 throw new UndefinedException();
             }
-            return number(value, 0);
+            return checked(number(value, 0), value);
         }
         if (inDerivative && node instanceof UnaryNode) {
             UnaryNode.Op op = ((UnaryNode) node).getOp();
@@ -384,18 +412,16 @@ public final class SymbolicDerivative {
 
     private static Expr functionRule(String name, Expr arg, String x, boolean implicit) {
         Expr inner = d(arg, x, implicit);
-        switch (name) {
-            case "sin":
-                return Expr.mul(Expr.fn("cos", arg), inner);
-            case "cos":
-                return Expr.mul(Expr.num(-1), Expr.fn("sin", arg), inner);
-            case "tan":
-                return Expr.mul(Expr.pow(Expr.fn("cos", arg), Expr.num(-2)), inner);
-            case "ln":
-                return Expr.mul(inner, Expr.pow(arg, Expr.num(-1)));
-            default:
-                throw new UncalculableException(UncalculableReason.NOT_DIFFERENTIABLE);
+        BinaryOperator<Expr> rule = RULES.get(name);
+        if (rule == null) {
+            throw new UncalculableException(UncalculableReason.NOT_DIFFERENTIABLE);
         }
+        return rule.apply(arg, inner);
+    }
+
+    // 1 - u^2
+    private static Expr oneMinusSquare(Expr u) {
+        return Expr.add(Expr.num(1), Expr.mul(Expr.num(-1), Expr.pow(u, Expr.num(2))));
     }
 
     private static Expr logRule(Expr arg, Expr base, String x, boolean implicit) {

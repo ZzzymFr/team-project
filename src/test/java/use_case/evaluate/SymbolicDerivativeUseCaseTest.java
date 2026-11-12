@@ -35,6 +35,22 @@ class SymbolicDerivativeUseCaseTest {
     }
 
     @Test
+    void bracketAfterDdxIsTheBodyForNumbersToo() {
+        assertEquals("= 5x", show("\\frac{d}{dx}(x^2)+3x"));
+        assertEquals("x = 2", show("\\frac{d}{dx}(x^2)+3x=10"));
+        assertEquals("x = 3.5", show("\\frac{d}{dx}(x^2+3x)=10"));
+        show("g(x)=\\frac{d}{dx}(x^2)-3x");
+        assertEquals("= -2", show("g(2)="));
+    }
+
+    @Test
+    void tinyDecimalsDontTurnIntoZero() {
+        assertEquals("= 0.004", show("\\frac{d}{dx}0.004x"));
+        assertEquals("= 0.002x", show("\\frac{d}{dx}0.001x^2"));
+        assertEquals("= 0.13x", show("\\frac{d}{dx}0.0625x^2"));
+    }
+
+    @Test
     void definedFunctionPrime() {
         show("f(y)=3y^{2}");
         assertEquals("= 6y", show("f'(y)="));
@@ -68,8 +84,49 @@ class SymbolicDerivativeUseCaseTest {
     }
 
     @Test
+    void newFunctionsAreWrittenOut() {
+        assertEquals("= \\frac{1}{x^{2}+1}", show("\\frac{d}{dx}\\arctan x"));
+        assertEquals("= \\frac{1}{\\sqrt{-x^{2}+1}}", show("\\frac{d}{dx}\\arcsin x"));
+        assertEquals("= -\\frac{1}{\\sqrt{-x^{2}+1}}", show("\\frac{d}{dx}\\arccos x"));
+        assertEquals("= \\cosh x", show("\\frac{d}{dx}\\sinh x"));
+        assertEquals("= \\sinh x", show("\\frac{d}{dx}\\cosh x"));
+        assertEquals("= \\frac{1}{(\\cosh x)^{2}}", show("\\frac{d}{dx}\\tanh x"));
+        assertEquals(show("\\frac{d}{dx}e^{2x}"), show("\\frac{d}{dx}\\exp(2x)"));
+        assertEquals("= -\\frac{1}{(\\sin x)^{2}}", show("\\frac{d}{dx}\\cot x"));
+        assertEquals("= \\frac{\\sin x}{(\\cos x)^{2}}", show("\\frac{d}{dx}\\sec x"));
+        assertEquals("= -\\frac{\\cos x}{(\\sin x)^{2}}", show("\\frac{d}{dx}\\csc x"));
+        assertEquals("= 2x\\cosh(x^{2})", show("\\frac{d}{dx}\\sinh(x^2)"));
+    }
+
+    @Test
+    void newFunctionsOfZeroFoldWhenExact() {
+        assertEquals("= 1", show("\\frac{d}{dx}x\\cosh 0"));
+        assertEquals("= 1", show("\\frac{d}{dx}x\\sec 0"));
+        assertEquals("= 1", show("\\frac{d}{dx}x\\cosh(x-x)"));
+        assertEquals("= 1", show("\\frac{d}{dx}x\\sec(x-x)"));
+        assertEquals("= \\arccos 0", show("\\frac{d}{dx}x\\arccos(x-x)"));
+    }
+
+    @Test
+    void oldFunctionsAreWrittenTheSame() {
+        assertEquals("= 2x\\cos(x^{2})", show("\\frac{d}{dx}\\sin(x^2)"));
+        assertEquals("= \\frac{1}{(\\cos x)^{2}}", show("\\frac{d}{dx}\\tan x"));
+        assertEquals("= \\frac{1}{x\\ln 2}", show("\\frac{d}{dx}\\log_2 x"));
+        assertEquals("= \\frac{1}{2\\sqrt{x}}", show("\\frac{d}{dx}\\sqrt{x}"));
+    }
+
+    @Test
     void failuresGiveAReason() {
         assertEquals("Uncalculable — Can't differentiate |x|", show("\\frac{d}{dx}|x|"));
         assertEquals("Uncalculable — Answer too long", show("\\frac{d}{dx}(\\frac{\\sin x}{\\ln x+x^x})"));
+    }
+
+    @Test
+    void constantWithNoValueIsUndefinedNotWrittenOut() {
+        assertEquals("Uncalculable — Has an undefined part", show("\\frac{d}{dx}x\\ln 0"));
+        assertEquals("Uncalculable — Has an undefined part", show("\\frac{d}{dx}x\\cot 0"));
+        assertEquals("Uncalculable — Has an undefined part", show("\\frac{d}{dx}x\\sqrt{-1}"));
+        assertEquals("= \\sin 2", show("\\frac{d}{dx}x\\sin 2"));
+        assertEquals("= \\ln 2", show("\\frac{d}{dx}x\\ln 2"));
     }
 }

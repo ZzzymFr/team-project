@@ -8,7 +8,7 @@ public enum FormulaShape {
     ENDS_WITH_EQUALS, RELATION, PLAIN;
 
     private static final Set<String> RELATIONS = Set.of("=", "<", ">", "\\leq", "\\geq", "\\neq",
-            "\\approx", "\\in", "\\notin", "\\subset", "\\perp");
+            "\\approx", "\\in", "\\notin", "\\subset", "\\supseteq", "\\perp");
 
     static FormulaShape of(List<String> tokens) {
         if (!tokens.isEmpty() && "=".equals(tokens.get(tokens.size() - 1))) {
