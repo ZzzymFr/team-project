@@ -1,0 +1,8 @@
+package entity;
+
+// what's wrong w/ how the formula is written, adapter picks the words
+public enum SyntaxProblem {
+    EMPTY, UNEXPECTED, NOT_SUPPORTED, BAD_NUMBER, EXPECTED, ENDS_EARLY, EMPTY_SUBSCRIPT, NEEDS_BRACKETS,
+    SET_DIMENSION, UNKNOWN_VARIABLE, CALLS_ITSELF, WRONG_INPUTS, NOTHING_LEFT, NOTHING_RIGHT, MANY_EQUALS,
+    MANY_UNKNOWNS, NO_BODY, BODY_VARIABLE;
+}
