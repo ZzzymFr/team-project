@@ -18,6 +18,9 @@ public final class SelectionToLibrary {
         return latex.trim();
     }
     public MathLibrary.Material addFormula(String latex) { return library.addFormula(latex); }
+    public MathLibrary.Material addCalculation(String latex, String result) {
+        return library.addCalculation(latex, result);
+    }
     public MathLibrary.Material addInk(BufferedImage image) {
         return library.addInk("Selected handwriting", Objects.requireNonNull(image));
     }

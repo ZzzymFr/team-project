@@ -24,6 +24,8 @@ public final class MathLibrary {
     private final List<Material> items = new ArrayList<>();
     private final List<Runnable> listeners = new ArrayList<>();
     private final Map<Long, String> calculationSources = new HashMap<>();
+    private final Map<String, Material> suspended = new HashMap<>();
+    private final Map<String, Long> manuallyDeletedSource = new HashMap<>();
     private final java.util.Deque<Material> deleted = new java.util.ArrayDeque<>();
     /** Subscribe to changes. The returned handle releases the listener when a window closes. */
     public Runnable onChange(Runnable listener) {
@@ -40,6 +42,8 @@ public final class MathLibrary {
         Material material = find(id);
         if (material == null) return false;
         items.remove(material);
+        calculationSources.entrySet().stream().filter(e -> e.getValue().equals(id))
+                .findFirst().ifPresent(e -> manuallyDeletedSource.put(id, e.getKey()));
         calculationSources.values().removeIf(v -> v.equals(id));
         deleted.push(material);
         while (deleted.size() > 30) deleted.removeLast();
@@ -51,6 +55,8 @@ public final class MathLibrary {
         Material restored = deleted.pop();
         if (find(restored.id()) != null) return false;
         items.add(restored);
+        Long source = manuallyDeletedSource.remove(restored.id());
+        if (source != null) calculationSources.put(source, restored.id());
         notifyListeners();
         return true;
     }
@@ -62,7 +68,7 @@ public final class MathLibrary {
     /** A calculated answer is linked to its original ink ID, so erasing that ink removes only its material. */
     public Material addSourceCalculation(long sourceId, String formula, String result) {
         // Recalculation replaces stale results, rather than accumulating duplicates.
-        removeSource(sourceId);
+        forgetSource(sourceId);
         Material item = addCalculation(formula, result);
         calculationSources.put(sourceId, item.id());
         return item;
@@ -76,19 +82,45 @@ public final class MathLibrary {
         notifyListeners();
         return true;
     }
-    public void removeSource(long sourceId) {
+    /** Hide material when the linked ink is erased; undo can restore the same object. */
+    public boolean suspend(String id) {
+        Material material = find(id);
+        if (material == null) return false;
+        items.remove(material);
+        suspended.put(id, material);
+        notifyListeners();
+        return true;
+    }
+    public boolean resume(String id) {
+        Material material = suspended.remove(id);
+        if (material == null) return false;
+        if (find(id) == null) items.add(material);
+        notifyListeners();
+        return true;
+    }
+    /** A new calculation supersedes an earlier one from this particular source. */
+    private void forgetSource(long sourceId) {
         String id = calculationSources.remove(sourceId);
-        if (id != null && items.removeIf(item -> item.id().equals(id))) notifyListeners();
+        if (id == null) return;
+        suspended.remove(id);
+        if (items.removeIf(item -> item.id().equals(id))) notifyListeners();
+    }
+    public void removeSource(long sourceId) {
+        String id = calculationSources.get(sourceId);
+        if (id != null) suspend(id);
     }
     public void retainActiveSources(Set<Long> activeSourceIds) {
         Objects.requireNonNull(activeSourceIds, "activeSourceIds");
-        for (long sourceId : Set.copyOf(calculationSources.keySet()))
-            if (!activeSourceIds.contains(sourceId)) removeSource(sourceId);
+        for (var source : Map.copyOf(calculationSources).entrySet()) {
+            if (activeSourceIds.contains(source.getKey())) resume(source.getValue());
+            else suspend(source.getValue());
+        }
     }
     /** Clearing the original canvas invalidates its generated library materials. */
     public void clear() {
         boolean hadItems = !items.isEmpty();
-        items.clear(); calculationSources.clear(); deleted.clear();
+        items.clear(); calculationSources.clear(); suspended.clear();
+        manuallyDeletedSource.clear(); deleted.clear();
         if (hadItems) notifyListeners();
     }
     public Material addFormulaResult(String formula, String result) { return addCalculation(formula, result); }

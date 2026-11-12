@@ -116,31 +116,46 @@ public final class DocEditorPanel extends JPanel implements PdfWorkspacePort {
         nameRow.setOpaque(false);
         nameRow.setBorder(BorderFactory.createEmptyBorder(BoardTheme.TOP + 4, 8, 0, 60));
         title.setFont(BoardTheme.font(15f));
+        // A small native vector document glyph (no external image or licensing dependency).
+        JLabel documentGlyph = new JLabel(new ImageIcon(documentIcon()));
+        documentGlyph.setToolTipText("Math Lab document");
+        nameRow.add(documentGlyph);
         nameRow.add(title);
         top.add(nameRow, BorderLayout.NORTH);
 
         JPanel tabsRow = new JPanel(new BorderLayout());
         tabsRow.setBackground(Color.WHITE);
         tabsRow.setBorder(BorderFactory.createEmptyBorder(0, 12, 0, 10));
-        JPanel names = new JPanel(new FlowLayout(FlowLayout.LEFT, 1, 0));
+        JPanel names = new JPanel(new WrapLayout(FlowLayout.LEFT, 2, 2));
         names.setOpaque(false);
         tabs.add(new Tab("Home", homeRibbon()));
         tabs.add(new Tab("Insert", insertRibbon()));
         tabs.add(new Tab("Layout", layoutRibbon()));
         tabs.add(new Tab("View", viewRibbon()));
         for (Tab tab : tabs) names.add(tab.button);
-        tabsRow.add(names, BorderLayout.CENTER);
         JButton export = new RoundedActionButton("Export PDF", this::export, true);
         export.setToolTipText("Save your document as a PDF file");
-        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
-        actions.setOpaque(false);
-        actions.add(export);
-        tabsRow.add(actions, BorderLayout.EAST);
+        // Keep Export immediately after View, away from the floating PDF capsule.
+        names.add(Box.createHorizontalStrut(5));
+        names.add(export);
+        tabsRow.add(names, BorderLayout.CENTER);
         top.add(tabsRow, BorderLayout.CENTER);
         ribbonHolder.setBorder(BorderFactory.createMatteBorder(1, 0, 1, 0, DIVIDER));
         ribbonHolder.setBackground(Color.WHITE);
         top.add(ribbonHolder, BorderLayout.SOUTH);
         return top;
+    }
+
+    private static BufferedImage documentIcon() {
+        BufferedImage image = new BufferedImage(26, 26, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = image.createGraphics();
+        try {
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setColor(new Color(229, 240, 255)); g.fillRoundRect(1, 1, 24, 24, 8, 8);
+            g.setColor(new Color(29, 103, 213)); g.translate(13, 13);
+            Icons.document(g);
+        } finally {g.dispose();}
+        return image;
     }
 
     private JPanel ribbon() {
@@ -268,7 +283,16 @@ public final class DocEditorPanel extends JPanel implements PdfWorkspacePort {
         header.add(name, BorderLayout.CENTER);
         JPanel libraryActions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 3, 0));
         libraryActions.setOpaque(false);
-        libraryActions.add(flatButton("Undo", () -> library.undoDelete()));
+        // Plain text (no platform bullet/leading icon) keeps the compact Library header clean.
+        JButton undoDelete = new JButton("Undo");
+        undoDelete.setFont(BoardTheme.font(11f));
+        undoDelete.setOpaque(false);
+        undoDelete.setContentAreaFilled(false);
+        undoDelete.setFocusPainted(false);
+        undoDelete.setBorderPainted(false);
+        undoDelete.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+        undoDelete.addActionListener(e -> library.undoDelete());
+        libraryActions.add(undoDelete);
         libraryActions.add(flatButton("Delete", this::deleteLibraryItem));
         libraryActions.add(flatButton("×", this::toggleLibrary));
         header.add(libraryActions, BorderLayout.EAST);
@@ -514,12 +538,12 @@ public final class DocEditorPanel extends JPanel implements PdfWorkspacePort {
         try {
             List<pdf_editor.domain.PdfPreviewPage> previews = controller.preview();
             if (previews.isEmpty()) return;
-            JTabbedPane pages = new JTabbedPane();
-            for (int i = 0; i < previews.size(); i++) {
-                BufferedImage image = ImageIO.read(new ByteArrayInputStream(previews.get(i).png()));
-                if (image != null) pages.addTab("Page " + (i + 1), new JScrollPane(new JLabel(new ImageIcon(image))));
+            java.util.List<BufferedImage> pages = new java.util.ArrayList<>();
+            for (var preview : previews) {
+                BufferedImage image = ImageIO.read(new ByteArrayInputStream(preview.png()));
+                if (image != null) pages.add(image);
             }
-            JOptionPane.showMessageDialog(this, pages, "PDF Preview", JOptionPane.PLAIN_MESSAGE);
+            if (!pages.isEmpty()) WordPreviewDialog.show(this, pages);
         } catch (IOException bad) {error("Preview failed", bad);}
     }
     private void export() {

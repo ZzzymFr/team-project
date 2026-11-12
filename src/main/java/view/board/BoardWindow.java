@@ -158,9 +158,8 @@ public class BoardWindow extends JPanel implements HistoryPanel.DragHost {
         split.addActionListener(e -> { pdfOverlay = false; setPdfOpen(true); });
         JMenuItem overlay = new JMenuItem("PDF · Overlay on canvas");
         overlay.addActionListener(e -> { pdfOverlay = true; setPdfOpen(true); });
-        JMenuItem close = new JMenuItem("Close PDF");
-        close.addActionListener(e -> setPdfOpen(false));
-        choices.add(split); choices.add(overlay); choices.addSeparator(); choices.add(close);
+        // Closing is the responsibility of the adjacent X capsule.
+        choices.add(split); choices.add(overlay);
         choices.show(pdfBar, 0, pdfBar.getHeight());
     }
 
@@ -218,10 +217,8 @@ public class BoardWindow extends JPanel implements HistoryPanel.DragHost {
         int canvasWidth = Math.max(0, w - hw - (pdfOpen && !pdfOverlay ? pw : 0));
         page.setBounds(hw, 0, canvasWidth, h);
         page.doLayout();
-        // Keep the same ink in the centre of the visible viewport when splitting / resizing.
-        if (lastPageWidth > 0 && lastPageWidth != canvasWidth && page.isShowing()) {
-            canvas.panBy((canvasWidth - lastPageWidth) / 2.0, 0);
-        }
+        // Resizing the viewport must not pan the infinite canvas: that used to shift ink
+        // by half the divider displacement, making Split look like an overlay.
         lastPageWidth = canvasWidth;
 
         int m = GlassBar.MARGIN;

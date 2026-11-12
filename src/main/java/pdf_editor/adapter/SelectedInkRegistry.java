@@ -24,11 +24,9 @@ public final class SelectedInkRegistry {
     }
     public void synchronize() {
         for (String id : List.copyOf(sources.keySet())) {
-            sources.get(id).removeIf(ink -> !canvas.containsAllInk(ink));
-            if (sources.get(id).isEmpty()) {
-                library.invalidate(id);
-                sources.remove(id);
-            }
+            boolean present = sources.get(id).stream().anyMatch(canvas::containsAllInk);
+            if (present) library.resume(id);
+            else library.suspend(id);
         }
     }
 }

@@ -26,6 +26,7 @@ public final class CanvasLibrarySelectionMenu {
                 formula.addActionListener(e -> {
                     List<Stroke> strokes = canvas.selectedInkSnapshot();
                     BufferedImage image = canvas.selectedInkImage();
+                    String selectedResult = canvas.selectedAnswer();
                     formula.setEnabled(false);
                     new SwingWorker<String, Void>() {
                         @Override protected String doInBackground() throws Exception { return action.recognize(image); }
@@ -33,7 +34,9 @@ public final class CanvasLibrarySelectionMenu {
                             try {
                                 String latex = get();
                                 if (canvas.containsAllInk(strokes)) {
-                                    registry.track(action.addFormula(latex).id(), strokes);
+                                    // The answer was captured with the original selection before the worker started.
+                                    registry.track((selectedResult.isBlank() ? action.addFormula(latex)
+                                            : action.addCalculation(latex, selectedResult)).id(), strokes);
                                 }
                             } catch (Exception failure) {
                                 JOptionPane.showMessageDialog(canvas, "Recognition failed: " +
@@ -46,7 +49,7 @@ public final class CanvasLibrarySelectionMenu {
                 ink.addActionListener(e -> {
                     List<Stroke> strokes = canvas.selectedInkSnapshot();
                     if (!strokes.isEmpty()) {
-                        registry.track(action.addInk(canvas.selectedInkImage()).id(), strokes);
+                        registry.track(action.addInk(canvas.selectedInkColorImage()).id(), strokes);
                     }
                 });
                 menu.add(formula);menu.add(ink);

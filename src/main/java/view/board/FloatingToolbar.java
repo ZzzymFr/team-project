@@ -58,7 +58,7 @@ public final class FloatingToolbar {
         pen = tools[0] = bar.segment("Pen", Icons::pencil, 1, () -> use(DrawingCanvas.Tool.PEN));
         tools[1] = bar.segment("Eraser", Icons::eraser, 1, () -> use(DrawingCanvas.Tool.ERASER));
         tools[2] = bar.segment("Lasso", Icons::lasso, 1, () -> use(DrawingCanvas.Tool.LASSO));
-        tools[3] = bar.segment("Box", Icons::lasso, 1, () -> use(DrawingCanvas.Tool.RECTANGLE));
+        tools[3] = bar.segment("Box", Icons::rectangleSelect, 1, () -> use(DrawingCanvas.Tool.RECTANGLE));
         bar.separator();
         GlassBar.Item first = null;
         for (Color c : BoardTheme.SWATCHES) {

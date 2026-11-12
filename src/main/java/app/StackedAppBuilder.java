@@ -54,6 +54,8 @@ public class StackedAppBuilder {
     {
         pdfStudio.setSourceCanvas(sharedCanvas);
         sharedCanvas.addFormulaChangeListener(id -> pdfStudio.synchronizeCanvas(sharedCanvas));
+        drawing.addInkChangeListener(() -> SwingUtilities.invokeLater(
+                () -> pdfStudio.synchronizeCanvas(sharedCanvas)));
         sharedCanvas.addUserActionListener(() -> SwingUtilities.invokeLater(
                 () -> pdfStudio.synchronizeCanvas(sharedCanvas)));
     }

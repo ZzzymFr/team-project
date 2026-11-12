@@ -989,6 +989,42 @@ public class DrawingCanvas extends JPanel {
         if (selected.isEmpty()) throw new IllegalStateException("Select handwriting first with Box or Lasso.");
         return imageOf(selected);
     }
+    /** Full-colour high-resolution copy for exporting selected ink, including its answer. */
+    public BufferedImage selectedInkColorImage() {
+        List<Stroke> selected = selectedInkSnapshot();
+        if (selected.isEmpty()) throw new IllegalStateException("Select handwriting first with Box or Lasso.");
+        view.answer.Formula selectedFormula = null;
+        for (Stroke stroke : selected) {
+            view.answer.Formula current = book.holding(stroke);
+            if (current != null && current.getAnswer() != null && selected.containsAll(current.getStrokes())) {
+                selectedFormula = current; break;
+            }
+        }
+        Rectangle box = boundsOf(selected);
+        if (selectedFormula != null) box = box.union(selectedFormula.getAnswer().getBox().getBounds());
+        int margin = 18, scale = 3;
+        BufferedImage image = new BufferedImage(Math.max(1, (box.width + 2 * margin) * scale),
+                Math.max(1, (box.height + 2 * margin) * scale), BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = image.createGraphics();
+        try {
+            g.setColor(Color.WHITE); g.fillRect(0, 0, image.getWidth(), image.getHeight());
+            g.scale(scale, scale); g.translate(margin - box.x, margin - box.y);
+            setUpInk(g);
+            for (Stroke stroke : selected) { g.setColor(colorOf(stroke)); drawStroke(g, stroke); }
+            if (selectedFormula != null) drawAnswer(g, selectedFormula.getAnswer());
+        } finally {g.dispose();}
+        return image;
+    }
+    /** The already-calculated result associated with a wholly selected formula, if any. */
+    public String selectedAnswer() {
+        List<Stroke> selected = selectedInkSnapshot();
+        for (Stroke stroke : selected) {
+            view.answer.Formula f = book.holding(stroke);
+            if (f != null && f.getAnswer() != null && selected.containsAll(f.getStrokes()))
+                return f.getAnswer().getText();
+        }
+        return "";
+    }
 
     // left press with a tool, tool/mode switch, undo, clear, delete
     public void addUserActionListener(Runnable listener) {

@@ -94,6 +94,16 @@ public final class HistoryInteractor {
         return true;
     }
 
+    /** Automatic source invalidation is separate from explicit user deletion/Undo delete. */
+    synchronized boolean suspendLinked(String id) throws IOException {
+        if (id == null || !repository.deleteById(id)) return false;
+        changed(); return true;
+    }
+    synchronized boolean restoreLinked(HistoryEntry entry) throws IOException {
+        if (!repository.saveIfAbsent(Objects.requireNonNull(entry))) return false;
+        changed(); return true;
+    }
+
     private HistoryEntry newEntry(HistoryEntry.Kind kind, String title, String formula, String result,
                                   byte[] png, int width, int height) {
         return new HistoryEntry(UUID.randomUUID().toString(), kind, title, formula, result,

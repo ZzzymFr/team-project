@@ -30,6 +30,7 @@ public final class PdfPageCanvas extends JPanel {
     private final PageZoomModel zoomModel = new PageZoomModel();
     public double zoom() { return zoomModel.zoom(); }
     public double setZoom(double zoom) {
+        finishInlineEdit();
         zoomModel.set(zoom);
         updateSize();
         if (inlineNote != null) {
@@ -59,24 +60,31 @@ public final class PdfPageCanvas extends JPanel {
     private boolean dragStarted;
     private InlineNoteEditor inlineNote;
     private String editingId;
+    private int liveEditorHeight;
     /** Begin Word-like in-place editing of the selected text object, without opening another window. */
     public boolean editNoteInline() {
         PdfDocument.Placement note = controller.selected();
         if (note == null || !note.isNote()) return false;
         finishInlineEdit();
         editingId = note.id();
-        inlineNote = new InlineNoteEditor(note, spans -> {
+        liveEditorHeight = Math.max(42, Math.round(note.height() * (float) zoom()));
+        inlineNote = new InlineNoteEditor(note, zoom(), spans -> {
             // Other mouse events may have moved the selection; target the original stable ID.
             String next = controller.selected() == null ? null : controller.selected().id();
             controller.select(editingId);
-            if (controller.selected() != null) controller.updateRichNote(spans);
+            if (controller.selected() != null) {
+                controller.updateRichNote(spans);
+                float desiredHeight = Math.max(note.height(), liveEditorHeight / (float) zoom());
+                if (desiredHeight > note.height())
+                    controller.transform(note.x(), note.y(), note.width(), desiredHeight);
+            }
             controller.select(next);
             InlineNoteEditor old = inlineNote;
             inlineNote = null;
             editingId = null;
             if (old != null) remove(old);
             revalidate(); repaint();
-        });
+        }, () -> growInlineNote());
         setLayout(null);
         positionInlineEditor(note);
         add(inlineNote, 0);
@@ -87,14 +95,33 @@ public final class PdfPageCanvas extends JPanel {
     public boolean isEditingNote() { return inlineNote != null; }
     public void toggleInlineStyle(Object style) { if (inlineNote != null) inlineNote.toggleStyle(style); }
     public void setInlineFontSize(int size) { if (inlineNote != null) inlineNote.fontSize(size); }
-    public void finishInlineEdit() { if (inlineNote != null) inlineNote.finish(); }
+    public void finishInlineEdit() {
+        // Re-measure synchronously before commit, even when a pending document event
+        // has not yet reached the EDT (e.g., typing and immediately clicking away).
+        if (inlineNote != null) growInlineNote();
+        InlineNoteEditor editing = inlineNote;
+        if (editing != null) editing.finish();
+    }
     private void positionInlineEditor(PdfDocument.Placement note) {
         if (inlineNote == null) return;
         int x = Math.round(note.x() * (float)zoom()) + MARGIN;
         int y = Math.round(note.y() * (float)zoom()) + MARGIN;
         int w = Math.max(65, Math.round(note.width() * (float)zoom()));
         int h = Math.max(42, Math.round(note.height() * (float)zoom()));
-        inlineNote.setBounds(x, y, w, h);
+        liveEditorHeight = Math.max(liveEditorHeight, h);
+        inlineNote.setBounds(x, y, w, liveEditorHeight);
+    }
+    private void growInlineNote() {
+        InlineNoteEditor editing = inlineNote;
+        if (editing == null) return;
+        // Measure with the actual content width; do not expand the visible component to 32K px.
+        int desired = editing.getPreferredSize().height + 2;
+        if (inlineNote != editing) return;  // focus may have committed this note during layout
+        liveEditorHeight = Math.max(liveEditorHeight, Math.min(2200, desired));
+        PdfDocument.Placement note = controller.placements().stream()
+                .filter(p -> p.id().equals(editingId)).findFirst().orElse(null);
+        if (note != null && inlineNote == editing) positionInlineEditor(note);
+        if (inlineNote == editing) editing.repaint();
     }
     @Override public void doLayout() {
         super.doLayout();
@@ -144,6 +171,8 @@ public final class PdfPageCanvas extends JPanel {
         });
         MouseAdapter mouse = new MouseAdapter() {
             @Override public void mousePressed(MouseEvent e) {
+                // A single click on empty paper exits the current text box (PPT behaviour).
+                finishInlineEdit();
                 controller.selectAt(toPageX(e.getX()), toPageY(e.getY()));
                 PdfDocument.Placement p = controller.selected();
                 anchor = null; dragStarted = false;

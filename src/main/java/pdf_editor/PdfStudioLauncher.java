@@ -24,12 +24,14 @@ import java.util.stream.Collectors;
 public final class PdfStudioLauncher implements Us4InputBoundary {
     private final MathLibrary library = new MathLibrary();
     private final MathLabCollector collector;
+    private final history.use_case.CanvasHistoryLifecycle canvasHistory;
     private final PdfEditorController controller;
     private Runnable showPdf = () -> { };
 
     public PdfStudioLauncher() { this(null); }
     public PdfStudioLauncher(history.use_case.HistoryInteractor history) {
-        collector = new MathLabCollector(library, history);
+        canvasHistory = history == null ? null : new history.use_case.CanvasHistoryLifecycle(history);
+        collector = new MathLabCollector(library, history, canvasHistory);
         DocumentEditor editing = new DocumentEditor();
         PdfBoxOutputAdapter pdfOutput = new PdfBoxOutputAdapter();
         controller = new PdfEditorController(library, editing, new AutoLayoutInteractor(editing),
@@ -59,11 +61,14 @@ public final class PdfStudioLauncher implements Us4InputBoundary {
     public void synchronizeCanvas(SharedCanvas canvas) {
         if (canvas == null) return;
         Runnable prune = () -> {
-            if (canvas.isBlank()) { library.clear(); return; }
             Set<Long> active = canvas.getDrawingCanvas().getFormulas().stream()
                     .filter(formula -> formula.getAnswer() != null)
                     .map(formula -> formula.getId()).collect(Collectors.toSet());
             library.retainActiveSources(active);
+            if (canvasHistory != null) {
+                try { canvasHistory.synchronize(active); }
+                catch (IOException ex) { System.err.println("Canvas/history synchronization failed: " + ex.getMessage()); }
+            }
         };
         if (SwingUtilities.isEventDispatchThread()) prune.run();
         else SwingUtilities.invokeLater(prune);

@@ -103,6 +103,15 @@ public final class Icons {
         g.draw(tail);
     }
 
+    /** Rectangular marquee, deliberately distinct from the freeform lasso. */
+    public static void rectangleSelect(Graphics2D g) {
+        g.setStroke(new BasicStroke(1.6f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER,
+                10f, new float[]{3f, 2.5f}, 0f));
+        g.draw(new Rectangle2D.Double(-8, -7, 16, 14));
+        prep(g);
+        g.draw(new Line2D.Double(4, 4, 9, 9));
+    }
+
     public static void undo(Graphics2D g) {
         prep(g);
         Path2D p = new Path2D.Double();
