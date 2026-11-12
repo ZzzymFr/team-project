@@ -276,19 +276,20 @@ class AnswerCanvasPageTest {
         openPage();
         writeWithEquals();
         waitFor(() -> page.visiblePopup() != null && page.visiblePopup().getProblem() != null
-                && page.visiblePopup().getProblem().contains("not connected"), "the reason");
+                && page.visiblePopup().getProblem().equals("Couldn't read the formula."), "the reason");
         assertFalse(popup().hasCalculate());
         assertTrue(answers().isEmpty());
     }
 
     @Test
-    void anErrorFromTheModelShowsInThePopup() throws Exception {
+    void anErrorFromTheModelShowsPlainWords() throws Exception {
         shared.setFormulaRecognizer(image -> {
             throw new UnsatisfiedLinkError("no native lib");
         });
         openPage();
         writeWithEquals();
-        waitFor(() -> page.visiblePopup() != null && "no native lib".equals(page.visiblePopup().getProblem()), "the reason");
+        waitFor(() -> page.visiblePopup() != null
+                && "Couldn't read the formula.".equals(page.visiblePopup().getProblem()), "plain words, no guts");
         assertFalse(popup().hasCalculate());
     }
 
