@@ -43,6 +43,11 @@ public final class EqualsSpot {
         return all;
     }
 
+    // is there an "=" yet: the read says so, or the ink if it wasn't read
+    public static boolean written(Collection<Stroke> strokes, double charHeight, String latex) {
+        return latex != null ? lastEquals(latex) >= 0 : !pairs(strokes, charHeight).isEmpty();
+    }
+
     // last "=" outside any {...}, -1 if none
     static int lastEquals(String latex) {
         int depth = 0;
