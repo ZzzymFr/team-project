@@ -136,8 +136,8 @@ class SharedCanvasTest {
     @Test
     void canvasMovesBetweenPagesAndKeepsItsInk() throws Exception {
         SwingUtilities.invokeAndWait(() -> {
-            CanvasPage graph = new GraphCanvasPage(shared);
-            CanvasPage pdf = new PdfCanvasPage(shared);
+            CanvasPage graph = new CanvasPage(shared) { };
+            CanvasPage pdf = new CanvasPage(shared) { };
             CanvasPage answer = new AnswerCanvasPage(shared);
 
             shared.attachTo(graph);
