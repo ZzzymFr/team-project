@@ -123,6 +123,7 @@ public class DrawingCanvas extends JPanel {
     private final List<Runnable> inkListeners = new ArrayList<>();
     private final List<Runnable> actionListeners = new ArrayList<>();  // user started doing something
     private final List<Runnable> viewListeners = new ArrayList<>();    // pan / zoom
+    private final List<Runnable> pickListeners = new ArrayList<>();    // fresh lasso/box pick w/ ink
     private Tool tool = Tool.PEN;
     private EraserMode eraserMode = EraserMode.PRECISE;
     private Stroke currentStroke;
@@ -667,6 +668,9 @@ public class DrawingCanvas extends JPanel {
             }
             lassoPath = null;
             rectangleStart = null;
+            if (!selection.isEmpty()) {
+                fire(pickListeners);
+            }
         }
         repaint();
     }
@@ -1070,6 +1074,10 @@ public class DrawingCanvas extends JPanel {
         viewListeners.add(listener);
     }
 
+    public void addPickListener(Runnable listener) {
+        pickListeners.add(listener);
+    }
+
     public boolean isBound(Stroke s) {
         return book.isBound(s);
     }
@@ -1105,6 +1113,28 @@ public class DrawingCanvas extends JPanel {
                 book.add(looseGroup(s, h), nextRevision());
             }
         }
+        return capture(mine);
+    }
+
+    // lasso pick -> one formula, gaps and all; null if empty or answered
+    public FormulaCapture registerSelection() {
+        List<Stroke> picked = selectedInkSnapshot();
+        if (picked.isEmpty()) {
+            return null;
+        }
+        for (Formula f : book.all()) {
+            if (f.getStrokes().equals(new HashSet<>(picked))) {
+                return captureForRecalculation(f.getId());  // already one formula, keep it
+            }
+        }
+        for (Stroke s : picked) {
+            Formula f = book.holding(s);
+            if (f != null && f.getAnswer() != null) {
+                return null;
+            }
+        }
+        Formula mine = book.add(picked, nextRevision());
+        repaint();
         return capture(mine);
     }
 

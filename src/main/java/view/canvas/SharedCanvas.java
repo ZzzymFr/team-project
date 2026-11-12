@@ -227,6 +227,15 @@ public class SharedCanvas {
         return canvas.registerNewInk(last, session);
     }
 
+    // user lasso'd / boxed some ink
+    public void addPickListener(Runnable listener) {
+        canvas.addPickListener(listener);
+    }
+
+    public FormulaCapture registerSelection() {
+        return canvas.registerSelection();
+    }
+
     public long formulaIdOf(Stroke s) {
         return canvas.formulaIdOf(s);
     }
