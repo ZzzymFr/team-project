@@ -1,7 +1,8 @@
 package view;
 
 import interface_adapter.AnswerKind;
-import view.answer.AnswerFont;
+import view.answer.AnswerColor;
+import view.answer.AnswerInk;
 import view.answer.AnswerLayout;
 import view.answer.AnswerPlacer;
 import view.answer.CanvasAnswer;
@@ -560,12 +561,8 @@ public class DrawingCanvas extends JPanel {
         List<Long> rubbed = new ArrayList<>();
         for (Formula f : book.all()) {
             CanvasAnswer a = f.getAnswer();
-            if (a != null) {
-                Rectangle2D hit = a.getBox();
-                hit.setRect(hit.getX() - radius, hit.getY() - radius, hit.getWidth() + 2 * radius, hit.getHeight() + 2 * radius);
-                if (hit.intersectsLine(from.getX(), from.getY(), to.getX(), to.getY())) {
-                    rubbed.add(f.getId());
-                }
+            if (a != null && AnswerInk.touches(a, INK_WIDTH, from.getX(), from.getY(), to.getX(), to.getY(), radius)) {
+                rubbed.add(f.getId());  // the ink, not the empty bits of its box
             }
         }
         if ((after != strokes || !rubbed.isEmpty()) && !savedBeforeErase) {
@@ -645,7 +642,7 @@ public class DrawingCanvas extends JPanel {
                 Point2D anchor = resizeAnchor;
                 double factor = resizeFactor;
                 transformSelection(s -> InkEditor.scale(s, anchor.getX(), anchor.getY(), factor),
-                        a -> a.scaled(anchor.getX(), anchor.getY(), factor));
+                        a -> resized(a, anchor, factor));
             }
             resizeHandle = -1;
             resizeFactor = 1;
@@ -740,13 +737,18 @@ public class DrawingCanvas extends JPanel {
                 continue;
             }
             if (resizeHandle >= 0 && resizeFactor != 1) {
-                a = a.scaled(resizeAnchor.getX(), resizeAnchor.getY(), resizeFactor);
+                a = resized(a, resizeAnchor, resizeFactor);
             } else if (moveDx != 0 || moveDy != 0) {
                 a = a.translated(moveDx, moveDy);
             }
             preview.add(a);
         }
         return preview;
+    }
+
+    // pen width doesn't scale, like strokes
+    private static CanvasAnswer resized(CanvasAnswer a, Point2D anchor, double factor) {
+        return AnswerInk.refit(a.scaled(anchor.getX(), anchor.getY(), factor), INK_WIDTH);
     }
 
     private boolean nothingSelected() {
@@ -1159,8 +1161,8 @@ public class DrawingCanvas extends JPanel {
         if (f == null || f.getRevision() != revision) {
             return false;
         }
-        CanvasAnswer answer = AnswerPlacer.place(inDrawingOrder(f), kind, text, runs, error,
-                box -> hitsOtherInk(box, f));
+        CanvasAnswer answer = AnswerPlacer.place(inDrawingOrder(f), kind, text, runs, error, INK_WIDTH,
+                box -> hitsOtherInk(box, f)).withColor(AnswerColor.of(f.getStrokes(), this::colorOf, INK_COLOR));
         book.put(f.withAnswer(answer));
         if (!busy()) {
             bringIntoView(answer.getBox(), answer.getBox());
@@ -1597,7 +1599,7 @@ public class DrawingCanvas extends JPanel {
     }
 
     private static void drawAnswer(Graphics2D world, CanvasAnswer a) {
-        AnswerFont.paint(world, a, a.isError() ? ANSWER_ERROR : INK_COLOR);
+        AnswerInk.paint(world, a, a.isError() ? ANSWER_ERROR : a.getColor(), INK_WIDTH);
     }
 
     private void drawStrokes(Graphics2D g2) {
