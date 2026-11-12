@@ -43,12 +43,14 @@ class CanvasHistoryLifecycleTest {
         assertEquals(1,history.list().size());assertEquals("b",history.list().get(0).formula());
         lifecycle.synchronize(Set.of(1L,2L));assertEquals(2,history.list().size());
     }
-    @Test void blankOrIncompleteCalculationIsNotLinked() throws Exception {
+    @Test void validFormulaWithoutNumericalResultIsLinkedButEmptyFormulaIsNot() throws Exception {
         var history = new HistoryInteractor(new Repository());
         var lifecycle = new CanvasHistoryLifecycle(history);
-        assertFalse(lifecycle.recordCalculation(3L, "x", " "));
+        assertTrue(lifecycle.recordCalculation(3L, "y=3x", " "));
+        assertEquals(HistoryEntry.Kind.FORMULA, history.list().get(0).kind());
         assertFalse(lifecycle.recordCalculation(3L, null, "2"));
-        lifecycle.synchronize(Set.of());assertEquals(0,history.list().size());
+        lifecycle.synchronize(Set.of()); assertEquals(0, history.list().size());
+        lifecycle.synchronize(Set.of(3L)); assertEquals(1, history.list().size());
     }
     @Test void manuallyDeletedHistoryNotResurrectedByCanvasUndo() throws Exception {
         var history = new HistoryInteractor(new Repository());

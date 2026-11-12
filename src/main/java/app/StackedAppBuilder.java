@@ -6,6 +6,7 @@ import history.use_case.HistoryInteractor;
 import history.adapter.HistoryBoardPresenter;
 import view.board.PdfPanel;
 import pdf_editor.view.CanvasPdfDragController;
+import pdf_editor.view.CanvasRegionCaptureController;
 import pdf_editor.view.CanvasLibrarySelectionMenu;
 import pdf_editor.adapter.SelectedInkRegistry;
 import pdf_editor.use_case.SelectionToLibrary;
@@ -116,6 +117,11 @@ public class StackedAppBuilder {
             try { return drawing.toFormulaImage(); }
             catch (RuntimeException empty) { return null; }
         });
+        pdfPanel.setRegionCapture(() -> CanvasRegionCaptureController.begin(
+                page.boardArea(), drawing, image -> {
+                    pdfStudio.getLibrary().addInk("Canvas screenshot", image);
+                    pdfPanel.editor().showLibrary();
+                }));
         BoardWindow board = new BoardWindow(page, drawing,
                 host -> new HistoryPanel(historyViewModel, host, historyPresenter::undoDelete),
                 pdfPanel, historyPresenter::delete);

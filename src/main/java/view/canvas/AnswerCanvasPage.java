@@ -314,6 +314,16 @@ public class AnswerCanvasPage extends CanvasPage {
         graphing.graph(latex, world);
     }
 
+    /** Publish only after an explicit Calculate action, never while merely recognizing ink. */
+    private void publishFormulaOnly(FormulaCapture capture, String latex) {
+        if (latex != null && !latex.isBlank()
+                && getSharedCanvas().isCurrent(capture.getId(), capture.getRevision())
+                && !java.util.Objects.equals(exportedRevisions.get(capture.getId()), capture.getRevision())) {
+            exportedRevisions.put(capture.getId(), capture.getRevision());
+            pdfResultSink.accept(capture.getId(), latex, "");
+        }
+    }
+
     private void deliver(FormulaCapture capture, String latex, CalculationOutcome outcome) {
         AnswerKind kind = outcome.kind;
         String result = outcome.result;
@@ -324,10 +334,16 @@ public class AnswerCanvasPage extends CanvasPage {
             if (getSharedCanvas().isCurrent(capture.getId(), capture.getRevision())) {
                 ownMessage = true;
                 showMessage(error, true, ERROR_MESSAGE_MILLIS);
+                // y=3x is a valid graphable relation, but the numeric evaluator
+                // rejects its two variables. A user explicitly asked to Calculate;
+                // retain the recognized formula without inventing a numerical answer.
+                if (latex != null && graphable.test(latex)) publishFormulaOnly(capture, latex);
             }
         } else if (outcome.definition) {
             ownMessage = true;
-            showMessage(result, false, DEFINED_MESSAGE_MILLIS);  // nothing to draw
+            showMessage(result, false, DEFINED_MESSAGE_MILLIS);
+            // Definitions have no numeric answer but are still explicitly requested work.
+            publishFormulaOnly(capture, latex);
         } else {
             boolean drawn = runs == null
                     ? getSharedCanvas().showAnswer(capture.getId(), capture.getRevision(), kind, outcome.answerText, false)

@@ -47,7 +47,8 @@ public class BoardWindow extends JPanel implements HistoryPanel.DragHost {
     private double historyRatio = 0.24;  // kept while the app runs
     private double pdfRatio = 0.56;
     private boolean pdfOverlay;
-    private int lastPageWidth = -1;
+    private int lastCanvasRight = -1;
+    private int lastBoardWidth = -1;
     private final Function<String, Boolean> deleteHistory;
 
     public BoardWindow(JComponent page, DrawingCanvas canvas,
@@ -217,9 +218,15 @@ public class BoardWindow extends JPanel implements HistoryPanel.DragHost {
         int canvasWidth = Math.max(0, w - hw - (pdfOpen && !pdfOverlay ? pw : 0));
         page.setBounds(hw, 0, canvasWidth, h);
         page.doLayout();
-        // Resizing the viewport must not pan the infinite canvas: that used to shift ink
-        // by half the divider displacement, making Split look like an overlay.
-        lastPageWidth = canvasWidth;
+        // Only changes in the right edge of the canvas caused by PDF splitting
+        // move the ink view. A left-side History opening changes the left boundary
+        // but should not push canvas ink behind History. Window resize does not pan.
+        int rightEdge = hw + canvasWidth;
+        if (lastCanvasRight >= 0 && lastBoardWidth == w && lastCanvasRight != rightEdge) {
+            canvas.panBy(rightEdge - lastCanvasRight, 0);
+        }
+        lastCanvasRight = rightEdge;
+        lastBoardWidth = w;
 
         int m = GlassBar.MARGIN;
         Dimension hb = historyBar.getPreferredSize();

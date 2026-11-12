@@ -25,12 +25,14 @@ public final class CanvasHistoryLifecycle {
     }
 
     public synchronized boolean recordCalculation(long sourceId, String latex, String result) throws IOException {
-        if (latex == null || latex.isBlank() || result == null || result.isBlank()) return false;
-        boolean newlySaved = history.recordCalculation(latex, result);
+        if (latex == null || latex.isBlank()) return false;
+        boolean definition = result == null || result.isBlank();
+        boolean newlySaved = definition ? history.recordFormula(latex) : history.recordCalculation(latex, result);
         if (newlySaved) {
             for (HistoryEntry entry : history.list()) {
-                if (entry.kind() == HistoryEntry.Kind.CALCULATION
-                        && entry.formula().equals(latex.trim()) && entry.result().equals(result.trim())) {
+                if (entry.kind() == (definition ? HistoryEntry.Kind.FORMULA : HistoryEntry.Kind.CALCULATION)
+                        && entry.formula().equals(latex.trim())
+                        && (definition || entry.result().equals(result.trim()))) {
                     linked.computeIfAbsent(sourceId, ignored -> new java.util.ArrayList<>())
                             .add(new Linked(entry, true));
                     break;

@@ -69,7 +69,8 @@ public final class MathLibrary {
     public Material addSourceCalculation(long sourceId, String formula, String result) {
         // Recalculation replaces stale results, rather than accumulating duplicates.
         forgetSource(sourceId);
-        Material item = addCalculation(formula, result);
+        Material item = result == null || result.isBlank()
+                ? addFormula(formula) : addCalculation(formula, result);
         calculationSources.put(sourceId, item.id());
         return item;
     }

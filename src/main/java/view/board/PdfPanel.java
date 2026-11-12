@@ -18,6 +18,7 @@ public final class PdfPanel extends JPanel implements PdfWorkspacePort {
         add(editor, BorderLayout.CENTER);
     }
     public void setCanvasCapture(Supplier<BufferedImage> capture) { editor.setCanvasCapture(capture); }
+    public void setRegionCapture(Runnable command) { editor.setRegionCapture(command); }
     public DocEditorPanel editor() { return editor; }
     public void close() { editor.close(); }
     @Override public void fitWhenOpened() { editor.fitWhenOpened(); }

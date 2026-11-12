@@ -61,8 +61,8 @@ public final class PdfStudioLauncher implements Us4InputBoundary {
     public void synchronizeCanvas(SharedCanvas canvas) {
         if (canvas == null) return;
         Runnable prune = () -> {
+            // Formula definitions do not have an answer; they are still valid source ink.
             Set<Long> active = canvas.getDrawingCanvas().getFormulas().stream()
-                    .filter(formula -> formula.getAnswer() != null)
                     .map(formula -> formula.getId()).collect(Collectors.toSet());
             library.retainActiveSources(active);
             if (canvasHistory != null) {

@@ -58,6 +58,7 @@ public final class DocEditorPanel extends JPanel implements PdfWorkspacePort {
     private final java.util.List<Tab> tabs = new java.util.ArrayList<>();
     private final Runnable detachLibraryListener;
     private Supplier<BufferedImage> canvasCapture = () -> null;
+    private Runnable regionCapture = this::insertCanvasInk;
     private boolean updatingZoom;
 
     public DocEditorPanel(PdfEditorController controller) {
@@ -104,6 +105,9 @@ public final class DocEditorPanel extends JPanel implements PdfWorkspacePort {
     public void setCanvasCapture(Supplier<BufferedImage> capture) {
         canvasCapture = Objects.requireNonNull(capture);
     }
+    /** Request a temporary screenshot selection on the visible Canvas. */
+    public void setRegionCapture(Runnable command) { regionCapture = Objects.requireNonNull(command); }
+    public void showLibrary() { libraryPanel.setVisible(true); workspace.revalidate(); workspace.repaint(); }
     public void close() { detachLibraryListener.run(); }
     public PdfPageCanvas pageView() { return paper; }
     public PdfEditorController documentController() { return controller; }
@@ -147,15 +151,8 @@ public final class DocEditorPanel extends JPanel implements PdfWorkspacePort {
     }
 
     private static BufferedImage documentIcon() {
-        BufferedImage image = new BufferedImage(26, 26, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g = image.createGraphics();
-        try {
-            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            g.setColor(new Color(229, 240, 255)); g.fillRoundRect(1, 1, 24, 24, 8, 8);
-            g.setColor(new Color(29, 103, 213)); g.translate(13, 13);
-            Icons.document(g);
-        } finally {g.dispose();}
-        return image;
+        // High-contrast vector icon; no tinted tile or low-resolution asset.
+        return DocumentGlyphs.image(24);
     }
 
     private JPanel ribbon() {
@@ -193,7 +190,7 @@ public final class DocEditorPanel extends JPanel implements PdfWorkspacePort {
         JPanel row = ribbon();
         command(row, RibbonButton.labeled(DocIcons::formula, "Formula"), this::insertFormula);
         command(row, RibbonButton.labeled(DocIcons::comment, "Text box"), this::addNote);
-        command(row, RibbonButton.labeled(DocIcons::image, "Canvas ink"), this::insertCanvasInk);
+        command(row, RibbonButton.labeled(DocIcons::image, "Capture area"), () -> regionCapture.run());
         command(row, RibbonButton.labeled(DocIcons::pageBreak, "New page"), this::addPage);
         command(row, RibbonButton.labeled(Icons::history, "Library"), this::toggleLibrary);
         return row;
@@ -276,7 +273,7 @@ public final class DocEditorPanel extends JPanel implements PdfWorkspacePort {
     private void setupLibrary() {
         libraryPanel.setBackground(Color.WHITE);
         libraryPanel.setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, DIVIDER));
-        libraryPanel.setPreferredSize(new Dimension(183, 0));
+        libraryPanel.setPreferredSize(new Dimension(188, 0));
         JPanel header = new JPanel(new BorderLayout());header.setOpaque(false);
         header.setBorder(BorderFactory.createEmptyBorder(10, 9, 6, 6));
         JLabel name = new JLabel("Library");name.setFont(BoardTheme.font(14f));
@@ -293,8 +290,14 @@ public final class DocEditorPanel extends JPanel implements PdfWorkspacePort {
         undoDelete.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
         undoDelete.addActionListener(e -> library.undoDelete());
         libraryActions.add(undoDelete);
-        libraryActions.add(flatButton("Delete", this::deleteLibraryItem));
-        libraryActions.add(flatButton("×", this::toggleLibrary));
+        JButton close = new JButton("×");
+        close.setFont(BoardTheme.font(17f));
+        close.setForeground(MUTED);
+        close.setBorder(BorderFactory.createEmptyBorder(2, 4, 2, 4));
+        close.setContentAreaFilled(false);
+        close.setFocusPainted(false);
+        close.addActionListener(e -> toggleLibrary());
+        libraryActions.add(close);
         header.add(libraryActions, BorderLayout.EAST);
         libraryPanel.add(header, BorderLayout.NORTH);
         libraryList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
@@ -307,8 +310,17 @@ public final class DocEditorPanel extends JPanel implements PdfWorkspacePort {
             if (material != null) {
                 JLabel label = new JLabel(material.isGraph() ? "Graph" : material.title());
                 label.setFont(BoardTheme.font(11f));
-                card.add(label, BorderLayout.NORTH);
-                try { card.add(new JLabel(new ImageIcon(MaterialRenderer.render(material, 160, 42))), BorderLayout.CENTER); }
+                JPanel cardTitle = new JPanel(new BorderLayout());
+                cardTitle.setOpaque(false);
+                cardTitle.add(label, BorderLayout.CENTER);
+                JLabel delete = new JLabel("×", SwingConstants.CENTER);
+                delete.setForeground(new Color(110, 118, 132));
+                delete.setFont(BoardTheme.font(16f));
+                delete.setPreferredSize(new Dimension(22, 20));
+                delete.setToolTipText("Remove this item");
+                cardTitle.add(delete, BorderLayout.EAST);
+                card.add(cardTitle, BorderLayout.NORTH);
+                try { card.add(new JLabel(new ImageIcon(MaterialRenderer.render(material, 145, 42))), BorderLayout.CENTER); }
                 catch (RuntimeException bad) { card.add(new JLabel(material.formula()), BorderLayout.CENTER); }
             }
             return card;
@@ -337,6 +349,10 @@ public final class DocEditorPanel extends JPanel implements PdfWorkspacePort {
             @Override public void mousePressed(MouseEvent e) { popup(e); }
             @Override public void mouseReleased(MouseEvent e) { popup(e); }
             @Override public void mouseClicked(MouseEvent e) {
+                if (SwingUtilities.isLeftMouseButton(e) && libraryDeleteHit(e.getPoint())) {
+                    deleteLibraryItem();
+                    return;
+                }
                 if (e.getClickCount() == 2 && SwingUtilities.isLeftMouseButton(e)) {
                     MathLibrary.Material chosen = libraryList.getSelectedValue();
                     if (chosen != null) addMaterial(chosen, 85, 110);
@@ -348,6 +364,13 @@ public final class DocEditorPanel extends JPanel implements PdfWorkspacePort {
         JLabel help = new JLabel("Drag to page or double-click");
         help.setFont(BoardTheme.font(10f)); help.setForeground(MUTED);
         libraryPanel.add(help, BorderLayout.SOUTH);
+    }
+    /** The renderer is not a live component: route card × clicks through the JList. */
+    boolean libraryDeleteHit(Point at) {
+        int index = libraryList.locationToIndex(at);
+        if (index < 0) return false;
+        Rectangle bounds = libraryList.getCellBounds(index, index);
+        return LibraryCardHitTarget.deleteClicked(bounds, at);
     }
     private void refreshLibrary() {
         libraryModel.clear();for (MathLibrary.Material material : library.items()) libraryModel.addElement(material);
@@ -515,7 +538,7 @@ public final class DocEditorPanel extends JPanel implements PdfWorkspacePort {
                 updateStatus();editNote();
             });
             item(menu, "Insert formula", this::insertFormula);
-            item(menu, "Add canvas handwriting", this::insertCanvasInk);
+            item(menu, "Capture Canvas area", () -> regionCapture.run());
         } else {
             if (selected.isNote()) item(menu, "Type / edit text in place", this::editNote);
             else if (!selected.material().isGraph()) {
