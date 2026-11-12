@@ -68,6 +68,21 @@ public final class PdfEditorController {
     public void updateRichNote(List<PdfDocument.NoteSpan> spans) {
         if (selected() != null && selected().isNote()) editor.updateRichNote(page, selectedId, spans);
     }
+    /** Formatting is an application command, never state directly mutated by the view. */
+    public boolean toggleSelectedNoteStyle(pdf_editor.use_case.NoteFormatting.Style style) {
+        PdfDocument.Placement note = selected();
+        if (note == null || !note.isNote()) return false;
+        editor.updateRichNote(page, selectedId, pdf_editor.use_case.NoteFormatting.toggle(
+                note.noteSpans(), note.noteText(), note.noteSize(), style));
+        return true;
+    }
+    public boolean resizeSelectedNote(int fontSize) {
+        PdfDocument.Placement note = selected();
+        if (note == null || !note.isNote()) return false;
+        editor.updateRichNote(page, selectedId, pdf_editor.use_case.NoteFormatting.resize(
+                note.noteSpans(), note.noteText(), note.noteSize(), fontSize));
+        return true;
+    }
     public boolean deleteSelected() {
         if (selected() == null) return false;
         boolean changed = editor.delete(page, selectedId);

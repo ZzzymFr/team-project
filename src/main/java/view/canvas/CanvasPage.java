@@ -50,6 +50,7 @@ public abstract class CanvasPage extends JPanel {
     private final Timer messageTimer = new Timer(0, e -> hideMessage());
     private boolean messageIsError;
     private CanvasArea canvasArea;
+    private int boardMessageTop = -1;  // one-board look: message sits under the top capsules
 
     protected CanvasPage(SharedCanvas sharedCanvas) {
         super(new BorderLayout());
@@ -175,6 +176,20 @@ public abstract class CanvasPage extends JPanel {
         return sharedCanvas.recognizeFormula(formulaImage);
     }
 
+    // one board: no function area, no old docks, message below the top capsules
+    protected final void useBoardLook(Color background, int messageTop) {
+        functionArea.setVisible(false);
+        canvasArea.remove(toolDock);
+        canvasArea.remove(hintDock);
+        canvasArea.remove(zoomDock);
+        setBackground(background);
+        canvasArea.setBackground(background);
+        canvasSlot.setBackground(background);
+        boardMessageTop = messageTop;
+        revalidate();
+        repaint();
+    }
+
     /** A grey line of text saying what will go in the function area; for pages not built yet. */
     protected static JComponent placeholder(String text) {
         JLabel label = new JLabel(text);
@@ -284,6 +299,10 @@ public abstract class CanvasPage extends JPanel {
             Dimension messageSize = messageDock.getPreferredSize();
             int messageWidth = Math.max(0, Math.min(messageSize.width, w - 2 * (zoomSize.width + 2 * FLOAT_INSET)));
             messageDock.setBounds((w - messageWidth) / 2, FLOAT_INSET, messageWidth, messageSize.height);
+            if (boardMessageTop >= 0) {
+                int mw = Math.max(0, Math.min(messageSize.width, w - 2 * FLOAT_INSET));
+                messageDock.setBounds((w - mw) / 2, boardMessageTop, mw, messageSize.height);
+            }
         }
     }
 

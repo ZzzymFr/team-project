@@ -5,6 +5,8 @@ import entity.Stroke;
 import interface_adapter.TextRun;
 import interface_adapter.MathLabViewModel;
 import interface_adapter.evaluate.EvaluateController;
+import interface_adapter.graph.GraphController;
+import interface_adapter.graph.GraphViewModel;
 import view.FormulaCapture;
 import view.stack.Fonts;
 
@@ -27,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Predicate;
 
 // answer page: pause -> popup with the read formula -> Calculate -> answer on the canvas
 public class AnswerCanvasPage extends CanvasPage {
@@ -51,6 +54,11 @@ public class AnswerCanvasPage extends CanvasPage {
     private FormulaCapture shown;     // formula the popup is about
     private int running;              // Calculate jobs still going
     private boolean ownMessage;       // one of them put up its own message
+    private PopupGraphing graphing;   // one board only: Graph in the popup
+    private PopupHover hover;         // mouse on an unanswered "=" brings the popup back
+    private final Map<Long, Read> reads = new HashMap<>();  // last read per formula
+    private int reading;              // recognize jobs still out
+    private Predicate<String> graphable = latex -> false;
 
     // no evaluate feature, just a placeholder
     public AnswerCanvasPage(SharedCanvas sharedCanvas) {
@@ -77,7 +85,7 @@ public class AnswerCanvasPage extends CanvasPage {
         super(sharedCanvas);
         this.pdfResultSink = java.util.Objects.requireNonNull(pdfResultSink);
         this.worker = new AnswerWorker(controller, viewModel);
-        popup = new AnswerPopup(sharedCanvas::paintInkCopy);
+        popup = new AnswerPopup(sharedCanvas::paintInkCopy, sharedCanvas.getDrawingCanvas()::contentVersion);
         addCanvasOverlay(popup);
         pauseTimer = new Timer(POPUP_DELAY_MILLIS, e -> paused());
         pauseTimer.setRepeats(false);
@@ -87,6 +95,7 @@ public class AnswerCanvasPage extends CanvasPage {
         sharedCanvas.addUserActionListener(this::dismiss);
         sharedCanvas.addPageSwitchListener(this::dismiss);
         sharedCanvas.addViewListener(this::placePopup);
+        hover = new PopupHover(sharedCanvas, getCanvasArea(), new HoverHost());
         getCanvasArea().addComponentListener(new ComponentAdapter() {
             @Override
             public void componentResized(ComponentEvent e) {
@@ -101,6 +110,33 @@ public class AnswerCanvasPage extends CanvasPage {
         JPanel tools = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         tools.add(note);
         setFunctionArea(tools);
+    }
+
+    // one board: popup has Calculate + Graph, no function area
+    public AnswerCanvasPage(SharedCanvas sharedCanvas, EvaluateController controller, MathLabViewModel viewModel,
+                            FormulaResultSink resultSink, GraphController graphController,
+                            GraphViewModel graphViewModel, Predicate<String> graphable,
+                            java.awt.Color background, int messageTop) {
+        this(sharedCanvas, controller, viewModel, resultSink);
+        this.graphable = graphable;
+        graphing = new PopupGraphing(sharedCanvas, graphController, graphViewModel, this::showMessage,
+                getCanvasArea());
+        addCanvasOverlay(graphing.rangeBar());
+        useBoardLook(background, messageTop);
+    }
+
+    // the area the board floats things over (same coords as the canvas)
+    public JComponent boardArea() {
+        return getCanvasArea();
+    }
+
+    public void addBoardOverlay(JComponent overlay) {
+        addCanvasOverlay(overlay);
+    }
+
+    // tests type ranges like the user
+    void setRangeText(String x, String y) {
+        graphing.setRangeText(x, y);
     }
 
     // tests use a short wait
@@ -155,6 +191,7 @@ public class AnswerCanvasPage extends CanvasPage {
 
     private void hidePopup() {
         shown = null;
+        hover.forget();
         if (popup.isVisible()) {
             popup.setVisible(false);
             getCanvasArea().repaint();
@@ -209,17 +246,29 @@ public class AnswerCanvasPage extends CanvasPage {
     }
 
     private void recognize(FormulaCapture capture, long gen) {
+        reading++;
         worker.recognize(() -> recognizeFormula(capture.getImage()),
                 (latex, problem) -> recognized(capture, gen, latex, problem));
     }
 
     private void recognized(FormulaCapture capture, long gen, String latex, String problem) {
-        // user moved on, or ink changed while we were reading it
-        if (gen != generation || !inFront() || !getSharedCanvas().isCurrent(capture.getId(), capture.getRevision())) {
-            return;
+        reading--;
+        if (!getSharedCanvas().isCurrent(capture.getId(), capture.getRevision())) {
+            return;  // ink changed while we were reading it
         }
+        reads.put(capture.getId(), new Read(capture.getRevision(), latex, problem));  // for hovering later
+        if (gen != generation || !inFront()) {
+            return;  // user moved on
+        }
+        present(capture, latex, problem);
+    }
+
+    private void present(FormulaCapture capture, String latex, String problem) {
         if (problem != null) {
             popup.showProblem(problem);
+        } else if (graphing != null) {
+            popup.showFormula(latex, () -> calculate(capture, latex), () -> graph(capture, latex),
+                    graphable.test(latex));
         } else {
             popup.showFormula(latex, () -> calculate(capture, latex));
         }
@@ -246,7 +295,7 @@ public class AnswerCanvasPage extends CanvasPage {
 
     // Calculate in the popup: use the latex we already have, no second read
     private void calculate(FormulaCapture capture, String latex) {
-        hidePopup();
+        hidePopup();  // hover the "=" to get it back
         if (!waiting.isEmpty()) {
             restartPause();  // this one's handled, offer the next after a beat
         }
@@ -256,6 +305,13 @@ public class AnswerCanvasPage extends CanvasPage {
         running++;
         showMessage("Calculating " + latex + "…", false, 0);
         worker.calculate(latex, outcome -> deliver(capture, latex, outcome));
+    }
+
+    // Graph in the popup: same latex, no second read
+    private void graph(FormulaCapture capture, String latex) {
+        hidePopup();
+        Rectangle world = getSharedCanvas().formulaBounds(capture.getId());
+        graphing.graph(latex, world);
     }
 
     private void deliver(FormulaCapture capture, String latex, CalculationOutcome outcome) {
@@ -284,6 +340,61 @@ public class AnswerCanvasPage extends CanvasPage {
         }
         if (--running == 0 && !ownMessage) {
             hideMessage();
+        }
+    }
+
+    // what the popup said last for a formula
+    private static final class Read {
+        final long revision;
+        final String latex;
+        final String problem;
+
+        Read(long revision, String latex, String problem) {
+            this.revision = revision;
+            this.latex = latex;
+            this.problem = problem;
+        }
+    }
+
+    private final class HoverHost implements PopupHover.Host {
+        @Override
+        public boolean canOffer() {
+            return inFront() && !popup.isVisible() && !pauseTimer.isRunning() && reading == 0
+                    && !getSharedCanvas().isBusy();
+        }
+
+        // read it again only if the ink changed since
+        @Override
+        public void offer(long id) {
+            FormulaCapture capture = getSharedCanvas().captureForRecalculation(id);
+            if (capture == null) {
+                hover.forget();  // answered or gone meanwhile
+                return;
+            }
+            Read r = reads.get(id);
+            generation++;
+            if (r != null && r.revision == capture.getRevision()) {
+                present(capture, r.latex, r.problem);
+            } else {
+                recognize(capture, generation);
+            }
+        }
+
+        @Override
+        public void withdraw() {
+            generation++;  // drops a read still on its way
+            hidePopup();
+        }
+
+        @Override
+        public Rectangle popupBounds() {
+            return popup.isVisible() ? popup.visibleBounds() : null;
+        }
+
+        @Override
+        public String latexOf(long id, long revision) {
+            Read r = reads.get(id);
+            return r != null && r.revision == revision ? r.latex : null;
         }
     }
 }

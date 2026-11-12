@@ -155,6 +155,12 @@ public class DrawingCanvas extends JPanel {
     private Point2D resizeCorner;     // where the dragged corner started
     private double resizeFactor = 1;
 
+    // one-board look: pen colour per stroke (screen only), no grid, pictures from history
+    private Color inkColor = INK_COLOR;
+    private final Map<Stroke, Color> strokeColors = new HashMap<>();
+    private boolean gridVisible = true;
+    private final List<Picture> pictures = new ArrayList<>();
+
     public DrawingCanvas() {
         setBackground(Color.WHITE);
         setPreferredSize(new Dimension(900, 500));
@@ -533,6 +539,7 @@ public class DrawingCanvas extends JPanel {
         clearSelection();
         saveForUndo();
         currentStroke = new Stroke();
+        strokeColors.put(currentStroke, inkColor);
         strokes.add(currentStroke);
         record(e);
     }
@@ -569,6 +576,7 @@ public class DrawingCanvas extends JPanel {
         if (after != strokes) {
             List<Stroke> before = new ArrayList<>(strokes);
             replaceStrokes(after);
+            inheritColors(minus(before, after), minus(after, before));
             inkChanged(minus(before, after), minus(after, before));
         }
         lastErasePoint = to;
@@ -660,6 +668,7 @@ public class DrawingCanvas extends JPanel {
                 Stroke copy = change.apply(stroke);
                 after.add(copy);
                 copies.put(stroke, copy);
+                strokeColors.put(copy, colorOf(stroke));
             } else {
                 after.add(stroke);
             }
@@ -841,6 +850,10 @@ public class DrawingCanvas extends JPanel {
     }
 
     public void clear() {
+        if (!pictures.isEmpty()) {
+            pictures.clear();
+            repaint();
+        }
         if (strokes.isEmpty()) {
             return;
         }
@@ -1202,6 +1215,7 @@ public class DrawingCanvas extends JPanel {
         world.translate(originX, originY);
         world.scale(scale, scale);
         paintGraphCard(world);
+        paintPictures(world);
         drawStrokes(world);
         paintAnswers(world);
         world.dispose();
@@ -1211,6 +1225,109 @@ public class DrawingCanvas extends JPanel {
     public void paintView(Graphics2D g2) {
         paintGrid(g2);
         paintContent(g2);
+    }
+
+    // ---------------------------------------------------------------- one-board extras
+
+    // pen colour for new strokes, formula images stay black
+    public void setInkColor(Color color) {
+        inkColor = color == null ? INK_COLOR : color;
+    }
+
+    public Color getInkColor() {
+        return inkColor;
+    }
+
+    public void setGridVisible(boolean visible) {
+        gridVisible = visible;
+        repaint();
+    }
+
+    public boolean canUndo() {
+        return !history.isEmpty();
+    }
+
+    // changes whenever what's on screen changes, glass caches key on it
+    public long contentVersion() {
+        long h = Double.doubleToLongBits(scale);
+        h = h * 31 + Double.doubleToLongBits(originX);
+        h = h * 31 + Double.doubleToLongBits(originY);
+        for (Stroke s : strokes) {
+            h = h * 31 + System.identityHashCode(s);
+            h = h * 31 + colorOf(s).getRGB();
+        }
+        h = h * 31 + (currentStroke == null ? 0 : currentStroke.getPoints().size());
+        for (CanvasAnswer a : getAnswers()) {
+            h = h * 31 + System.identityHashCode(a);
+        }
+        h = h * 31 + selection.size() + 7L * selectedAnswers.size();
+        h = h * 31 + moveDx * 131L + moveDy;
+        h = h * 31 + Double.doubleToLongBits(resizeFactor);
+        h = h * 31 + (lassoPath == null ? -1 : lassoPath.size());
+        h = h * 31 + (graphCard == null ? 0 : graphCard.hashCode() + System.identityHashCode(graphImage));
+        h = h * 31 + pictures.size();
+        return h * 31 + getWidth() * 7919L + getHeight();
+    }
+
+    // a non-editable picture, top-left at a screen point; gone on Clear
+    public void addPicture(BufferedImage image, Point2D screenTopLeft) {
+        Point2D w = toWorld(new Point((int) screenTopLeft.getX(), (int) screenTopLeft.getY()));
+        pictures.add(new Picture(image, new Rectangle2D.Double(w.getX(), w.getY(),
+                image.getWidth() / scale / 2, image.getHeight() / scale / 2)));
+        repaint();
+    }
+
+    public int getPictureCount() {
+        return pictures.size();
+    }
+
+    private Color colorOf(Stroke s) {
+        Color c = strokeColors.get(s);
+        return c == null ? INK_COLOR : c;
+    }
+
+    // erased pieces keep the colour of the stroke they came from
+    private void inheritColors(List<Stroke> removed, List<Stroke> added) {
+        for (Stroke piece : added) {
+            if (piece.isEmpty()) {
+                continue;
+            }
+            InkPoint first = piece.getPoints().get(0);
+            Stroke best = null;
+            double bestDist = Double.MAX_VALUE;
+            for (Stroke old : removed) {
+                for (InkPoint p : old.getPoints()) {
+                    double d = Point2D.distanceSq(p.getX(), p.getY(), first.getX(), first.getY());
+                    if (d < bestDist) {
+                        bestDist = d;
+                        best = old;
+                    }
+                }
+            }
+            if (best != null) {
+                strokeColors.put(piece, colorOf(best));
+            }
+        }
+    }
+
+    private void paintPictures(Graphics2D world) {
+        for (Picture p : pictures) {
+            Graphics2D g = (Graphics2D) world.create();
+            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+            g.drawImage(p.image, (int) Math.round(p.box.getX()), (int) Math.round(p.box.getY()),
+                    (int) Math.round(p.box.getWidth()), (int) Math.round(p.box.getHeight()), null);
+            g.dispose();
+        }
+    }
+
+    private static final class Picture {
+        final BufferedImage image;
+        final Rectangle2D box;
+
+        Picture(BufferedImage image, Rectangle2D box) {
+            this.image = image;
+            this.box = box;
+        }
     }
 
     // ---------------------------------------------------------------- painting
@@ -1225,9 +1342,11 @@ public class DrawingCanvas extends JPanel {
         world.translate(originX, originY);
         world.scale(scale, scale);
         paintGraphCard(world);  // under the ink, so writing over it stays visible
+        paintPictures(world);
         setUpInk(world);
         for (Stroke stroke : strokes) {
             if (!selection.contains(stroke)) {
+                world.setColor(colorOf(stroke));
                 drawStroke(world, stroke);
             }
         }
@@ -1314,6 +1433,9 @@ public class DrawingCanvas extends JPanel {
 
     /** Light dots that move and zoom with the world, so you can see the canvas moving. */
     private void paintGrid(Graphics2D g2) {
+        if (!gridVisible) {
+            return;
+        }
         double spacing = GRID_SPACING * scale;
         while (spacing < 14) {
             spacing *= 2;  // zoomed far out: fewer dots
@@ -1349,6 +1471,7 @@ public class DrawingCanvas extends JPanel {
         }
         setUpInk(ink);
         for (Stroke stroke : preview) {
+            ink.setColor(colorOf(stroke));
             drawStroke(ink, stroke);
         }
         ink.dispose();
@@ -1407,6 +1530,7 @@ public class DrawingCanvas extends JPanel {
     private void drawStrokes(Graphics2D g2) {
         setUpInk(g2);
         for (Stroke stroke : strokes) {
+            g2.setColor(colorOf(stroke));
             drawStroke(g2, stroke);
         }
     }

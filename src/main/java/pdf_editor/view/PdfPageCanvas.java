@@ -11,6 +11,7 @@ import pdf_editor.MathLibrary;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.datatransfer.DataFlavor;
+import java.awt.image.BufferedImage;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.List;
@@ -43,6 +44,8 @@ public final class PdfPageCanvas extends JPanel {
         setPreferredSize(new Dimension((int)Math.ceil(PdfDocument.PAGE_WIDTH * z) + MARGIN * 2,
                 (int)Math.ceil(PdfDocument.PAGE_HEIGHT * z) + MARGIN * 2));
     }
+    public float pageX(int screenX) { return toPageX(screenX); }
+    public float pageY(int screenY) { return toPageY(screenY); }
     private float toPageX(int screenX) { return PageCoordinateMapper.screenToPage(screenX, MARGIN, zoom()); }
     private float toPageY(int screenY) { return PageCoordinateMapper.screenToPage(screenY, MARGIN, zoom()); }
     private Point anchor;
@@ -57,15 +60,27 @@ public final class PdfPageCanvas extends JPanel {
         setBackground(new Color(243, 247, 253));
         setTransferHandler(new TransferHandler() {
             @Override public boolean canImport(TransferSupport support) {
-                return support.isDataFlavorSupported(DataFlavor.stringFlavor);
+                return support.isDataFlavorSupported(DataFlavor.stringFlavor)
+                        || support.isDataFlavorSupported(DataFlavor.imageFlavor);
             }
             @Override public boolean importData(TransferSupport support) {
                 if (!canImport(support)) return false;
                 try {
+                    Point location = support.getDropLocation().getDropPoint();
+                    if (support.isDataFlavorSupported(DataFlavor.imageFlavor)) {
+                        java.awt.Image source = (java.awt.Image) support.getTransferable()
+                                .getTransferData(DataFlavor.imageFlavor);
+                        BufferedImage image = imageAsBuffered(source);
+                        MathLibrary.Material region = MathLibrary.region("Canvas selection", image);
+                        float width = Math.min(440, Math.max(85, image.getWidth()));
+                        float height = width * image.getHeight() / Math.max(1f, image.getWidth());
+                        if (height > 575) { width *= 575f / height; height = 575f; }
+                        controller.place(region, toPageX(location.x), toPageY(location.y), width, height);
+                        repaint(); return true;
+                    }
                     String id = (String) support.getTransferable().getTransferData(DataFlavor.stringFlavor);
                     MathLibrary.Material material = controller.library().find(id);
                     if (material == null) return false;
-                    Point location = support.getDropLocation().getDropPoint();
                     controller.place(material, toPageX(location.x), toPageY(location.y),
                             material.isGraph() ? 260 : 300, material.isGraph() ? 180 : 100);
                     repaint(); return true;
@@ -112,6 +127,17 @@ public final class PdfPageCanvas extends JPanel {
         };
         addMouseListener(mouse); addMouseMotionListener(mouse);
     }
+    private static java.awt.image.BufferedImage imageAsBuffered(java.awt.Image image) {
+        if (image instanceof java.awt.image.BufferedImage buffered) return buffered;
+        if (image == null || image.getWidth(null) < 1 || image.getHeight(null) < 1)
+            throw new IllegalArgumentException("Unsupported canvas image");
+        java.awt.image.BufferedImage copy = new java.awt.image.BufferedImage(image.getWidth(null),
+                image.getHeight(null), java.awt.image.BufferedImage.TYPE_INT_ARGB);
+        java.awt.Graphics2D graphics = copy.createGraphics();
+        graphics.drawImage(image, 0, 0, null); graphics.dispose();
+        return copy;
+    }
+
     @Override protected void paintComponent(Graphics g) {
         super.paintComponent(g);
         Graphics2D g2 = (Graphics2D) g.create();

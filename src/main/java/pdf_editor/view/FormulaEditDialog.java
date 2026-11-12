@@ -1,6 +1,7 @@
 package pdf_editor.view;
 
 import pdf_editor.domain.PdfMaterial;
+import pdf_editor.domain.FormulaInput;
 import pdf_editor.data_access.MaterialRenderer;
 import view.glass.GlassButton;
 import view.stack.Fonts;
@@ -22,10 +23,15 @@ public final class FormulaEditDialog {
         JPanel root = new JPanel(new BorderLayout(0, 12));
         root.setBackground(Color.WHITE);
         root.setBorder(BorderFactory.createEmptyBorder(22, 26, 22, 26));
+        JComboBox<String> mode = new JComboBox<>(new String[]{"LaTeX", "Keyboard math (sin(x), x^2, pi)"});
         JLabel heading = new JLabel("Edit formula or type LaTeX");
         heading.setFont(Fonts.ui(Font.BOLD, 19f));
         heading.setForeground(new Color(35, 52, 77));
-        root.add(heading, BorderLayout.NORTH);
+        JPanel top = new JPanel(new BorderLayout(0, 7));
+        top.setOpaque(false);
+        top.add(heading, BorderLayout.NORTH);
+        top.add(mode, BorderLayout.SOUTH);
+        root.add(top, BorderLayout.NORTH);
         JPanel fields = new JPanel(new GridLayout(2, 1, 0, 10));
         fields.setOpaque(false);
         JTextArea formula = new JTextArea(item.formula(), 3, 38);
@@ -40,7 +46,9 @@ public final class FormulaEditDialog {
         preview.setHorizontalAlignment(SwingConstants.CENTER);
         preview.setBorder(BorderFactory.createLineBorder(new Color(216, 226, 241)));
         Runnable render = () -> preview.setIcon(new ImageIcon(MaterialRenderer.render(
-                item.withText(formula.getText(), answer.getText()), 530, 100)));
+                item.withText(FormulaInput.asLatex(formula.getText(), mode.getSelectedIndex() == 1),
+                        answer.getText()), 530, 100)));
+        mode.addActionListener(e -> render.run());
         DocumentListener refresh = new DocumentListener() {
             public void insertUpdate(DocumentEvent e) { render.run(); }
             public void removeUpdate(DocumentEvent e) { render.run(); }
@@ -53,13 +61,17 @@ public final class FormulaEditDialog {
         middle.setOpaque(false); middle.add(fields, BorderLayout.CENTER);
         middle.add(preview, BorderLayout.SOUTH);
         root.add(middle, BorderLayout.CENTER);
-        JLabel help = new JLabel("Keyboard text and LaTeX are both accepted. Invalid LaTeX is shown as plain text.");
+        JLabel help = new JLabel("Right-click a formula on the page to reopen this editor. Results are independently editable.");
         help.setFont(Fonts.ui(Font.PLAIN, 12f)); help.setForeground(new Color(107, 124, 150));
         JButton cancel = new GlassButton("Cancel", 34);
         JButton save = new GlassButton("Apply Changes", 34);
         final Result[] chosen = {null};
         cancel.addActionListener(e -> dialog.dispose());
-        save.addActionListener(e -> { chosen[0] = new Result(formula.getText(), answer.getText()); dialog.dispose(); });
+        save.addActionListener(e -> {
+            chosen[0] = new Result(FormulaInput.asLatex(formula.getText(), mode.getSelectedIndex() == 1),
+                    answer.getText());
+            dialog.dispose();
+        });
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
         actions.setOpaque(false); actions.add(cancel); actions.add(save);
         JPanel bottom = new JPanel(new BorderLayout()); bottom.setOpaque(false);
