@@ -118,7 +118,10 @@ class RibbonButton extends JComponent {
 
     // icon + label, for the Insert row
     static RibbonButton labeled(Icons.Glyph icon, String text) {
-        return new RibbonButton(icon, text, BoardTheme.font(13f), false, H);
+        RibbonButton button = new RibbonButton(icon, text, BoardTheme.font(13f), false, H);
+        button.setName("ribbon." + text);
+        button.setToolTipText(text);
+        return button;
     }
 
     @Override

@@ -142,9 +142,10 @@ public class HistoryPanel extends JPanel {
         }
         TeXIcon icon = typeset(entity.EquationDisplay.formula(item.getLatex(), item.getAnswer()));
         Rectangle2D formula = formulaBox(item, icon);
-        Rectangle2D answer = AnswerFont.visualBounds(answerText(item), answerSize());
-        int w = (int) Math.ceil(formula.getWidth() + GAP + answer.getWidth()) + 8;
-        int h = (int) Math.ceil(Math.max(formula.getHeight(), answer.getHeight())) + 8;
+        double answerWidth = HistoryAnswerArtwork.width(item, answerSize());
+        double answerHeight = HistoryAnswerArtwork.height(item, answerSize());
+        int w = (int) Math.ceil(formula.getWidth() + (answerWidth > 0 ? GAP + answerWidth : 0)) + 8;
+        int h = (int) Math.ceil(Math.max(formula.getHeight(), answerHeight)) + 8;
         BufferedImage img = new BufferedImage(w * PICTURE_SCALE, h * PICTURE_SCALE, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = img.createGraphics();
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
@@ -168,11 +169,6 @@ public class HistoryPanel extends JPanel {
         return AnswerFont.visualBounds(entity.EquationDisplay.formula(item.getLatex(), item.getAnswer()), answerSize());
     }
 
-    private static String answerText(HistoryItem item) {
-        String a = entity.EquationDisplay.answer(item.getAnswer());
-        return a.isEmpty() ? "" : entity.EquationDisplay.separator(item.getLatex(), item.getAnswer()).trim() + " " + a;
-    }
-
     // formula then answer, vertically centred in height h
     private static void paintContent(Graphics2D g, HistoryItem item, TeXIcon icon, int x, int h) {
         g.setColor(Color.BLACK);
@@ -183,9 +179,9 @@ public class HistoryPanel extends JPanel {
         } else {
             AnswerFont.draw(g, entity.EquationDisplay.formula(item.getLatex(), item.getAnswer()), answerSize(), x, (h - formula.getHeight()) / 2);
         }
-        Rectangle2D answer = AnswerFont.visualBounds(answerText(item), answerSize());
-        AnswerFont.draw(g, answerText(item), answerSize(), x + formula.getWidth() + GAP,
-                (h - answer.getHeight()) / 2);
+        if (HistoryAnswerArtwork.width(item, answerSize()) > 0) {
+            HistoryAnswerArtwork.paint(g, item, answerSize(), x + formula.getWidth() + GAP, h / 2.0);
+        }
     }
 
     private static TeXIcon typeset(String latex) {

@@ -205,7 +205,6 @@ public final class DocEditorPanel extends JPanel implements PdfWorkspacePort {
         JPanel row = ribbon();
         command(row, RibbonButton.labeled(Icons::preview, "Preview"), this::preview);
         command(row, RibbonButton.labeled(DocIcons::fitPage, "Fit page"), this::fitWhenOpened);
-        command(row, RibbonButton.labeled(Icons::library, "Library"), this::toggleLibrary);
         command(row, RibbonButton.letter("−", Font.PLAIN, false, false, "Zoom out"), () -> zoom(paper.zoom() / 1.15));
         command(row, RibbonButton.letter("+", Font.PLAIN, false, false, "Zoom in"), () -> zoom(paper.zoom() * 1.15));
         return row;
@@ -285,13 +284,7 @@ public final class DocEditorPanel extends JPanel implements PdfWorkspacePort {
         undoDelete.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
         undoDelete.addActionListener(e -> library.undoDelete());
         libraryActions.add(undoDelete);
-        JButton close = new JButton("×");
-        close.setFont(BoardTheme.font(17f));
-        close.setForeground(MUTED);
-        close.setBorder(BorderFactory.createEmptyBorder(2, 4, 2, 4));
-        close.setContentAreaFilled(false);
-        close.setFocusPainted(false);
-        close.addActionListener(e -> toggleLibrary());
+        JButton close = new LibraryHeaderCloseButton(this::toggleLibrary);
         libraryActions.add(close);
         header.add(libraryActions, BorderLayout.EAST);
         libraryPanel.add(header, BorderLayout.NORTH);
