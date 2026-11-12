@@ -7,6 +7,7 @@ import entity.node.DerivativeNode;
 import entity.node.FunctionNode;
 import entity.node.LimitNode;
 import entity.node.LiteralNode;
+import entity.node.NamedFunction;
 import entity.node.Node;
 import entity.node.NumberNode;
 import entity.node.PlusMinusNode;
@@ -23,22 +24,30 @@ import entity.value.NumberValue;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public final class MathParser {
     // stuff we cant calc (integrals, ..., maps)
     private static final List<String> MEANINGLESS = Arrays.asList("\\int", "\\ldots", "\\rightarrow",
-            "\\partial", ":", ";");
+            "\\partial");
+    // not a calculation, and a syntax error w/ one of these around is just prose
+    private static final List<String> PROSE = Arrays.asList(":", ";", "\\nabla", "\\sup", "\\inf",
+            "\\limsup", "\\liminf", "\\det", "\\dim", "\\ker", "\\Pr", "\\dot", "\\ddot", "\\equiv", "\\sim",
+            "\\mapsto", "\\leftarrow");
     // tokens that cant start a value
     private static final List<String> OPERATORS = Arrays.asList("\\leq", "\\geq", "\\neq", "\\approx",
             "\\times", "\\cdot", "\\land", "\\lor", "\\oplus", "\\Rightarrow", "\\Leftrightarrow",
-            "\\leftrightarrow", "\\in", "\\notin", "\\subset", "\\cup", "\\cap", "\\perp", "\\rangle",
-            "\\}");
+            "\\leftrightarrow", "\\in", "\\notin", "\\subset", "\\supseteq", "\\cup", "\\cap", "\\perp",
+            "\\rangle", "\\}");
+    private static final Map<String, String> MIRRORED = Map.of("\\supseteq", "\\subset", "=", "=",
+            "\\neq", "\\neq", "\\approx", "\\approx", "\\perp", "\\perp", "<", ">", ">", "<",
+            "\\leq", "\\geq", "\\geq", "\\leq");
     // a bare arg like \sin 2x ends before these
-    private static final List<String> NAMED_FUNCTIONS = Arrays.asList("\\sin", "\\cos", "\\tan", "\\ln",
-            "\\log", "\\lim", "\\sum", "\\prod");
+    private static final List<String> NAMED_FUNCTIONS = namedFunctions();
 
     private final List<String> tokens;
     private final Map<String, UserFunction> functions;
@@ -46,7 +55,6 @@ public final class MathParser {
     private int plusMinusCount = 0;
     private int absoluteDepth = 0;
     private final List<String> boundNames = new ArrayList<>();
-    private final Map<Integer, Node> groupsBeforeSign = new HashMap<>();
 
     public MathParser(List<String> tokens, Map<String, UserFunction> functions) {
         this.tokens = tokens;
@@ -66,12 +74,24 @@ public final class MathParser {
         } catch (UncalculableException e) {
             throw e;
         } catch (MathSyntaxException e) {
-            // leftover : or ; is just prose
-            if (tokens.contains(":") || tokens.contains(";")) {
-                throw new UncalculableException(UncalculableReason.NOT_CALCULATION);
+            for (String token : PROSE) {
+                if (tokens.contains(token)) {
+                    throw new UncalculableException(UncalculableReason.NOT_CALCULATION);
+                }
             }
             throw e;
         }
+    }
+
+    private static List<String> namedFunctions() {
+        List<String> names = new ArrayList<>(Arrays.asList("\\lim", "\\sum", "\\prod"));
+        for (NamedFunction function : NamedFunction.values()) {
+            NamedFunction.Syntax syntax = function.getSyntax();
+            if (syntax == NamedFunction.Syntax.NAMED || syntax == NamedFunction.Syntax.LOG) {
+                names.add(function.getLatex());
+            }
+        }
+        return names;
     }
 
     public int getPlusMinusCount() {
@@ -186,7 +206,25 @@ public final class MathParser {
             operators.add(next());
             operands.add(parseSetExpression());
         }
+        if (operators.contains("\\supseteq")) {
+            return mirrored(operands, operators);
+        }
         return new RelationNode(operands, operators);
+    }
+
+    // A ⊇ B is B ⊆ A, so read the whole chain right to left
+    private static Node mirrored(List<Node> operands, List<String> operators) {
+        List<Node> reversed = new ArrayList<>(operands);
+        Collections.reverse(reversed);
+        List<String> flipped = new ArrayList<>();
+        for (int i = operators.size() - 1; i >= 0; i--) {
+            String operator = operators.get(i);
+            if (!MIRRORED.containsKey(operator)) {
+                throw new MathSyntaxException("Unexpected \"\\supseteq\".");
+            }
+            flipped.add(MIRRORED.get(operator));
+        }
+        return new RelationNode(reversed, flipped);
     }
 
     // \cap binds tighter than \cup, like * over +
@@ -297,12 +335,7 @@ public final class MathParser {
             return parseNumber(token);
         }
         if (token.equals("(")) {
-            int open = position - 1;
-            Node group = parseParenthesized();
-            if (peekIs("+") || peekIs("-")) {
-                groupsBeforeSign.put(open, group);  // d/dx(..)+rest splits here, symbolic only
-            }
-            return group;
+            return parseParenthesized();
         }
         if (token.equals("\\langle")) {
             return parseAngleVector();
@@ -347,22 +380,15 @@ public final class MathParser {
             Node bottom = parseRestOfGroup("}");
             return new BinaryNode(BinaryNode.Op.DIVIDE, top, bottom);
         }
-        if (token.equals("\\sqrt")) {
-            return parseSqrt();
+        NamedFunction function = NamedFunction.of(token);
+        if (function != null) {
+            return parseNamedFunction(function);
         }
         if (token.equals("\\lim")) {
             return parseLimit();
         }
         if (token.equals("\\sum") || token.equals("\\prod")) {
             return parseSeries(token.equals("\\prod"));
-        }
-        if (token.equals("\\log")) {
-            return parseLog();
-        }
-        if (token.equals("\\sin") || token.equals("\\cos") || token.equals("\\tan") || token.equals("\\ln")) {
-            Node power = parseFunctionPower(token);
-            Node value = new FunctionNode(token, parseNamedFunctionArgument(), null);
-            return power == null ? value : new BinaryNode(BinaryNode.Op.POWER, value, power);
         }
         if (token.equals("\\infty")) {
             return new LiteralNode(new NumberValue(Double.POSITIVE_INFINITY), true);
@@ -387,10 +413,10 @@ public final class MathParser {
             }
             return new VariableNode(name);
         }
-        if (MEANINGLESS.contains(token)) {
+        if (MEANINGLESS.contains(token) || PROSE.contains(token)) {
             throw new UncalculableException(meaninglessReason(token));
         }
-        if (OPERATORS.contains(token)) {
+        if (OPERATORS.contains(token) || NamedFunction.isClosing(token)) {
             throw new MathSyntaxException("Unexpected \"" + token + "\".");
         }
         if (token.startsWith("\\") && token.length() > 1) {
@@ -585,7 +611,7 @@ public final class MathParser {
             arguments.add(parseStatement());
         }
         expect(")");
-        return new CallNode(name, arguments, derivativeOrder, derivativeParameter, functions);
+        return new CallNode(name, arguments, derivativeOrder, derivativeParameter);
     }
 
     // parse \frac{d}{dx} stuff, null if its not a derivative
@@ -617,10 +643,7 @@ public final class MathParser {
             throw new UncalculableException(UncalculableReason.MAX_DERIVATIVE);
         }
         if (function == null) {
-            int bodyStart = position;
-            Node body = parseBody(variable);
-            return new DerivativeNode(variable, order, body, "\\partial".equals(operator),
-                    groupsBeforeSign.get(bodyStart));
+            return new DerivativeNode(variable, order, parseDerivativeBody(variable), "\\partial".equals(operator));
         }
         int parameter = functions.get(function).getParameters().indexOf(variable);
         if (parameter < 0) {
@@ -701,12 +724,69 @@ public final class MathParser {
         return body;
     }
 
-    // sum body stops at + / -, so \sum n+1 = (\sum n)+1
-    private Node parseSeriesBody(String variable) {
+    // d/dx(..)+rest: just the bracket, rest is added after
+    private Node parseDerivativeBody(String variable) {
+        if (!bracketThenSign()) {
+            return parseBody(variable);
+        }
         boundNames.add(variable);
-        Node body = parseTerm();
+        Node body = parsePrimary();
         boundNames.remove(boundNames.size() - 1);
         return body;
+    }
+
+    // next is (..) with a + or - right after it
+    private boolean bracketThenSign() {
+        if (!peekIs("(")) {
+            return false;
+        }
+        int depth = 0;
+        for (int i = position; i < tokens.size(); i++) {
+            if (tokens.get(i).equals("(")) {
+                depth++;
+            } else if (tokens.get(i).equals(")")) {
+                depth--;
+                if (depth == 0) {
+                    String after = tokenAt(i + 1);
+                    return "+".equals(after) || "-".equals(after);
+                }
+            }
+        }
+        return false;
+    }
+
+    // sum body stops at + / -, so \sum n+1 = (\sum n)+1, but runs thru the last term that still uses n
+    private Node parseSeriesBody(String variable) {
+        int bound = boundNames.size();
+        boundNames.add(variable);
+        Node body = parseTerm();
+        Node sum = body;
+        int end = position;
+        int plusMinusAtEnd = plusMinusCount;
+        try {
+            while (peekIs("+") || peekIs("-")) {
+                boolean add = next().equals("+");
+                Node term = parseTerm();
+                sum = new BinaryNode(add ? BinaryNode.Op.ADD : BinaryNode.Op.SUBTRACT, sum, term);
+                if (uses(term, variable)) {
+                    body = sum;
+                    end = position;
+                    plusMinusAtEnd = plusMinusCount;
+                }
+            }
+        } catch (MathSyntaxException e) {
+            // bad term, the outside parse reports it
+        }
+        position = end;
+        plusMinusCount = plusMinusAtEnd;
+        boundNames.subList(bound, boundNames.size()).clear();
+        return body;
+    }
+
+    private static boolean uses(Node node, String variable) {
+        Set<String> free = new HashSet<>();
+        node.collectFreeVariables(free);
+        return free.contains(variable);
     }
 
     // bound inside the brackets, parsed on its own
@@ -773,6 +853,37 @@ public final class MathParser {
             }
         }
         return Integer.parseInt(token);
+    }
+
+    private Node parseNamedFunction(NamedFunction function) {
+        switch (function.getSyntax()) {
+            case LOG:
+                return parseLog();
+            case ROOT:
+                return parseSqrt();
+            case BRACKETS:
+                return new FunctionNode(function.getLatex(), parseRestOfGroup(function.getClosing()), null);
+            case LIST:
+                return parseList(function.getLatex());
+            default:
+                String name = function.getLatex();
+                Node power = parseFunctionPower(name);
+                Node value = new FunctionNode(name, parseNamedFunctionArgument(), null);
+                return power == null ? value : new BinaryNode(BinaryNode.Op.POWER, value, power);
+        }
+    }
+
+    // \max(a,b,c) -> max(max(a,b),c)
+    private Node parseList(String name) {
+        expect("(");
+        Node result = parseStatement();
+        boolean single = !peekIs(",");
+        while (peekIs(",")) {
+            next();
+            result = new FunctionNode(name, result, parseStatement());
+        }
+        expect(")");
+        return single ? new FunctionNode(name, result, null) : result;
     }
 
     private Node parseSqrt() {
@@ -865,7 +976,7 @@ public final class MathParser {
                 || "\\leq".equals(token) || "\\geq".equals(token)
                 || "\\neq".equals(token) || "\\approx".equals(token)
                 || "\\in".equals(token) || "\\perp".equals(token)
-                || "\\notin".equals(token) || "\\subset".equals(token);
+                || "\\notin".equals(token) || "\\subset".equals(token) || "\\supseteq".equals(token);
     }
 
     private boolean startsValue(String token) {
@@ -874,15 +985,14 @@ public final class MathParser {
         }
         return isNumber(token) || MathLexer.isLetter(token)
                 || token.equals("(") || token.equals("{") || token.equals("[")
-                || token.equals("\\pi") || token.equals("\\frac") || token.equals("\\sqrt")
-                || token.equals("\\log") || token.equals("\\ln") || token.equals("\\lim")
+                || token.equals("\\pi") || token.equals("\\frac") || token.equals("\\lim")
                 || token.equals("\\sum") || token.equals("\\prod")
                 || token.equals("\\infty") || token.equals("\\top") || token.equals("\\bot")
                 || token.equals("\\vec") || token.equals("\\hat") || token.equals("\\bar")
                 || token.equals("\\overline")
                 // inside |..| a | closes it, so 5|x| only outside
                 || token.equals("|") && absoluteDepth == 0
-                || token.equals("\\sin") || token.equals("\\cos") || token.equals("\\tan");
+                || NamedFunction.of(token) != null;
     }
 
     private boolean isNumber(String token) {

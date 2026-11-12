@@ -7,6 +7,95 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class HardeningTest {
     @Test
+    void bigAnswersShowRealDigitsOrAPowerOfTen() {
+        assertEquals("= 123456123456", Calc.once("123456\\cdot 1000001="));
+        assertEquals("= 1099511627776", Calc.once("2^{40}="));
+        assertEquals("= 2.432902008×10^18", Calc.once("20!="));
+        assertEquals("= 1×10^300", Calc.once("10^{300}="));
+    }
+
+    @Test
+    void bigApproximateAnswersDontMakeUpDigits() {
+        assertEquals("= 5.32048241×10^11", Calc.once("\\lim_{x\\to 3}e^{x^3}"));
+        Calc calc = new Calc();
+        calc.show("g(x)=|x|x^{25}");
+        assertEquals("= 2.20295038×10^13", calc.show("g'(3)"));
+        // all digits known, same as before
+        assertEquals("= 338350", Calc.once("\\sum_{n=1}^{100}n^2"));
+        assertEquals("= 1000000", Calc.once("\\lim_{x\\to 10^6}x"));
+        assertEquals("= 200000000", Calc.once("\\lim_{x\\to 10^8}\\frac{x^2-10^{16}}{x-10^8}"));
+        assertEquals("= 1000", Calc.once("\\sum_{n=0}^{\\infty}0.999^n"));
+        assertEquals("= 999000", Calc.once("\\sum_{n=0}^{\\infty}n\\cdot 0.999^n"));
+        assertEquals("= 1.11335096×10^174", Calc.once("\\sum_{n=1}^{\\infty}\\frac{n^{100}}{2^n}"));
+        assertEquals("= 123456789012345", Calc.once("123456789012345"));
+        assertEquals("x = -10000000000 or x = 10000000000", Calc.once("x^2=10^{20}"));
+    }
+
+    @Test
+    void realTinyValuesAreNotZero() {
+        assertEquals("= 1×10^-13", Calc.once("10^{-13}"));
+        assertEquals("= 9.4×10^-14", Calc.once("e^{-30}"));
+        assertEquals("= 8.9×10^-16", Calc.once("2^{-50}"));
+        assertEquals("= 1×10^-15", Calc.once("1/10^{15}"));
+        assertEquals("= 3×10^-14", Calc.once("3(10^{-14})"));
+        assertEquals("= 1×10^-13", Calc.once("\\sin(10^{-13})"));
+        assertEquals("= -1×10^-13", Calc.once("-10^{-13}"));
+        assertEquals("false", Calc.once("10^{-13}=0"));
+        assertEquals("true", Calc.once("10^{-13}>0"));
+        // from 1e-12 up nothing changes
+        assertEquals("= 0.000000000001", Calc.once("10^{-12}"));
+        assertEquals("= 0.0000000000019", Calc.once("e^{-27}"));
+        assertEquals("= -0.0000022", Calc.once("\\sin(10^{10}\\pi)"));
+    }
+
+    @Test
+    void floatNoiseStillShowsAsZero() {
+        assertEquals("= 0", Calc.once("0.1+0.2-0.3"));
+        assertEquals("= 0", Calc.once("\\sin(\\pi)"));
+        assertEquals("= 0", Calc.once("\\cos(\\pi/2)"));
+        assertEquals("= 0", Calc.once("1-1/3-1/3-1/3"));
+        assertEquals("= 0", Calc.once("(\\sqrt{2})^2-2"));
+        assertEquals("= 0", Calc.once("\\tan(\\pi)"));
+        assertEquals("= 0", Calc.once("\\sin\\pi"));
+        assertEquals("= 0", Calc.once("\\lim_{x\\to\\infty}\\frac{x}{e^x}"));
+        assertEquals("= 0", Calc.once("\\sum_{n=1}^{\\infty}\\frac{1}{n^2}-\\frac{\\pi^2}{6}"));
+        assertEquals("= (0, 0)", Calc.once("(1,2)-(1,2)"));
+        Calc calc = new Calc();
+        calc.show("f(x)=\\sin x");
+        assertEquals("= 0", calc.show("f(\\pi)"));
+        // roots keep the old rule for now
+        assertEquals("x = 0", Calc.once("x=10^{-13}"));
+        assertEquals("x = -0.000000000000001 or x = 0.000000000000001", Calc.once("x^2=10^{-30}"));
+        assertEquals("-0.00001 < x < 0.00001", Calc.once("x^2<10^{-10}"));
+    }
+
+    @Test
+    void tinyAnswersHaveNoTrailingZero() {
+        assertEquals("= 0.00000006", Calc.once("5.99999\\cdot 10^{-8}"));
+        assertEquals("= 0.00000006", Calc.once("6\\cdot 10^{-8}"));
+        assertEquals("= 0.001", Calc.once("\\sum_{n=1}^{\\infty}\\frac{1}{(n+1000)^2}"));
+        assertEquals("= 0.000001", Calc.once("\\lim_{x\\to 0}\\frac{\\sin(x)}{10^6x}"));
+    }
+
+    @Test
+    void boundaryRightOnTheRangeEndStillAnswers() {
+        assertEquals("x > 100", Calc.once("x>100"));
+        assertEquals("x ≥ 100", Calc.once("x\\geq 100"));
+        assertEquals("x < -100", Calc.once("x<-100"));
+        assertEquals("x ≤ -100", Calc.once("x\\leq -100"));
+        assertEquals("x ≠ 100", Calc.once("x\\neq 100"));
+        assertEquals("x ≠ -100", Calc.once("x\\neq -100"));
+        assertEquals("x < -100 or x > 100", Calc.once("|x|>100"));
+        assertEquals("x ≤ -100 or x ≥ 100", Calc.once("x^2\\geq 10000"));
+        // just past the end comes from the far scan now
+        assertEquals("x > 100.001", Calc.once("x>100.001"));
+        assertEquals("x ≥ 200", Calc.once("x\\geq 200"));
+        // root on the end + endless ones after it
+        assertEquals("Uncalculable — Too many solutions", Calc.once("\\sin(\\pi x)>0"));
+        assertEquals("Uncalculable — Too many solutions", Calc.once("\\sin(\\pi x)\\neq 0"));
+    }
+
+    @Test
     void touchingRootsBetweenGridPointsAreFound() {
         assertEquals("x = 1.41", Calc.once("(x-\\sqrt{2})^2=0"));
         assertTrue(Calc.once("\\cos(x)=1").endsWith("(and 21 more)"), Calc.once("\\cos(x)=1"));

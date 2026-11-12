@@ -18,6 +18,9 @@ import java.util.Set;
 
 // f(x,y)=... lines: spot them, check the body, save it
 final class FunctionDefiner {
+    // e is euler, x is what every other line solves for
+    private static final Set<String> NEVER_FUNCTIONS = Set.of("e", "x");
+
     private final FunctionDataAccessInterface functionDataAccess;
     private final EvaluateOutputBoundary presenter;
 
@@ -32,7 +35,7 @@ final class FunctionDefiner {
             return false;
         }
         String name = tokens.get(0);
-        if (!MathLexer.isLetter(name) || name.equals("e") || !tokens.get(1).equals("(")
+        if (!MathLexer.isLetter(name) || NEVER_FUNCTIONS.contains(name) || !tokens.get(1).equals("(")
                 || !tokens.get(equalsIndex - 1).equals(")")) {
             return false;
         }

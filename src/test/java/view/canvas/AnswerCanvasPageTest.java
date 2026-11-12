@@ -398,4 +398,22 @@ class AnswerCanvasPageTest {
         clickCalculate();
         waitFor(() -> canvas.getAnswers().size() == 2, "both answers");
     }
+
+    @Test
+    void formulaWrittenBeforeThePauseIsOfferedNext() throws Exception {
+        shared.setFormulaRecognizer(image -> "1+1");
+        openPage();
+        onEdt(() -> page.setPopupDelay(400));
+        write();                                     // A
+        drag(400, 300, 420, 330);                    // B right after, no pause in between
+        waitFor(() -> page.visiblePopup() != null, "B's popup");
+        assertTrue(popup().getX() > 300, "newest one first");
+        clickCalculate();
+        waitFor(() -> canvas.getAnswers().size() == 1, "B's answer");
+
+        waitFor(() -> page.visiblePopup() != null, "A's popup");
+        assertTrue(popup().getX() < 300, "popup sits by A");
+        clickCalculate();
+        waitFor(() -> canvas.getAnswers().size() == 2, "both answers");
+    }
 }

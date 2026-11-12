@@ -18,6 +18,8 @@ public class ConditionSolver {
     // bisection can land just past the 1e-9 tol
     private static final double ZERO_SNAP = 2e-9;
     private static final int MAX_ISOLATED_POINTS = 10;
+    private static final int MAX_ROUNDS = 1100;
+    private static final double BISECT_GAP = 1e-15;
     private static final int EDGE_DIGITS = 12;
     private static final double INCLUDED = 1;
 
@@ -29,6 +31,7 @@ public class ConditionSolver {
     private final SideScan scan;
     private final SampleTruth sampleTruth;
     private final TruthSearch search;
+    private final FarBoundaries far;
 
     public ConditionSolver(Node condition, String variable, Context context) {
         this.condition = condition;
@@ -44,6 +47,7 @@ public class ConditionSolver {
         this.sampleTruth = new SampleTruth(condition, variable, context, rounding);
         this.search = new TruthSearch(context, scan, rounding, sampleTruth, conditionRoots, searchPoints,
                 comparisons);
+        this.far = new FarBoundaries(scan, comparisons, sampleTruth);
     }
 
     private static boolean containsQuantifier(Node node) {
@@ -62,7 +66,7 @@ public class ConditionSolver {
         return conditionRoots.values();
     }
 
-    // intervals where it holds, only [-100,100] searched (R31)
+    // intervals where it holds, [-100,100] + the few far roots the scan finds (R31)
     public List<Interval> solve() {
         List<Interval> intervals = solveInRange();
         boolean below = intervals.isEmpty() || intervals.get(0).getLow() == Double.NEGATIVE_INFINITY;
@@ -73,11 +77,43 @@ public class ConditionSolver {
             throw new UncalculableException(UncalculableReason.BEYOND_RANGE);
         }
         if (below && flipsBeyond(-1, edgeTruth) || above && flipsBeyond(1, edgeTruth)) {
-            // keeps flipping out there = endless solutions
-            throw new UncalculableException(rootsBeyond(MAX_ISOLATED_POINTS) == null
-                    ? UncalculableReason.TOO_MANY_SOLUTIONS : UncalculableReason.BEYOND_RANGE);
+            // keeps flipping out there = endless solutions, same if it was already flipping all the way in range
+            List<Double> farRoots = intervals.size() > MAX_ISOLATED_POINTS ? null : rootsBeyond(MAX_ISOLATED_POINTS);
+            if (farRoots == null) {
+                throw new UncalculableException(UncalculableReason.TOO_MANY_SOLUTIONS);
+            }
+            return solveWithFarRoots(farRoots);
         }
-        return intervals;
+        return withFarRootsIfSure(intervals, !below, !above);
+    }
+
+    // false at the range end (1/x<0.001): far part only added when its clear, else range answer as is
+    private List<Interval> withFarRootsIfSure(List<Interval> inRange, boolean checkBelow, boolean checkAbove) {
+        try {
+            if (inRange.size() > MAX_ISOLATED_POINTS
+                    || !(checkBelow && flipsBeyond(-1, false) || checkAbove && flipsBeyond(1, false))) {
+                return inRange;
+            }
+            List<Double> farRoots = rootsBeyond(MAX_ISOLATED_POINTS);
+            return farRoots == null ? inRange : solveWithFarRoots(farRoots);
+        } catch (UncalculableException e) {
+            return inRange;
+        }
+    }
+
+    // far roots as candidates too, only kept if the far scan agrees
+    private List<Interval> solveWithFarRoots(List<Double> farRoots) {
+        try {
+            List<Interval> intervals = solveWith(FarBoundaries.pastRange(farRoots));
+            if (far.agrees(intervals)) {
+                return intervals;
+            }
+        } catch (UndecidableException e) {
+            throw e;
+        } catch (UncalculableException e) {
+            // cant tell out there
+        }
+        throw new UncalculableException(UncalculableReason.BEYOND_RANGE);
     }
 
     // sides meeting past range only counts if truth flips (sin x<=1 just touches)
@@ -113,7 +149,11 @@ public class ConditionSolver {
 
     // intervals in range, ends as unbounded
     public List<Interval> solveInRange() {
-        double[] points = searchPoints.sortedCandidates();
+        return solveWith(new ArrayList<Double>());
+    }
+
+    private List<Interval> solveWith(List<Double> farRoots) {
+        double[] points = searchPoints.sortedCandidates(farRoots);
         if (conditionRoots.isUndersampled()) {
             throw new UncalculableException(UncalculableReason.TOO_FAST);
         }
@@ -125,9 +165,12 @@ public class ConditionSolver {
                 genuineRoots.add(root.value);
             }
         }
+        genuineRoots.addAll(far.genuine(farRoots));
         boolean[] truth = sampleTruth.truthAt(points, genuineRoots);
         Set<Double> rootValues = new HashSet<>(conditionRoots.values());
+        rootValues.addAll(farRoots);
         Set<Double> midpoints = new HashSet<>(conditionRoots.rootMidpoints());
+        midpoints.addAll(searchPoints.farGaps(farRoots));
 
         List<Interval> intervals = new ArrayList<>();
         int isolatedPoints = 0;
@@ -143,7 +186,8 @@ public class ConditionSolver {
             }
             int end = i;
             // lone true sample only shown if false right next to it
-            if (start == end && !rootValues.contains(points[start]) && !midpoints.contains(points[start])) {
+            if (start == end && !rootValues.contains(points[start]) && !midpoints.contains(points[start])
+                    && !runsPastEnd(points, start)) {
                 isolatedPoints++;
                 if (isolatedPoints > MAX_ISOLATED_POINTS || !isIsolated(points[start], true)) {
                     throw new UncalculableException(UncalculableReason.TOO_MANY_SOLUTIONS);
@@ -158,7 +202,7 @@ public class ConditionSolver {
             if (start > 0 && isLoneExclusion(points, truth, start - 1)) {
                 low = points[start - 1];
             } else if (start > 0) {
-                double[] edge = boundary(points[start - 1], points[start]);
+                double[] edge = boundary(points[start - 1], points[start], farRoots);
                 low = edge[0];
                 lowIncluded = edge[1] == INCLUDED;
             }
@@ -167,7 +211,7 @@ public class ConditionSolver {
             if (end < points.length - 1 && isLoneExclusion(points, truth, end + 1)) {
                 high = points[end + 1];
             } else if (end < points.length - 1) {
-                double[] edge = boundary(points[end + 1], points[end]);
+                double[] edge = boundary(points[end + 1], points[end], farRoots);
                 high = edge[0];
                 highIncluded = edge[1] == INCLUDED;
             }
@@ -175,6 +219,15 @@ public class ConditionSolver {
             i++;
         }
         return intervals;
+    }
+
+    // true sample on the very end that stays true further out is a ray (x > 100), not a point
+    private boolean runsPastEnd(double[] points, int index) {
+        double offset = SideScan.ROOT_OFFSET * Math.max(1, Math.abs(points[index]));
+        if (index == points.length - 1) {
+            return sampleTruth.isTrueAt(points[index] + offset);
+        }
+        return index == 0 && sampleTruth.isTrueAt(points[index] - offset);
     }
 
     // single false between trues is the boundary itself
@@ -240,8 +293,10 @@ public class ConditionSolver {
     }
 
     // {boundary, INCLUDED?} between false and true
-    private double[] boundary(double falsePoint, double truePoint) {
-        for (int round = 0; round < SideScan.ROUNDS; round++) {
+    private double[] boundary(double falsePoint, double truePoint, List<Double> farRoots) {
+        // far gaps can span decades, keep going till the gap is tiny for its size
+        for (int round = 0; round < SideScan.ROUNDS || round < MAX_ROUNDS
+                && Math.abs(truePoint - falsePoint) > BISECT_GAP * Math.max(1, Math.abs(truePoint)); round++) {
             double middle = (falsePoint + truePoint) / 2;
             if (sampleTruth.isTrueAt(middle)) {
                 truePoint = middle;
@@ -252,8 +307,12 @@ public class ConditionSolver {
         double limit = (falsePoint + truePoint) / 2;
         // domain edge is its own boundary
         boolean domainEdge = isUndefinedAt(falsePoint);
-        double snapped = tidy(limit, !domainEdge);
+        double snapped = FarBoundaries.snap(limit, farRoots);
+        if (Double.isNaN(snapped)) {
+            snapped = tidy(limit, !domainEdge);
+        }
         if (!Double.isNaN(snapped)) {
+            snapped = exactRoot(snapped, falsePoint, truePoint);
             return new double[] {snapped, sampleTruth.isTrueAt(snapped) ? INCLUDED : 0};
         }
         if (domainEdge && sampleTruth.isTrueAt(truePoint)) {
@@ -268,6 +327,22 @@ public class ConditionSolver {
             return new double[] {truePoint, INCLUDED};
         }
         return new double[] {limit, 0};
+    }
+
+    // tiny roots come off the solver loose (x>10^{-13} looked included), pinned one decides
+    private double exactRoot(double root, double falsePoint, double truePoint) {
+        if (root >= Math.min(falsePoint, truePoint) && root <= Math.max(falsePoint, truePoint)) {
+            return root;
+        }
+        for (ConditionRoots.Root found : conditionRoots.all()) {
+            if (found.value == root) {
+                double pinned = scan.pinRoot(found.pair, root, SNAP);
+                if (!Double.isNaN(pinned) && sampleTruth.isTrueAt(pinned) != sampleTruth.isTrueAt(root)) {
+                    return pinned;
+                }
+            }
+        }
+        return root;
     }
 
     private boolean isUndefinedAt(double point) {

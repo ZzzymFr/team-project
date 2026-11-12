@@ -15,7 +15,7 @@ import java.util.List;
 
 // just fills the view model, text comes from AnswerFormatter
 public class EvaluatePresenter implements EvaluateOutputBoundary {
-    private static final int MAX_ANSWER_LENGTH = 60;  // more than this wont fit on the canvas
+    private static final int MAX_ANSWER_LENGTH = 60;  // derivative longer than this wont fit, numbers cant get there
 
     private final MathLabViewModel viewModel;
     private AnswerKind kind = AnswerKind.RIGHT;
@@ -66,7 +66,7 @@ public class EvaluatePresenter implements EvaluateOutputBoundary {
             prepareFailView(UncalculableText.answerTooLong());
             return;
         }
-        publish("= " + ExprWriter.latex(expression), runs, "", false);
+        publish("= " + ExprWriter.latex(expression), AnswerFormatter.canvasRuns(kind, runs), "", false);
     }
 
     @Override
@@ -80,16 +80,17 @@ public class EvaluatePresenter implements EvaluateOutputBoundary {
     }
 
     private void showResult(String text) {
-        publish(text, null, "", false);
+        // 5×10^20 gets its 20 raised
+        publish(text, PowerOfTen.runs(AnswerFormatter.canvasText(kind, text)), "", false);
     }
 
-    // runs null = plain text answer
-    private void publish(String resultText, List<TextRun> runs, String errorText, boolean definition) {
+    // canvasRuns null = plain text answer
+    private void publish(String resultText, List<TextRun> canvasRuns, String errorText, boolean definition) {
         MathLabState state = viewModel.getState();
         state.setResultText(resultText);
         state.setAnswerKind(kind);
         state.setAnswerText(AnswerFormatter.canvasText(kind, resultText));
-        state.setAnswerRuns(runs == null ? null : AnswerFormatter.canvasRuns(kind, runs));
+        state.setAnswerRuns(canvasRuns);
         state.setErrorText(errorText);
         state.setDefinition(definition);
         viewModel.firePropertyChanged(MathLabViewModel.RESULT);

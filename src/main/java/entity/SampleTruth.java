@@ -12,7 +12,7 @@ import java.util.Set;
 final class SampleTruth {
     static final int TRUE = 1;
     static final int FALSE = 0;
-    private static final int UNKNOWN = 2;
+    static final int UNKNOWN = 2;
 
     private final Node condition;
     private final String variable;
@@ -47,6 +47,11 @@ final class SampleTruth {
             throw new UndecidableException();
         }
         return ((BooleanValue) value).getValue();
+    }
+
+    // UNKNOWN if lost to rounding or overflow
+    int knownAt(double point) {
+        return sampleAt(point, false).known;
     }
 
     // truth at sample + whether its just rounding

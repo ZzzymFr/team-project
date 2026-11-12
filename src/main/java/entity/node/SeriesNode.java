@@ -9,10 +9,12 @@ import entity.value.NumberValue;
 import entity.value.Value;
 import entity.value.Values;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.TreeSet;
 
 public class SeriesNode extends Node {
     private static final double INTEGER_TOLERANCE = 1e-9;
@@ -22,6 +24,8 @@ public class SeriesNode extends Node {
     private final Node lower;
     private final Node upper;
     private final Node body;
+    // answer only hangs on these, solver asks the same x many times
+    private final List<String> free;
 
     public SeriesNode(boolean isProduct, String variable, Node lower, Node upper, Node body) {
         this.isProduct = isProduct;
@@ -29,6 +33,9 @@ public class SeriesNode extends Node {
         this.lower = lower;
         this.upper = upper;
         this.body = body;
+        Set<String> names = new TreeSet<>();
+        collectFreeVariables(names);
+        this.free = new ArrayList<>(names);
     }
 
     public boolean isProduct() {
@@ -67,20 +74,24 @@ public class SeriesNode extends Node {
     }
 
     @Override
-    public boolean canBeInfinite() {
+    public boolean canBeInfinite(Context context) {
         return true;
     }
 
     // infinite series is approx, upper bound var can be inf
     @Override
-    public boolean isApproximate() {
+    public boolean isApproximate(Context context) {
         Set<String> inUpper = new HashSet<>();
         upper.collectFreeVariables(inUpper);
-        return upper.canBeInfinite() || !inUpper.isEmpty() || super.isApproximate();
+        return upper.canBeInfinite(context) || !inUpper.isEmpty() || super.isApproximate(context);
     }
 
     @Override
     public Value evaluate(Context context) {
+        return context.once(this, free, () -> seriesOf(context));
+    }
+
+    private Value seriesOf(Context context) {
         long start = bound(Values.toNumber(lower.evaluate(context)));
         double top = Values.toNumber(upper.evaluate(context));
         long end = top == Double.POSITIVE_INFINITY ? Long.MAX_VALUE : bound(top);

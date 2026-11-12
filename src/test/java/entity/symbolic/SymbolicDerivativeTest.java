@@ -107,6 +107,14 @@ class SymbolicDerivativeTest {
     }
 
     @Test
+    void dotAndCrossBetweenNumbersAreJustTimes() {
+        assertEquals("6x", d("\\frac{d}{dx}3\\cdot x^2"));
+        assertEquals("6x", d("\\frac{d}{dx}3\\times x^2"));
+        assertEquals("2x", d("\\frac{d}{dx}(x\\cdot x)"));
+        fails("\\frac{d}{dx}(x,1)\\cdot(x,2)", UncalculableReason.NOT_DIFFERENTIABLE);
+    }
+
+    @Test
     void extraTermsStay() {
         assertEquals("2x+y", d("\\frac{d}{dx}(x^2)+y"));
         assertEquals("2x+1", d("\\frac{d}{dx}(x^2)+1"));
@@ -141,6 +149,27 @@ class SymbolicDerivativeTest {
         String root = d("\\frac{d}{dx}\\sqrt{\\frac{x}{x+1}}");
         assertEquals("\\frac{1}{2(x+1)^{2}\\sqrt{\\frac{x}{x+1}}}", root);
         assertEquals("\\frac{x^{2}-1}{x^{2}}", d("\\frac{d}{dx}\\frac{(x+1)^2}{x}"));
+    }
+
+    private String partial(String body, int order) {
+        Expr e = SymbolicDerivative.partial(parse(body), "x", order, functions);
+        return ExprWriter.latex(OutputDataMapper.of(e));
+    }
+
+    @Test
+    void partialForValuesHoldsOtherLettersStill() {
+        assertEquals("2xy", partial("x^2y", 1));
+        assertEquals("6x", partial("x^3", 2));
+        define("f", "t", "t^{3}");
+        assertEquals("6x", partial("f(x)", 2));
+    }
+
+    @Test
+    void partialForValuesWontRoundNumbers() {
+        assertEquals("0.5", partial("0.5x", 1));
+        assertThrows(UncalculableException.class, () -> partial("0.1234567891234x", 1));
+        assertThrows(UncalculableException.class, () -> partial("x\\sum_{n=1}^{3}\\frac{1}{n}", 1));
+        assertEquals("0.25x", d("\\frac{d}{dx}0.1234567891234x^2"));
     }
 
     @Test

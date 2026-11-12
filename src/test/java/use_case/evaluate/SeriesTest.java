@@ -64,6 +64,29 @@ class SeriesTest {
     }
 
     @Test
+    void laterTermsUsingTheIndexStayInTheBody() {
+        assertEquals("= 20", Calc.once("\\sum_{n=1}^{3}n^2+n"));
+        assertEquals("= 1", Calc.once("\\sum_{n=1}^{\\infty}\\frac{1}{n}-\\frac{1}{n+1}"));
+        assertEquals("= 2.85", Calc.once("\\sum_{n=1}^{\\infty}\\frac{1}{n^2}+\\frac{1}{n^3}"));
+        assertEquals("= 0.69", Calc.once("\\sum_{n=1}^{\\infty}\\frac{1}{2n-1}-\\frac{1}{2n}"));
+        assertEquals("= 15", Calc.once("\\sum_{n=1}^{3}n+1+n"));
+        assertEquals("= 13", Calc.once("\\sum_{n=1}^{3}n+n+1"));
+        assertEquals("= 48", Calc.once("\\prod_{n=1}^{3}n+n"));
+        assertEquals("= 56", Calc.once("\\sum_{n=1}^{10}n+1"));
+        assertEquals("= 20", Calc.once("\\sum_{n=1}^{3}(n^2+n)"));
+        assertEquals("= 36", Calc.once("\\sum_{k=1}^{3}\\sum_{j=1}^{3}kj"));
+        assertEquals("= 0", Calc.once("\\sum_{n=1}^{\\infty}\\frac{1}{n^2}-\\frac{\\pi^2}{6}"));
+        assertEquals("x = 2", Calc.once("\\sum_{n=1}^{3}x=6"));
+        assertEquals("x = 10", Calc.once("\\sum_{n=1}^{x}n=55"));
+        assertEquals("true", Calc.once("\\sum_{n=1}^{10}n=55"));
+    }
+
+    @Test
+    void anInnerIndexOfTheSameNameIsNotAUse() {
+        assertEquals("= 9", Calc.once("\\sum_{n=1}^{2}n+\\sum_{n=1}^{3}n"));
+        assertEquals("= 21", Calc.once("\\sum_{n=1}^{3}1+\\sum_{k=1}^{3}n"));    }
+
+    @Test
     void functionsDefinedBySeries() {
         Calc calc = new Calc();
         assertEquals("Defined f(x) = \\sum_{n=0}^{\\infty}\\frac{x^n}{n!}",

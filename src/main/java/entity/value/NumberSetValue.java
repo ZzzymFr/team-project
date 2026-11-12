@@ -23,20 +23,25 @@ public final class NumberSetValue extends Value {
     }
 
     public boolean containsNumber(double number) {
+        boolean integer = number == Math.floor(number);
+        if (kind == Kind.RATIONAL && dimension == 1 && Double.isFinite(number) && !integer) {
+            throw new UncalculableException(UncalculableReason.RATIONAL);
+        }
+        return containsNumber(number, integer, integer);
+    }
+
+    // caller already knows if its whole / rational
+    public boolean containsNumber(double number, boolean integer, boolean rational) {
         if (dimension != 1 || Double.isNaN(number) || Double.isInfinite(number)) {
             return false;
         }
-        boolean integer = number == Math.floor(number);
         switch (kind) {
             case NATURAL:
                 return integer && number >= 0;
             case INTEGER:
                 return integer;
             case RATIONAL:
-                if (!integer) {
-                    throw new UncalculableException(UncalculableReason.RATIONAL);
-                }
-                return true;
+                return rational;
             default:
                 return true;
         }

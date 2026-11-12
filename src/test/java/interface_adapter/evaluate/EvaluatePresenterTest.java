@@ -6,7 +6,10 @@ import entity.value.FiniteSetValue;
 import entity.value.NumberValue;
 import entity.value.VectorValue;
 import interface_adapter.MathLabViewModel;
+import interface_adapter.TextRun;
+import use_case.evaluate.FormulaShape;
 import use_case.evaluate.OutputDataMapper;
+import use_case.evaluate.ValueOutputData;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -32,7 +35,8 @@ class EvaluatePresenterTest {
         assertEquals("2", AnswerFormatter.format(2.0));
         assertEquals("-100", AnswerFormatter.format(-100));
         assertEquals("1/3", AnswerFormatter.format(1.0 / 3));
-        assertEquals("0", AnswerFormatter.format(Math.sin(Math.PI)));
+        // sin(pi) noise is made 0 in the use case now
+        assertEquals("0", AnswerFormatter.format(0.0));
         assertEquals("∞", AnswerFormatter.format(1.0 / 0));
         assertEquals("undefined", AnswerFormatter.format(Double.NaN));
         assertEquals("-∞", AnswerFormatter.format(-1.0 / 0));
@@ -60,6 +64,67 @@ class EvaluatePresenterTest {
         assertEquals("0.00000001", AnswerFormatter.format(1e-8));
         assertEquals("-0.0046", AnswerFormatter.format(-0.004567));
         assertEquals("3333333.33", AnswerFormatter.format(1e7 / 3));
+    }
+
+    @Test
+    void tinyOnesDropTrailingZero() {
+        assertEquals("0.00000006", AnswerFormatter.format(5.99999e-8));
+        assertEquals("0.001", AnswerFormatter.format(0.000999501));
+        assertEquals("-0.000001", AnswerFormatter.format(-0.0000009999));
+    }
+
+    @Test
+    void bigNumbersKeepTheirDigits() {
+        assertEquals("123456123456", AnswerFormatter.format(123456.0 * 1000001));
+        assertEquals("1099511627776", AnswerFormatter.format(Math.pow(2, 40)));
+        assertEquals("12345678901.5", AnswerFormatter.format(12345678901.5));
+        assertEquals("30000000000", AnswerFormatter.format((0.1 + 0.2) * 1e11));
+        assertEquals("-999999999999999", AnswerFormatter.format(-999999999999999.0));
+    }
+
+    @Test
+    void hugeNumbersGoScientific() {
+        assertEquals("2.432902008×10^18", AnswerFormatter.format(2432902008176640000.0));
+        assertEquals("1×10^300", AnswerFormatter.format(1e300));
+        assertEquals("-5×10^20", AnswerFormatter.format(-5e20));
+    }
+
+    @Test
+    void powerOfTenIsRaisedOnTheCanvas() {
+        presenter.prepareFormulaShape(FormulaShape.ENDS_WITH_EQUALS);
+        presenter.prepareValuesView(List.of(OutputDataMapper.of(new NumberValue(-5e20))));
+        assertEquals("= -5×10^20", viewModel.getState().getResultText());
+        assertEquals(List.of(new TextRun("−5×10", false), new TextRun("20", true)),
+                viewModel.getState().getAnswerRuns());
+        presenter.prepareValuesView(List.of(OutputDataMapper.of(new NumberValue(7))));
+        assertEquals(null, viewModel.getState().getAnswerRuns());
+    }
+
+    @Test
+    void approximateOnesOnlyShowTheirOwnDigits() {
+        assertEquals("5.32048241×10^11", AnswerFormatter.format(
+                new ValueOutputData(ValueOutputData.Kind.NUMBER, List.of(532048241000.0), false, 9)));
+        assertEquals("-200000000", AnswerFormatter.format(
+                new ValueOutputData(ValueOutputData.Kind.NUMBER, List.of(-200000000.0), false, 9)));
+        assertEquals("(1.5, 7.66906545×10^11)", AnswerFormatter.format(
+                new ValueOutputData(ValueOutputData.Kind.VECTOR, List.of(1.5, 766906545000.0), false, 9)));
+        assertEquals("532048241000", AnswerFormatter.format(OutputDataMapper.of(new NumberValue(532048241000.0))));
+    }
+
+    @Test
+    void reallyTinyGoesScientific() {
+        assertEquals("1×10^-13", AnswerFormatter.format(1e-13));
+        assertEquals("-9.4×10^-14", AnswerFormatter.format(-Math.exp(-30)));
+        assertEquals("0.000000000001", AnswerFormatter.format(1e-12));
+        presenter.prepareFormulaShape(FormulaShape.ENDS_WITH_EQUALS);
+        presenter.prepareValuesView(List.of(OutputDataMapper.of(new NumberValue(-1e-13))));
+        assertEquals("= -1×10^-13", viewModel.getState().getResultText());
+        assertEquals(List.of(new TextRun("−1×10", false), new TextRun("−13", true)),
+                viewModel.getState().getAnswerRuns());
+        presenter.prepareFormulaShape(FormulaShape.PLAIN);
+        presenter.prepareValuesView(List.of(OutputDataMapper.of(new NumberValue(3e-14))));
+        assertEquals(List.of(new TextRun("= 3×10", false), new TextRun("−14", true)),
+                viewModel.getState().getAnswerRuns());
     }
 
     @Test

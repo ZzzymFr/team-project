@@ -25,7 +25,7 @@ public class SetLiteralNode extends Node {
     }
 
     @Override
-    public boolean canBeInfinite() {
+    public boolean canBeInfinite(Context context) {
         return false;
     }
 

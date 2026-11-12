@@ -92,6 +92,20 @@ class SimplifierTest {
     }
 
     @Test
+    void functionsOfZeroFoldOnlyWhenExact() {
+        for (String name : new String[] {"sin", "tan", "arcsin", "arctan", "sinh", "tanh"}) {
+            assertEquals("0", s(Expr.fn(name, n(0))), name);
+        }
+        for (String name : new String[] {"cos", "cosh", "sec"}) {
+            assertEquals("1", s(Expr.fn(name, n(0))), name);
+        }
+        assertEquals("\\cot 0", s(Expr.fn("cot", n(0))));
+        assertEquals("\\csc 0", s(Expr.fn("csc", n(0))));
+        assertEquals("\\arccos 0", s(Expr.fn("arccos", n(0))));
+        assertEquals("\\ln 0", s(Expr.fn("ln", n(0))));
+    }
+
+    @Test
     void logOfE() {
         assertEquals("1", s(Expr.fn("ln", Expr.constE())));
         assertEquals("x", s(pow(Expr.constE(), Expr.fn("ln", X))));

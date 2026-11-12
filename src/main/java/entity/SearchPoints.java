@@ -92,10 +92,58 @@ final class SearchPoints {
         return points;
     }
 
+    // far ones get the same root +- offset, grid stays in range
+    private static List<Double> farRootPoints(List<Double> farRoots) {
+        List<Double> points = new ArrayList<>();
+        for (double root : farRoots) {
+            double offset = SideScan.ROOT_OFFSET * Math.max(1, Math.abs(root));
+            points.add(root - offset);
+            points.add(root);
+            points.add(root + offset);
+        }
+        return points;
+    }
+
+    // between sorted far roots (and the range end), + one past the outermost each side
+    List<Double> farGaps(List<Double> farRoots) {
+        List<Double> points = new ArrayList<>();
+        for (int i = 0; i < farRoots.size(); i++) {
+            double root = farRoots.get(i);
+            double sign = Math.signum(root);
+            int inner = sign < 0 ? i + 1 : i - 1;
+            int outer = sign < 0 ? i - 1 : i + 1;
+            boolean innerOnSide = inner >= 0 && inner < farRoots.size() && Math.signum(farRoots.get(inner)) == sign;
+            double from = innerOnSide ? farRoots.get(inner) : sign * EquationSolver.SEARCH_END;
+            points.add((from + root) / 2);
+            if (outer < 0 || outer >= farRoots.size() || Math.signum(farRoots.get(outer)) != sign) {
+                double offset = SideScan.ROOT_OFFSET * Math.max(1, Math.abs(root));
+                points.add(sign * scanPointPast(Math.abs(root) + offset));
+            }
+        }
+        return points;
+    }
+
+    // next far scan point past size, not 10x out so e^x doesnt overflow
+    private static double scanPointPast(double size) {
+        int k = (int) Math.floor(SideScan.POINTS_PER_DECADE * Math.log10(size / EquationSolver.SEARCH_END));
+        double point = EquationSolver.SEARCH_END * Math.pow(10, k / (double) SideScan.POINTS_PER_DECADE);
+        while (point <= size) {
+            k++;
+            point = EquationSolver.SEARCH_END * Math.pow(10, k / (double) SideScan.POINTS_PER_DECADE);
+        }
+        return point;
+    }
+
     double[] sortedCandidates() {
+        return sortedCandidates(new ArrayList<Double>());
+    }
+
+    double[] sortedCandidates(List<Double> farRoots) {
         List<Double> points = cheapPoints(false);
         points.addAll(rootPoints());
         points.addAll(roots.rootMidpoints());
+        points.addAll(farRootPoints(farRoots));
+        points.addAll(farGaps(farRoots));
         double[] sorted = new double[points.size()];
         for (int i = 0; i < sorted.length; i++) {
             sorted[i] = points.get(i);

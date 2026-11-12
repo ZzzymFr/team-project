@@ -81,6 +81,13 @@ class ExprWriterTest {
     }
 
     @Test
+    void newFunctionNamesAreWrittenLikeSin() {
+        Expr e = mul(Expr.fn("cosh", X), Expr.fn("arctan", add(X, n(1))));
+        assertEquals("\\cosh x\\arctan(x+1)", latex(e));
+        assertEquals("cosh x arctan(x+1)", plain(e));
+    }
+
+    @Test
     void functionOfASumHasParens() {
         Expr e = Expr.fn("ln", add(X, n(1)));
         assertEquals("\\ln(x+1)", latex(e));

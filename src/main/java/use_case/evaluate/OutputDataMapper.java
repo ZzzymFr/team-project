@@ -17,13 +17,17 @@ import java.util.List;
 
 // entities -> output data, the only spot that knows both
 public final class OutputDataMapper {
-    private static final ValueVisitor<ValueOutputData> FROM_VALUE = new FromValue();
+    private static final ValueVisitor<ValueOutputData> FROM_VALUE = new FromValue(ValueOutputData.ALL_DIGITS);
 
     private OutputDataMapper() {
     }
 
     public static ValueOutputData of(Value value) {
         return value.accept(FROM_VALUE);
+    }
+
+    public static ValueOutputData of(Value value, int significantDigits) {
+        return value.accept(new FromValue(significantDigits));
     }
 
     public static IntervalOutputData of(Interval interval) {
@@ -54,29 +58,35 @@ public final class OutputDataMapper {
     }
 
     private static final class FromValue implements ValueVisitor<ValueOutputData> {
+        private final int digits;
+
+        private FromValue(int digits) {
+            this.digits = digits;
+        }
+
         @Override
         public ValueOutputData visitNumber(NumberValue value) {
-            return new ValueOutputData(ValueOutputData.Kind.NUMBER, List.of(value.getValue()), false);
+            return new ValueOutputData(ValueOutputData.Kind.NUMBER, List.of(value.getValue()), false, digits);
         }
 
         @Override
         public ValueOutputData visitBoolean(BooleanValue value) {
-            return new ValueOutputData(ValueOutputData.Kind.BOOLEAN, List.of(), value.getValue());
+            return new ValueOutputData(ValueOutputData.Kind.BOOLEAN, List.of(), value.getValue(), digits);
         }
 
         @Override
         public ValueOutputData visitFiniteSet(FiniteSetValue value) {
-            return new ValueOutputData(ValueOutputData.Kind.SET, value.getElements(), false);
+            return new ValueOutputData(ValueOutputData.Kind.SET, value.getElements(), false, digits);
         }
 
         @Override
         public ValueOutputData visitVector(VectorValue value) {
-            return new ValueOutputData(ValueOutputData.Kind.VECTOR, value.getComponents(), false);
+            return new ValueOutputData(ValueOutputData.Kind.VECTOR, value.getComponents(), false, digits);
         }
 
         @Override
         public ValueOutputData visitNumberSet(NumberSetValue value) {
-            return new ValueOutputData(ValueOutputData.Kind.NUMBER_SET, List.of(), false);
+            return new ValueOutputData(ValueOutputData.Kind.NUMBER_SET, List.of(), false, digits);
         }
     }
 }

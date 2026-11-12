@@ -21,6 +21,7 @@ import java.awt.Rectangle;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -43,6 +44,7 @@ public class AnswerCanvasPage extends CanvasPage {
     private final AnswerPopup popup;
     private final Timer pauseTimer;
     private final Set<Stroke> session = new LinkedHashSet<>();  // loose ink since the last pause
+    private final Set<Long> waiting = new LinkedHashSet<>();    // written in the same go, popup still owed
     private Stroke targetStroke;      // new ink to pop up for, or
     private long targetId = -1;       // an edited formula
     private long generation;          // bumps on every user action, old results check it
@@ -170,15 +172,40 @@ public class AnswerCanvasPage extends CanvasPage {
         FormulaCapture capture = null;
         if (targetStroke != null) {
             capture = getSharedCanvas().registerNewInk(targetStroke, session);
+            queueRest(capture);
             session.clear();
         } else if (targetId >= 0) {
             capture = getSharedCanvas().captureForRecalculation(targetId);
         }
         targetStroke = null;
         targetId = -1;
+        if (capture == null) {
+            capture = nextWaiting();
+        }
         if (capture != null) {
             recognize(capture, generation);
         }
+    }
+
+    // other formulas of this round got bound too, only the last one gets the popup now
+    private void queueRest(FormulaCapture offered) {
+        for (Stroke s : session) {
+            long id = getSharedCanvas().formulaIdOf(s);
+            if (id >= 0 && (offered == null || id != offered.getId())) {
+                waiting.add(id);
+            }
+        }
+    }
+
+    // oldest one still there w/o an answer, null if none
+    private FormulaCapture nextWaiting() {
+        FormulaCapture capture = null;
+        Iterator<Long> ids = waiting.iterator();
+        while (capture == null && ids.hasNext()) {
+            capture = getSharedCanvas().captureForRecalculation(ids.next());
+            ids.remove();
+        }
+        return capture;
     }
 
     private void recognize(FormulaCapture capture, long gen) {
@@ -220,6 +247,9 @@ public class AnswerCanvasPage extends CanvasPage {
     // Calculate in the popup: use the latex we already have, no second read
     private void calculate(FormulaCapture capture, String latex) {
         hidePopup();
+        if (!waiting.isEmpty()) {
+            restartPause();  // this one's handled, offer the next after a beat
+        }
         if (running == 0) {
             ownMessage = false;
         }

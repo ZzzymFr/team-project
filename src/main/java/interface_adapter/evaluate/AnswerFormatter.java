@@ -20,6 +20,9 @@ public final class AnswerFormatter {
     private static final double FRACTION_TOLERANCE = 1e-8;
     private static final double FRACTION_LIMIT = 1e6;
     private static final double TINY = 0.005;
+    private static final int CLEAN_DIGITS = 10;
+    private static final int MAX_DIGITS = 15;  // all a double is good for
+    private static final double SMALLEST_PLAIN = 1e-12;
 
     private AnswerFormatter() {
     }
@@ -110,6 +113,10 @@ public final class AnswerFormatter {
     }
 
     public static String format(double value) {
+        return format(value, ValueOutputData.ALL_DIGITS);
+    }
+
+    private static String format(double value, int significantDigits) {
         if (Double.isNaN(value)) {
             return "undefined";
         }
@@ -119,23 +126,30 @@ public final class AnswerFormatter {
         if (value == Double.NEGATIVE_INFINITY) {
             return "-∞";
         }
-        if (Math.abs(value) < 1e-12) {
-            return "0";
+        BigDecimal exact = new BigDecimal(value);
+        if (isPastPlain(value)) {
+            // too many zeros after the point, m×10^-n instead
+            return PowerOfTen.write(exact, SHOWN_DECIMALS);
         }
-        // 10 sig first so 0.1+0.2 noise is gone
-        BigDecimal clean = new BigDecimal(value).round(new MathContext(10)).stripTrailingZeros();
+        int wholeDigits = exact.precision() - exact.scale();
+        if (wholeDigits > Math.min(MAX_DIGITS, significantDigits)) {
+            // past what a double holds / what was worked out, zeros would be made up
+            return PowerOfTen.write(exact, Math.min(CLEAN_DIGITS, significantDigits));
+        }
+        // 10 sig first so 0.1+0.2 noise is gone, big ones need more or their own digits get cut
+        int digits = Math.max(CLEAN_DIGITS, Math.min(wholeDigits + SHOWN_DECIMALS, MAX_DIGITS));
+        BigDecimal clean = exact.round(new MathContext(digits)).stripTrailingZeros();
         if (clean.scale() <= SHOWN_DECIMALS) {
             return clean.toPlainString();
         }
         if (Math.abs(value) < TINY) {
-            // keep tiny answers from showing as 0
-            return clean.round(new MathContext(SHOWN_DECIMALS)).toPlainString();
+            return shown(clean).toPlainString();
         }
         String fraction = fraction(value);
         if (fraction != null) {
             return fraction;
         }
-        BigDecimal rounded = clean.setScale(SHOWN_DECIMALS, RoundingMode.HALF_UP).stripTrailingZeros();
+        BigDecimal rounded = shown(clean).stripTrailingZeros();
         if (rounded.scale() <= 0) {
             // 1.001 -> "1" looks exact, keep digits till it differs
             double gap = clean.subtract(rounded).abs().doubleValue();
@@ -145,16 +159,24 @@ public final class AnswerFormatter {
         return rounded.toPlainString();
     }
 
+    // 2 dp, tiny ones get 2 sig figs so they dont show as 0
+    static BigDecimal shown(BigDecimal value) {
+        if (value.abs().doubleValue() < TINY) {
+            return value.round(new MathContext(SHOWN_DECIMALS)).stripTrailingZeros();
+        }
+        return value.setScale(SHOWN_DECIMALS, RoundingMode.HALF_UP);
+    }
+
     public static String format(ValueOutputData value) {
         switch (value.getKind()) {
             case NUMBER:
-                return format(value.getNumbers().get(0));
+                return format(value.getNumbers().get(0), value.getSignificantDigits());
             case BOOLEAN:
                 return value.isTrue() ? "true" : "false";
             case SET:
-                return "{" + formatList(value.getNumbers()) + "}";
+                return "{" + formatList(value) + "}";
             case VECTOR:
-                return "(" + formatList(value.getNumbers()) + ")";
+                return "(" + formatList(value) + ")";
             default:
                 // a set alone has no value to show
                 return "Uncalculable";
@@ -185,7 +207,8 @@ public final class AnswerFormatter {
     private static List<String> formatApart(List<Double> numbers) {
         List<String> shown = new ArrayList<>();
         for (double number : numbers) {
-            shown.add(format(number));
+            // a root this small only got here bc its neighbour is one too, keep it plain
+            shown.add(isPastPlain(number) ? precise(number) : format(number));
         }
         for (int i = 1; i < numbers.size(); i++) {
             if (shown.get(i).equals(shown.get(i - 1)) && !numbers.get(i).equals(numbers.get(i - 1))) {
@@ -194,6 +217,10 @@ public final class AnswerFormatter {
             }
         }
         return shown;
+    }
+
+    private static boolean isPastPlain(double value) {
+        return value != 0 && Math.abs(value) < SMALLEST_PLAIN;
     }
 
     private static String precise(double value) {
@@ -228,13 +255,14 @@ public final class AnswerFormatter {
         return rest == 1;
     }
 
-    private static String formatList(List<Double> numbers) {
+    private static String formatList(ValueOutputData value) {
+        List<Double> numbers = value.getNumbers();
         String text = "";
         for (int i = 0; i < numbers.size(); i++) {
             if (i > 0) {
                 text = text + ", ";
             }
-            text = text + format(numbers.get(i));
+            text = text + format(numbers.get(i), value.getSignificantDigits());
         }
         return text;
     }

@@ -80,6 +80,69 @@ class TokeniserCoverageTest {
     }
 
     @Test
+    void inverseHyperbolicAndReciprocalTrig() {
+        assertEquals("= 1.57", Calc.once("\\arcsin(1)"));
+        assertEquals("= 0.79", Calc.once("\\arctan(1)"));
+        assertEquals("= 1.05", Calc.once("\\arccos(0.5)"));
+        assertEquals("= 1.18", Calc.once("\\sinh(1)"));
+        assertEquals("= 1", Calc.once("\\cosh(0)"));
+        assertEquals("= 0.76", Calc.once("\\tanh(1)"));
+        assertEquals("= 2.72", Calc.once("\\exp(1)"));
+        assertEquals("= 0.64", Calc.once("\\cot(1)"));
+        assertEquals("= 1", Calc.once("\\sec(0)"));
+        assertEquals("= 1", Calc.once("\\csc(\\pi/2)"));
+        assertEquals("= 1.57", Calc.once("\\lim_{x\\to\\infty}\\arctan x"));
+        assertEquals("x = 0.48", Calc.once("\\arcsin x=0.5"));
+        assertEquals("true", Calc.once("\\tan(\\arctan 3)=3"));
+    }
+
+    @Test
+    void newFunctionsTakeTheSameArgumentsAsSin() {
+        assertEquals(Calc.once("\\arctan(1)"), Calc.once("\\arctan 1"));
+        assertEquals(Calc.once("\\cosh(2)"), Calc.once("\\cosh{2}"));
+        assertEquals("= 1", Calc.once("\\sec 2\\pi"));
+        assertEquals(Calc.once("\\sec(2x)=2"), Calc.once("\\sec 2x=2"));
+        assertEquals(Calc.once("(\\sinh 1)^2"), Calc.once("\\sinh^2 1"));
+        assertEquals("= 2", Calc.once("\\sec 0\\cosh 0+1"));
+        assertEquals("Uncalculable — arcsin⁻¹ is ambiguous", Calc.once("\\arcsin^{-1}(1)"));
+    }
+
+    @Test
+    void outsideTheDomainOrAtAPoleIsUndefined() {
+        assertEquals("= undefined", Calc.once("\\arcsin 2"));
+        assertEquals("= undefined", Calc.once("\\arccos(-1.5)"));
+        assertEquals("= undefined", Calc.once("\\cot 0"));
+        assertEquals("= undefined", Calc.once("\\sec(\\pi/2)"));
+        assertEquals("= undefined", Calc.once("\\csc\\pi"));
+    }
+
+    @Test
+    void floorCeilAndLists() {
+        assertEquals("= 2", Calc.once("\\lfloor 2.5\\rfloor"));
+        assertEquals("= 3", Calc.once("\\lceil 2.5\\rceil"));
+        assertEquals("= -3", Calc.once("\\lfloor -2.5\\rfloor"));
+        assertEquals("= 6", Calc.once("2\\lceil 2.5\\rceil"));
+        assertEquals("= 2", Calc.once("\\max(1,2)"));
+        assertEquals("= 1", Calc.once("\\min(3,1,2)"));
+        assertEquals("= 6", Calc.once("\\gcd(12,18)"));
+        assertEquals("= 2", Calc.once("\\gcd(12,18,8)"));
+        assertEquals("= undefined", Calc.once("\\gcd(1.5,3)"));
+        assertEquals("x = 3", Calc.once("\\max(x,1)=3"));
+    }
+
+    @Test
+    void floorCeilAndListsMisused() {
+        assertEquals("Uncalculable — Wrong kind of value", Calc.once("\\max(\\{1\\},2)"));
+        assertEquals("Uncalculable — Wrong kind of value", Calc.once("\\lfloor(1,2)\\rfloor"));
+        assertEquals("Uncalculable — Can't differentiate this", Calc.once("\\frac{d}{dx}\\max(x,1)"));
+        assertEquals("Uncalculable — Can't differentiate this", Calc.once("\\frac{d}{dx}\\lfloor x\\rfloor"));
+        assertEquals("Unexpected \"\\rfloor\".", Calc.once("\\rfloor"));
+        assertEquals("Unexpected \"\\rceil\".", Calc.once("1\\rceil2"));
+        assertEquals("Expected \"\\rfloor\".", Calc.once("1\\lfloor2"));
+        assertEquals("Expected \"(\".", Calc.once("\\max{1}"));
+    }
+
+    @Test
     void integralsAreUncalculable() {
         assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\int")));
         assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\int_a^x g=\\lim_{n\\rightarrow\\infty}\\int_a^x f_n'")));

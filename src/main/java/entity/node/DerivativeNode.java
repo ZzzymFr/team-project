@@ -1,7 +1,6 @@
 package entity.node;
 
 import entity.Context;
-import entity.calculus.DerivativeCalculator;
 import entity.value.NumberValue;
 import entity.value.Value;
 
@@ -14,18 +13,16 @@ public class DerivativeNode extends Node {
     private final int order;
     private final Node body;
     private final boolean partial;
-    private final Node leadingGroup;  // (..) the body starts with, when a + or - follows it
 
     public DerivativeNode(String variable, int order, Node body) {
-        this(variable, order, body, false, null);
+        this(variable, order, body, false);
     }
 
-    public DerivativeNode(String variable, int order, Node body, boolean partial, Node leadingGroup) {
+    public DerivativeNode(String variable, int order, Node body, boolean partial) {
         this.variable = variable;
         this.order = order;
         this.body = body;
         this.partial = partial;
-        this.leadingGroup = leadingGroup;
     }
 
     public String getVariable() {
@@ -44,11 +41,6 @@ public class DerivativeNode extends Node {
         return partial;
     }
 
-    // null unless written like d/dx(..)+rest
-    public Node getLeadingGroup() {
-        return leadingGroup;
-    }
-
     @Override
     public List<Node> children() {
         return Collections.singletonList(body);
@@ -61,25 +53,23 @@ public class DerivativeNode extends Node {
     }
 
     @Override
-    public boolean canBeInfinite() {
+    public boolean canBeInfinite(Context context) {
         return false;
     }
 
     @Override
-    public boolean isApproximate() {
-        return true;
+    public boolean isApproximate(Context context) {
+        return !context.getDerivative().isExact(body, variable, order, context) || super.isApproximate(context);
     }
 
     @Override
     public Value evaluate(Context context) {
-        double x = context.getVariable(variable);
-        double[] result = DerivativeCalculator.derivativeWithError(
-                t -> numberAt(body, context.withVariable(variable, t)), x, order);
+        double[] result = context.getDerivative().at(body, variable, order, context);
         context.noteApproximation(result[1]);
         return new NumberValue(result[0]);
     }
 
-    static double numberAt(Node node, Context context) {
+    public static double numberAt(Node node, Context context) {
         context.spendStep();
         Value value = node.evaluate(context);
         if (value instanceof NumberValue) {
