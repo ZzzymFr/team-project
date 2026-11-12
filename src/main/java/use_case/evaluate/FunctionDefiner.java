@@ -3,6 +3,8 @@ package use_case.evaluate;
 import entity.Context;
 import entity.MathLexer;
 import entity.MathParser;
+import entity.MathSyntaxException;
+import entity.SyntaxProblem;
 import entity.UncalculableException;
 import entity.UncalculableReason;
 import entity.UserFunction;
@@ -64,8 +66,7 @@ final class FunctionDefiner {
         String header = name + "(" + String.join(",", parameters) + ")";
         List<String> right = new ArrayList<>(tokens.subList(equalsIndex + 1, tokens.size()));
         if (right.isEmpty()) {
-            presenter.prepareFailView("Please write a formula after \"" + header + "=\".");
-            return;
+            throw new MathSyntaxException(SyntaxProblem.NO_BODY, header);
         }
 
         Map<String, UserFunction> functions = new HashMap<>(functionDataAccess.getAllFunctions());
@@ -80,10 +81,8 @@ final class FunctionDefiner {
         body.collectFreeVariables(variables);
         for (String variable : variables) {
             if (!parameters.contains(variable)) {
-                String noun = parameters.size() == 1 ? "variable " : "variables ";
-                presenter.prepareFailView("The formula of " + header + " can only use the " + noun
-                        + String.join(", ", parameters) + ", but it uses " + variable + ".");
-                return;
+                throw new MathSyntaxException(SyntaxProblem.BODY_VARIABLE, header, String.join(", ", parameters),
+                        variable);
             }
         }
 

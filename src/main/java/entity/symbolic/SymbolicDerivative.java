@@ -2,6 +2,7 @@ package entity.symbolic;
 
 import entity.Context;
 import entity.MathSyntaxException;
+import entity.SyntaxProblem;
 import entity.UncalculableException;
 import entity.UncalculableReason;
 import entity.UndefinedException;
@@ -262,12 +263,11 @@ public final class SymbolicDerivative {
     private Expr call(CallNode c, boolean inDerivative) {
         UserFunction f = functions.get(c.getName());
         if (f == null) {
-            throw new MathSyntaxException("Unknown variable \"" + c.getName() + "\".");
+            throw new MathSyntaxException(SyntaxProblem.UNKNOWN_VARIABLE, c.getName());
         }
         List<String> parameters = f.getParameters();
         if (parameters.size() != c.getArguments().size()) {
-            String inputs = parameters.size() == 1 ? " input." : " inputs.";
-            throw new MathSyntaxException(c.getName() + " needs " + parameters.size() + inputs);
+            throw new MathSyntaxException(SyntaxProblem.WRONG_INPUTS, c.getName(), String.valueOf(parameters.size()));
         }
         int order = c.getDerivativeOrder();
         if (order > DerivativeCalculator.MAX_ORDER) {

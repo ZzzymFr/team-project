@@ -76,9 +76,9 @@ class EvaluateInteractorTest {
         }
 
         @Override
-        public void prepareFailView(String errorMessage) {
+        public void prepareInvalidView(InvalidOutputData why) {
             kind = "fail";
-            text = errorMessage;
+            text = why.getProblem();
         }
     }
 
@@ -254,19 +254,17 @@ class EvaluateInteractorTest {
     }
 
     @Test
-    void keepsExistingMessages() {
-        assertEquals("Please enter an expression.", Calc.once(""));
-        assertEquals("Please enter an expression.", Calc.once("="));
-        assertEquals("There is nothing on the left of \"=\".", Calc.once("=5"));
-        assertEquals("There is nothing on the right of \"=\".", Calc.once("5=="));
-        assertEquals("Please use only one \"=\".", Calc.once("1=x=3"));
+    void errorsArePlainWords() {
+        assertEquals("Invalid formula — Nothing to calculate", Calc.once(""));
+        assertEquals("Invalid formula — Nothing to calculate", Calc.once("="));
+        assertEquals("Invalid formula — Nothing before \"=\"", Calc.once("=5"));
+        assertEquals("Invalid formula — Nothing after \"=\"", Calc.once("5=="));
+        assertEquals("Invalid formula — Only one \"=\" allowed", Calc.once("1=x=3"));
         assertEquals("false", Calc.once("1=2=3"));
-        assertEquals("Unknown variable \"x\". To solve for it, write an equation such as x+1=3.",
-                Calc.once("x+1"));
-        assertEquals("This equation has more than one unknown (x, y). Only one unknown is supported.",
-                Calc.once("x+y=3"));
-        assertEquals("Please write a formula after \"f(x)=\".", Calc.once("f(x)=="));
-        assertEquals("The formula of f(x) can only use the variable x, but it uses y.", Calc.once("f(x)=x+y"));
+        assertEquals("Invalid formula — x has no value", Calc.once("x+1"));
+        assertEquals("Invalid formula — Too many unknowns: x, y", Calc.once("x+y=3"));
+        assertEquals("Invalid formula — Nothing after \"f(x)=\"", Calc.once("f(x)=="));
+        assertEquals("Invalid formula — f(x) can only use x, not y", Calc.once("f(x)=x+y"));
         assertEquals("x = -2 or x = 2", Calc.once("x^2=4"));
     }
 
@@ -275,8 +273,8 @@ class EvaluateInteractorTest {
         Calc calc = new Calc();
         assertEquals("Defined f(x) = x^2+1", calc.show("f(x)=x^2+1"));
         assertEquals("= 10", calc.show("f(3)"));
-        assertEquals("Write f(...) to use the function f.", calc.show("f+1"));
-        assertEquals("The formula of f(x) can only use the variable x, but it uses f.", calc.show("f(x)=f(x)+1"));
+        assertEquals("Invalid formula — Write f(…) to use f", calc.show("f+1"));
+        assertEquals("Invalid formula — f(x) can only use x, not f", calc.show("f(x)=f(x)+1"));
         assertEquals("x = -3 or x = 3", calc.show("f(x)+1=11"));
     }
 

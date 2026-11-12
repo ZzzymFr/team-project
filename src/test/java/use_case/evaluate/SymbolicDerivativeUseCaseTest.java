@@ -60,7 +60,7 @@ class SymbolicDerivativeUseCaseTest {
     @Test
     void numericUsesStayTheSame() {
         assertEquals("x = 3", show("\\frac{d}{dx}x^2=6"));
-        assertTrue(show("x+1").startsWith("Unknown variable \"x\""));
+        assertEquals("Invalid formula — x has no value", show("x+1"));
         assertTrue(show("\\frac{d}{dx}(\\tan^{-1}x)").startsWith("Uncalculable — tan⁻¹ is ambiguous"));
     }
 

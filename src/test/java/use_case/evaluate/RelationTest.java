@@ -21,7 +21,7 @@ class RelationTest {
         assertEquals("false", Calc.once("3<2<5"));
         assertEquals("true", Calc.once("1+1=2=4-2"));
         assertEquals("false", Calc.once("1=1=2"));
-        assertEquals("Please use only one \"=\".", Calc.once("x=y=3"));
+        assertEquals("Invalid formula — Only one \"=\" allowed", Calc.once("x=y=3"));
     }
 
     @Test

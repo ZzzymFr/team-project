@@ -55,7 +55,7 @@ class LimitTest {
     void domainAndSyntax() {
         assertEquals("= undefined", Calc.once("\\lim_{x\\to0}\\sqrt{x}"));
         assertEquals("= 0", Calc.once("\\lim_{x\\to0^+}\\sqrt{x}"));
-        assertEquals("Unexpected \"}\".", Calc.once("\\lim_{x\\to}x"));
+        assertEquals("Invalid formula — Unexpected \"}\"", Calc.once("\\lim_{x\\to}x"));
     }
 
     @Test

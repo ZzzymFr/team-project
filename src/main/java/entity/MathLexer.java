@@ -155,7 +155,7 @@ public class MathLexer {
                 tokens.add(String.valueOf(c));
                 i++;
             } else {
-                throw new MathSyntaxException("Unexpected character \"" + c + "\".");
+                throw new MathSyntaxException(SyntaxProblem.UNEXPECTED, String.valueOf(c));
             }
         }
         return foldPrimes(tokens);

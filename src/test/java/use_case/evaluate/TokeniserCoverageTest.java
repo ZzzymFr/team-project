@@ -49,7 +49,7 @@ class TokeniserCoverageTest {
         for (String t : vocabulary) {
             for (String s : new String[] {t, "1" + t + "2", t + "{1}"}) {
                 String answer = safeAnswer(s);
-                assertFalse(answer.contains("is not supported"), s + " gave " + answer);
+                assertFalse(answer.endsWith("\" not supported"), s + " gave " + answer);
             }
         }
     }
@@ -136,10 +136,10 @@ class TokeniserCoverageTest {
         assertEquals("Uncalculable — Wrong kind of value", Calc.once("\\lfloor(1,2)\\rfloor"));
         assertEquals("Uncalculable — Can't differentiate this", Calc.once("\\frac{d}{dx}\\max(x,1)"));
         assertEquals("Uncalculable — Can't differentiate this", Calc.once("\\frac{d}{dx}\\lfloor x\\rfloor"));
-        assertEquals("Unexpected \"\\rfloor\".", Calc.once("\\rfloor"));
-        assertEquals("Unexpected \"\\rceil\".", Calc.once("1\\rceil2"));
-        assertEquals("Expected \"\\rfloor\".", Calc.once("1\\lfloor2"));
-        assertEquals("Expected \"(\".", Calc.once("\\max{1}"));
+        assertEquals("Invalid formula — Unexpected \"⌋\"", Calc.once("\\rfloor"));
+        assertEquals("Invalid formula — Unexpected \"⌉\"", Calc.once("1\\rceil2"));
+        assertEquals("Invalid formula — Missing \"⌋\"", Calc.once("1\\lfloor2"));
+        assertEquals("Invalid formula — Missing \"(\"", Calc.once("\\max{1}"));
     }
 
     @Test

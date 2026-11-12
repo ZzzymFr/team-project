@@ -4,6 +4,7 @@ import entity.Context;
 import entity.MathLexer;
 import entity.MathParser;
 import entity.MathSyntaxException;
+import entity.SyntaxProblem;
 import entity.UncalculableException;
 import entity.UncalculableReason;
 import entity.UserFunction;
@@ -51,31 +52,28 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
                 tokens.remove(tokens.size() - 1);
             }
             if (tokens.isEmpty()) {
-                presenter.prepareFailView("Please enter an expression.");
-                return;
+                throw new MathSyntaxException(SyntaxProblem.EMPTY);
             }
             if (FunctionDefiner.isDefinition(tokens)) {
                 functionDefiner.define(tokens, expression);
                 return;
             }
             if (tokens.get(0).equals("=")) {
-                presenter.prepareFailView("There is nothing on the left of \"=\".");
-                return;
+                throw new MathSyntaxException(SyntaxProblem.NOTHING_LEFT);
             }
             if (tokens.get(tokens.size() - 1).equals("=")) {
-                presenter.prepareFailView("There is nothing on the right of \"=\".");
-                return;
+                throw new MathSyntaxException(SyntaxProblem.NOTHING_RIGHT);
             }
             evaluate(tokens);
         } catch (UncalculableException e) {
             presenter.prepareUncalculableView(OutputDataMapper.of(e));
         } catch (MathSyntaxException e) {
-            presenter.prepareFailView(e.getMessage());
+            presenter.prepareInvalidView(OutputDataMapper.of(e));
         } catch (StackOverflowError e) {
             // nested too deep to even walk
             presenter.prepareUncalculableView(OutputDataMapper.of(new UncalculableException(UncalculableReason.TOO_MUCH_WORK)));
         } catch (RuntimeException e) {
-            presenter.prepareFailView("Uncalculable");
+            presenter.prepareUncalculableView(OutputDataMapper.of(new UncalculableException()));
         }
     }
 
@@ -91,15 +89,13 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
         if (unknowns.isEmpty()) {
             presenter.prepareValuesView(calculateAll(node, functions, masks));
         } else if (countEquals(node) > 1) {
-            presenter.prepareFailView("Please use only one \"=\".");
+            throw new MathSyntaxException(SyntaxProblem.MANY_EQUALS);
         } else if (!node.isCondition() && node.containsDerivative()) {
             showDerivative(node, functions);
         } else if (!node.isCondition()) {
-            String name = unknowns.get(0);
-            presenter.prepareFailView(unknownVariableMessage(name));
+            throw new MathSyntaxException(SyntaxProblem.UNKNOWN_VARIABLE, unknowns.get(0));
         } else if (unknowns.size() > 1) {
-            presenter.prepareFailView("This equation has more than one unknown (" + String.join(", ", unknowns)
-                    + "). Only one unknown is supported.");
+            throw new MathSyntaxException(SyntaxProblem.MANY_UNKNOWNS, unknowns.toArray(new String[0]));
         } else {
             new ConditionAnswerer(presenter, node, unknowns.get(0), functions, masks).answer();
         }
@@ -153,10 +149,6 @@ public class EvaluateInteractor implements EvaluateInputBoundary {
             }
         }
         return output;
-    }
-
-    private String unknownVariableMessage(String name) {
-        return "Unknown variable \"" + name + "\". To solve for it, write an equation such as " + name + "+1=3.";
     }
 
     private int countEquals(Node node) {
