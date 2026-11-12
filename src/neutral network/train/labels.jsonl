@@ -91,3 +91,307 @@
 {"image": "equations_20261103/page_3_09.png", "latex": "4-3=1", "source": "PersonalEquations20261103"}
 {"image": "equations_20261103/page_3_10.png", "latex": "5-4=1", "source": "PersonalEquations20261103"}
 {"image": "equations_20261103/page_3_11.png", "latex": "5-3=2", "source": "PersonalEquations20261103"}
+{"image": "formulas_20261112/IMG_2173_01.png", "latex": "r(t)=e^{it}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2173_02.png", "latex": "r'(t)=ie^{it}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2173_03.png", "latex": "f(r(t))=e^{it}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2173_04.png", "latex": "\\int_{\\frac{3\\pi}{2}}^{0} e^{it}(ie^{it})dt", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2173_05.png", "latex": "\\int_{\\frac{3\\pi}{2}}^{0} ie^{2it}dt", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2173_06.png", "latex": "\\frac{1}{2} e^{2it}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2173_07.png", "latex": "\\frac{1}{2} e^{2i(0)}-\\frac{1}{2} e^{i(3\\pi)}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2173_08.png", "latex": "=\\frac{1}{2}-\\frac{1}{2}(\\cos(3\\pi)+i\\sin(3\\pi))", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2173_09.png", "latex": "=\\frac{1}{2}-\\frac{1}{2}(-1)", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2173_10.png", "latex": "=1", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2174_01.png", "latex": "r(t)=3e^{it}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2174_02.png", "latex": "r'(t)=3ie^{it}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2174_03.png", "latex": "f(r(t))=\\frac{1}{3} e^{it}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2174_04.png", "latex": "\\int_{0}^{\\frac{3\\pi}{2}}(\\frac{1}{3} e^{it})(3ie^{it})dt", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2174_05.png", "latex": "\\int_{0}^{\\frac{3\\pi}{2}}ie^{2it}dt", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2174_06.png", "latex": "=\\frac{1}{2}(e^{2it})", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2174_07.png", "latex": "=\\frac{1}{2}(e^{2i(\\frac{3\\pi}{2})}-e^{2i(0)})", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2174_08.png", "latex": "=\\frac{1}{2}(\\cos(3\\pi)-i\\sin(3\\pi)-\\cos(0)+i\\sin(0))", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2174_09.png", "latex": "=\\frac{1}{2}(-1-1)", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2174_10.png", "latex": "=-1", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2175_01.png", "latex": "r(t)=1-t+3t", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2175_02.png", "latex": "r'(t)=-1+3", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2175_03.png", "latex": "=2", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2175_04.png", "latex": "f(r(t))=(1+2t)^{-1}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2175_05.png", "latex": "=2\\int_{0}^{1}(1+2t)^{-1}dt", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2175_06.png", "latex": "=2(\\ln(1+2t)(\\frac{1}{2}))", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2175_07.png", "latex": "=\\ln(1+2t)", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2175_08.png", "latex": "=\\ln(3)", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2176_01.png", "latex": "r(t)=(1-t)-3i-ti", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2176_02.png", "latex": "\\int_{0}^{1}\\frac{2i}{3i-2it}dt", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2176_03.png", "latex": "=-3i+3it-ti", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2176_04.png", "latex": "=-3i+2it", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2176_05.png", "latex": "\\int_{0}^{1}\\frac{2}{3-2t}dt", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2176_06.png", "latex": "r'(t)=2i", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2176_07.png", "latex": "-\\ln(1)+\\ln(3)", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2176_08.png", "latex": "f(r(t))=\\frac{1}{3i-2it}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2176_09.png", "latex": "\\ln(3)", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2176_10.png", "latex": "-\\ln(3-2t)", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2177_01.png", "latex": "r(t)=(-2+2i)+2e^{it}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2177_02.png", "latex": "r'(t)=2ie^{it}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2177_03.png", "latex": "f(r(t))=-2-2i+2e^{-it}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2177_04.png", "latex": "\\int_{0}^{-\\frac{\\pi}{2}}(-2-2i+2e^{-it})2ie^{it}dt", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2177_05.png", "latex": "\\int_{0}^{-\\frac{\\pi}{2}}-4ie^{it}+4e^{it}+4i", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2177_06.png", "latex": "=-4e^{it}-4ie^{it}+4it", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2177_07.png", "latex": "=e^{it}(-4-4i)+4it", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2177_08.png", "latex": "=((\\cos(-\\frac{\\pi}{2})+i\\sin(-\\frac{\\pi}{2}))(-4-4i)+4i(-\\frac{\\pi}{2}))-((\\cos(0)+i\\sin(0))(-4-4i)+4i(0))", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2177_09.png", "latex": "=(-i(-4-4i)-2\\pi i)-(-4-4i)", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2177_10.png", "latex": "=4i-4-2\\pi i+4+4i", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2177_11.png", "latex": "=8i-2\\pi i", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2178_01.png", "latex": "r(t)=(2+2i)+2e^{it}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2178_02.png", "latex": "r'(t)=2ie^{it}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2178_03.png", "latex": "f(r(t))=2-2i+2e^{-it}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2178_04.png", "latex": "\\int_{-\\frac{\\pi}{2}}^{\\pi}(2-2i+2e^{-it})(2ie^{it})dt", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2178_05.png", "latex": "\\cos(\\pi)+i\\sin(\\pi)", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2178_06.png", "latex": "=-1", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2178_07.png", "latex": "\\int_{-\\frac{\\pi}{2}}^{\\pi}4ie^{it}+4e^{it}+4i dt", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2178_08.png", "latex": "\\cos(-\\frac{\\pi}{2})+i\\sin(-\\frac{\\pi}{2})", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2178_09.png", "latex": "=-i", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2178_10.png", "latex": "=4e^{it}-4ie^{it}+4it", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2178_11.png", "latex": "=e^{it}(4-4i)+4it", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2178_12.png", "latex": "=(- (4-4i)+4i\\pi)-(-i(4-4i)+4i(-\\frac{\\pi}{2}))", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2178_13.png", "latex": "=-4+4i+4i\\pi+4i-4+2i\\pi", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2178_14.png", "latex": "=8i+6i\\pi", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2179_01.png", "latex": "r(t)=3e^{it}=3\\cos(t)+i3\\sin(t)", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2179_02.png", "latex": "r'(t)=3ie^{it}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2179_03.png", "latex": "f(r(t))=3\\cos(t)", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2179_04.png", "latex": "\\int_{0}^{\\frac{\\pi}{2}}3\\cos(t)\\times3ie^{it}dt", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2179_05.png", "latex": "9i\\int_{0}^{\\frac{\\pi}{2}}\\cos(t)(\\cos(t)+i\\sin(t))dt", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2179_06.png", "latex": "9i\\int_{0}^{\\frac{\\pi}{2}}\\cos^{2}(t)+i\\sin(t)\\cos(t)dt", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2180_01.png", "latex": "r(t)=(1-t)3i+t(i)=3i-3it+it=3i-2it", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2180_02.png", "latex": "r'(t)=-2i", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2180_03.png", "latex": "f(r(t))=0", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2180_04.png", "latex": "\\int_{0}^{1} 0dt=0", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2180_05.png", "latex": "r(t)=1-t+3t=1+2t", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2180_06.png", "latex": "r'(t)=2", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2180_07.png", "latex": "f(r(t))=(1+2t)", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2180_08.png", "latex": "\\int_{0}^{1} 2+4t dt", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2180_09.png", "latex": "=2t+2t^{2}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2180_10.png", "latex": "=2+2=4", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2181_01.png", "latex": "r(t)=-\\sqrt{3} i+2e^{it}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2181_02.png", "latex": "r'(t)=2ie^{it}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2181_03.png", "latex": "f(r(t))=-\\sqrt{3}+2\\sin t", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2181_04.png", "latex": "\\int_{\\frac{\\pi}{3}}^{\\frac{2\\pi}{3}}(-\\sqrt{3}+2\\sin t)(2ie^{it})dt", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2181_05.png", "latex": "\\int_{\\frac{\\pi}{3}}^{\\frac{2\\pi}{3}}-\\sqrt{3} 2ie^{it}+4i\\sin t\\cos t-4\\sin^{2}(t)", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2181_06.png", "latex": "=-2\\sqrt{3} e^{it}-i\\cos 2t-2t+\\sin 2t", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2181_07.png", "latex": "=\\sqrt{3}-\\frac{2\\pi}{3}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2182_01.png", "latex": "e^{iz}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2182_02.png", "latex": "f(t)=\\frac{1}{2}(t+\\frac{1}{t})", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2182_03.png", "latex": "=\\frac t2+\\frac{1}{2t}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2182_04.png", "latex": "f(z)=\\frac{1}{2}(e^{iz}+e^{-iz})", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2182_05.png", "latex": "=\\frac{t^{2}+1}{2t}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2182_06.png", "latex": "=\\frac{1}{2}(\\cos\\theta+i\\sin\\theta+\\cos\\theta-i\\sin\\theta)", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2182_07.png", "latex": "=\\frac{1}{2}(2\\cos\\theta)", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2182_08.png", "latex": "=\\cos\\theta", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2182_09.png", "latex": "-1\\leq\\theta\\leq1", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2183_01.png", "latex": "\\forall w\\in W,\\exists f(z)=w", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2183_02.png", "latex": "\\frac{1}{2}(z+\\frac{1}{z})=w", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2183_03.png", "latex": "z+\\frac{1}{z}=2w", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2183_04.png", "latex": "z^{2}-2wz+1=0", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2184_01.png", "latex": "=\\frac{1}{2}(e^{i\\theta}-e^{-i\\theta})", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2184_02.png", "latex": "\\frac{1}{2}(x-\\frac{1}{x})", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2184_03.png", "latex": "=\\frac{1}{2}(\\cos\\theta+i\\sin\\theta-\\cos\\theta+i\\sin\\theta)", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2184_04.png", "latex": "\\frac{1}{2} x-\\frac{1}{2x}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2184_05.png", "latex": "=i\\sin\\theta", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2185_01.png", "latex": "\\frac{1}{2}(w_{1}+\\frac{1}{w_{1}})=\\frac{1}{2}(w_{2}+\\frac{1}{w_{2}})", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2185_02.png", "latex": "w_{1}+\\frac{1}{w_{1}}=w_{2}+\\frac{1}{w_{2}}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2185_03.png", "latex": "w_{1}=w_{2}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2185_04.png", "latex": "\\frac{1}{2}(z+\\frac{1}{z})=w", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2185_05.png", "latex": "z+\\frac{1}{z}=2w", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2185_06.png", "latex": "z^{2}+1=2wz", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2186_01.png", "latex": "w=\\frac{1}{z}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2186_02.png", "latex": "z=\\frac{1}{w}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2186_03.png", "latex": "|\\frac{1}{w}-i|<1", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2186_04.png", "latex": "|\\frac{1}{w}-1|<1", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2186_05.png", "latex": "|1-iw|<|w|", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2186_06.png", "latex": "(1-iw)(1+i\\bar w)<w\\bar w", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2186_07.png", "latex": "|1-w|^{2}<|w|^{2}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2186_08.png", "latex": "1+i\\bar w-iw+w\\bar w<w\\bar w", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2186_09.png", "latex": "(1-w)(1-\\bar w)<w\\bar w", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2186_10.png", "latex": "1+i(x-yi)-i(x+yi)<0", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2186_11.png", "latex": "1-\\bar w-w+w\\bar w<w\\bar w", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2186_12.png", "latex": "1+ix+y-ix+y<0", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2186_13.png", "latex": "1-\\bar w-w<0", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2186_14.png", "latex": "1+2y<0", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2186_15.png", "latex": "y<-\\frac{1}{2}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2186_16.png", "latex": "1-x+yi-x-yi<0", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2186_17.png", "latex": "1-2x<0", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2186_18.png", "latex": "-2x<1", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2186_19.png", "latex": "x>\\frac{1}{2}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2187_01.png", "latex": "z=\\frac{1}{w}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2187_02.png", "latex": "|\\frac{1}{w}-2|<2", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2187_03.png", "latex": "|1-2w|<2|w|", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2187_04.png", "latex": "|\\frac{1}{w}-1|>1", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2187_05.png", "latex": "(1-2\\bar w)(1-2w)<4w\\bar w", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2187_06.png", "latex": "|1-w| >|w|", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2187_07.png", "latex": "1-2w-2\\bar w+4w\\bar w<4w\\bar w", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2187_08.png", "latex": "(1-w)(1-\\bar w)>w\\bar w", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2187_09.png", "latex": "1-2x+2yi-2x-2yi<0", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2187_10.png", "latex": "1-\\bar w-w+w\\bar w>w\\bar w", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2187_11.png", "latex": "1-4x<0", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2187_12.png", "latex": "1-x+yi-x-yi>0", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2187_13.png", "latex": "-4x<1", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2187_14.png", "latex": "1-2x>0", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2187_15.png", "latex": "x>\\frac{1}{4}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2187_16.png", "latex": "-2x>-1", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2187_17.png", "latex": "x<\\frac{1}{2}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2188_01.png", "latex": "|\\frac{1}{w}-1|<2", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2188_02.png", "latex": "|1-w|<2|w|", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2188_03.png", "latex": "(1-w)(1-\\bar w)<4w\\bar w", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2188_04.png", "latex": "1-\\bar w-w+w\\bar w<4w\\bar w", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2188_05.png", "latex": "1-\\bar w-w-3w\\bar w<0", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2188_06.png", "latex": "1-x+yi-x-yi-3x^{2}-3y^{2}<0", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2188_07.png", "latex": "1-2x-3x^{2}-3y^{2}<0", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2188_08.png", "latex": "1<2x+3x^{2}+3y^{2}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2194_01.png", "latex": "\\frac{e^{iz}-e^{-iz}}{2i}=\\frac{5}{4}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2194_02.png", "latex": "e^{iz}=2i", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2194_03.png", "latex": "z=-i\\log(2i)", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2194_04.png", "latex": "e^{iz}-e^{-iz}=\\frac{5}{2} i", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2194_05.png", "latex": "=-i(\\ln2+i(\\frac{\\pi}{2}+2k\\pi))", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2194_06.png", "latex": "=-i\\ln2+\\frac{\\pi}{2}+2k\\pi", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2194_07.png", "latex": "z-z^{-1}=\\frac{5}{2} i", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2194_08.png", "latex": "e^{iz}=\\frac{1}{2} i", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2194_09.png", "latex": "z^{2}-\\frac{5}{2} iz-1=0", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2194_10.png", "latex": "z=-i\\log(\\frac{1}{2} i)", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2194_11.png", "latex": "\\frac{5}{2} i\\pm\\sqrt{(\\frac{5}{2})^{2}+4}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2194_12.png", "latex": "=-i(\\ln(\\frac{1}{2})+i(\\frac{\\pi}{2}+2k\\pi))", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2194_13.png", "latex": "=i\\ln(2)+\\frac{\\pi}{2}+2k\\pi", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2194_14.png", "latex": "\\frac{5}{2} i\\pm\\sqrt{\\frac{25}{4}+4}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2194_15.png", "latex": "\\frac{\\frac{5}{2} i\\pm\\sqrt{-\\frac{9}{4}}}{2}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2194_16.png", "latex": "\\frac{5}{4} i\\pm\\frac{3}{4} i", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2194_17.png", "latex": "\\frac{8}{4} i=2i", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2194_18.png", "latex": "\\frac{2}{4} i=\\frac{1}{2} i", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2195_01.png", "latex": "w=i^{\\frac{1}{3}}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2195_02.png", "latex": "=e^{i(\\frac{\\pi}{2}+2k\\pi)(\\frac{1}{3})}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2195_03.png", "latex": "=e^{i(\\frac{\\pi}{6}+\\frac{2}{3} k\\pi)}  k=0,1,2", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2195_04.png", "latex": "k=0  e^{i(\\frac{\\pi}{6})}=\\cos(\\frac{\\pi}{6})+i\\sin(\\frac{\\pi}{6})", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2195_05.png", "latex": "\\frac{e^{iz}-e^{-iz}}{i(e^{iz}+e^{-iz})}=\\frac{\\sqrt{3}}{2}+\\frac{1}{2} i", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2195_06.png", "latex": "=\\frac{\\sqrt{3}}{2}+i\\frac{1}{2}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2195_07.png", "latex": "\\frac{e^{iz}-e^{-iz}}{e^{iz}+e^{-iz}}=\\frac{\\sqrt{3}}{2} i-\\frac{1}{2}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2195_08.png", "latex": "k=1  e^{i(\\frac{5\\pi}{6})}=\\cos(\\frac{5\\pi}{6})+i\\sin(\\frac{5\\pi}{6})", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2195_09.png", "latex": "e^{2iz}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2195_10.png", "latex": "=-\\frac{\\sqrt{3}}{2}+i\\frac{1}{2}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2195_11.png", "latex": "\\frac{e^{2iz}-1}{e^{2iz}+1}=\\frac{\\sqrt{3}}{2} i-\\frac{1}{2}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2195_12.png", "latex": "k=2  e^{i(\\frac{9\\pi}{6})}=\\cos(\\frac{3\\pi}{2})+i\\sin(\\frac{3\\pi}{2})", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2195_13.png", "latex": "e^{2iz}-1=(\\frac{\\sqrt{3}}{2} i-\\frac{1}{2})(e^{2iz}+1)", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2195_14.png", "latex": "=-i", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2195_15.png", "latex": "e^{2iz}-1=e^{2iz}(\\frac{\\sqrt{3}}{2} i-\\frac{1}{2})+\\frac{\\sqrt{3}}{2} i-\\frac{1}{2}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2195_16.png", "latex": "-1-\\frac{\\sqrt{3}}{2} i+\\frac{1}{2}=e^{2iz}(\\frac{\\sqrt{3}}{2} i-\\frac{1}{2})-e^{2iz}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2195_17.png", "latex": "-\\frac{\\sqrt{3}}{2} i-\\frac{1}{2}=e^{2iz}(\\frac{\\sqrt{3}}{2} i-\\frac{1}{2}-1)", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2195_18.png", "latex": "\\frac{-\\frac{\\sqrt{3}}{2} i-\\frac{1}{2}}{\\frac{\\sqrt{3}}{2} i-\\frac{3}{2}}=e^{2iz}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2195_19.png", "latex": "e^{2iz}=\\frac{1}{\\sqrt{3}}i", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2195_20.png", "latex": "z=-\\frac{1}{2} i\\log(\\frac{1}{\\sqrt{3}}i)", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2195_21.png", "latex": "\\frac{i(-\\sqrt{3}+i)}{\\sqrt{3}(-\\sqrt{3}+i)}=\\frac{1}{\\sqrt{3}}i", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2195_22.png", "latex": "\\frac{-\\sqrt{3} i-1}{\\sqrt{3} i-3}=e^{2iz}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2195_23.png", "latex": "=-\\frac{1}{2} i(\\ln(\\frac{1}{\\sqrt{3}})+i(\\frac{\\pi}{2}+2k\\pi))", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2195_24.png", "latex": "=\\frac{1}{2} i\\ln(\\sqrt{3})+\\frac{\\pi}{4}+k\\pi", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2196_01.png", "latex": "\\frac{e^{iz}+e^{-iz}}{2}=\\frac{5}{3}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2196_02.png", "latex": "e^{iz}+e^{-iz}=\\frac{10}{3}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2196_03.png", "latex": "w^{2}+1=\\frac{10}{3} w", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2196_04.png", "latex": "w^{2}-\\frac{10}{3} w+1=0", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2196_05.png", "latex": "\\frac{\\frac{10}{3}\\pm\\sqrt{(\\frac{10}{3})^{2}-4}}{2}=\\frac{\\frac{10}{3}\\pm\\sqrt{\\frac{100}{9}-4}}{2}=\\frac{\\frac{10}{3}\\pm\\sqrt{\\frac{64}{9}}}{2}=\\frac{10}{6}\\pm\\frac{8}{6}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2196_06.png", "latex": "=\\frac{18}{6}=3", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2196_07.png", "latex": "e^{iz}=3", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2196_08.png", "latex": "=\\frac{2}{6}=\\frac{1}{3}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2196_09.png", "latex": "e^{iz}=\\frac{1}{3}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2196_10.png", "latex": "z=-i\\log(3)", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2196_11.png", "latex": "z=i\\ln(3)+2\\pi k", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2196_12.png", "latex": "=-i\\ln3+2\\pi k", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2198_01.png", "latex": "e^{z}=1", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2198_02.png", "latex": "\\cos(z)=i2k\\pi", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2198_03.png", "latex": "k=0,1,2", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2198_04.png", "latex": "z=\\log 1", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2198_05.png", "latex": "\\frac{e^{iz}+e^{-iz}}{2}=i2\\pi k", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2198_06.png", "latex": "z=i2k\\pi", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2198_07.png", "latex": "e^{iz}+e^{-iz}=4i\\pi k", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2198_08.png", "latex": "w^{2}+1=4i\\pi kw", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2198_09.png", "latex": "w^{2}-4i\\pi kw+1=0", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2198_10.png", "latex": "\\frac{4i\\pi k\\pm\\sqrt{-16i\\pi^{2}k^{2}-4}}{2}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2198_11.png", "latex": "\\frac{4i\\pi k\\pm\\sqrt{-4(4\\pi^{2}k^{2}+1)}}{2}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2198_12.png", "latex": "e^{iz}=2i\\pi k\\pm i\\sqrt{4\\pi^{2}k^{2}+1}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2198_13.png", "latex": "z=-i(\\ln(2\\pi k+\\sqrt{4\\pi^{2}k^{2}+1})+i(\\frac{\\pi}{2}+2n\\pi))", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2199_01.png", "latex": "e^{z^{3}}=w", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2199_02.png", "latex": "w^{2}+\\sqrt{2} w+1=0", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2199_03.png", "latex": "\\frac{-\\sqrt{2}\\pm\\sqrt{2-4}}{2}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2199_04.png", "latex": "\\frac{-\\sqrt{2}\\pm\\sqrt{-2}}{2}=\\frac{-\\sqrt{2}\\pm i\\sqrt{2}}{2}=\\frac{-\\sqrt{2}}{2}\\pm i\\frac{\\sqrt{2}}{2}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2199_05.png", "latex": "e^{z^{3}}=e^{i(\\frac{3\\pi}{4})}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2199_06.png", "latex": "z^{3}=\\frac{3\\pi i}{4}+2k\\pi i", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2199_07.png", "latex": "z^{3}=i(\\frac{3\\pi}{4}+2k\\pi)", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2199_08.png", "latex": "z=e^{i(\\frac{\\pi}{2})(\\frac{1}{3})}(\\frac{3\\pi}{4}+2k\\pi)^{\\frac{1}{3}}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2199_09.png", "latex": "z=e^{(\\frac{\\pi}{2}+2k\\pi)(\\frac{1}{3})}(\\frac{3\\pi}{4}+2k\\pi)^{\\frac{1}{3}}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2200_01.png", "latex": "\\tan(z)=\\pm2i", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2200_02.png", "latex": "\\frac{e^{iz}-e^{-iz}}{i(e^{iz}+e^{-iz})}=2i", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2200_03.png", "latex": "\\frac{e^{iz}-e^{-iz}}{i(e^{iz}+e^{-iz})}=-2i", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2200_04.png", "latex": "\\frac{w^{2}-1}{w^{2}+1}=2", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2200_05.png", "latex": "\\frac{w^{2}-1}{w^{2}+1}=-2", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2200_06.png", "latex": "w^{2}-1=2w^{2}+2", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2200_07.png", "latex": "w^{2}-1=-2w^{2}-2", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2200_08.png", "latex": "-1-2=2w^{2}-w^{2}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2200_09.png", "latex": "w^{2}+2w^{2}=-2+1", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2200_10.png", "latex": "-3=w^{2}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2200_11.png", "latex": "w^{2}(1+2)=-1", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2200_12.png", "latex": "w=\\pm3i", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2200_13.png", "latex": "w^{2}=\\frac{-1}{3}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2200_14.png", "latex": "w=\\pm\\frac{1}{\\sqrt{3}}i", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2200_15.png", "latex": "e^{iz}=\\frac{1}{\\sqrt{3}}i", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2200_16.png", "latex": "e^{iz}=-\\frac{1}{\\sqrt{3}}i", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2200_17.png", "latex": "z=-i(\\ln(\\frac{1}{\\sqrt{3}})+i(\\frac{\\pi}{2}+2k\\pi))", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2200_18.png", "latex": "z=-i(\\ln(\\frac{1}{\\sqrt{3}})+i(-\\frac{\\pi}{2}+2n\\pi))", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2200_19.png", "latex": "=-i\\ln(\\frac{1}{\\sqrt{3}})+\\frac{\\pi}{2}+2k\\pi", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2200_20.png", "latex": "=i\\ln(\\sqrt{3})-\\frac{\\pi}{2}+2n\\pi", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2201_01.png", "latex": "w=i^{\\frac{1}{3}}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2201_02.png", "latex": "=e^{i(\\frac{\\pi}{2}+2k\\pi)\\frac{1}{3}}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2201_03.png", "latex": "w=e^{i(\\frac{\\pi}{6}+\\frac{2}{3} k\\pi)}  k=0,1,2", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2201_04.png", "latex": "k=0  e^{i(\\frac{\\pi}{6})}=\\cos(\\frac{\\pi}{6})+i\\sin(\\frac{\\pi}{6})=\\frac{\\sqrt{3}}{2}+\\frac{1}{2} i", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2201_05.png", "latex": "k=1  e^{i(\\frac{5\\pi}{6})}=\\cos(\\frac{5\\pi}{6})+i\\sin(\\frac{5\\pi}{6})=-\\frac{\\sqrt{3}}{2}+\\frac{1}{2} i", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2201_06.png", "latex": "k=2  e^{i(\\frac{3\\pi}{2})}=\\cos(\\frac{3\\pi}{2})+i\\sin(\\frac{3\\pi}{2})=-i", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2201_07.png", "latex": "\\frac{e^{iz}-e^{-iz}}{i(e^{iz}+e^{-iz})}=\\frac{\\sqrt{3}}{2}+\\frac{1}{2} i", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2201_08.png", "latex": "e^{2iz}-1=(-\\frac{1}{2}+\\frac{\\sqrt{3}}{2} i)e^{2iz}-\\frac{1}{2}+\\frac{\\sqrt{3}}{2} i", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2201_09.png", "latex": "\\frac{e^{iz}-e^{-iz}}{e^{iz}+e^{-iz}}=-\\frac{1}{2}+\\frac{\\sqrt{3}}{2} i", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2201_10.png", "latex": "-1+\\frac{1}{2}-\\frac{\\sqrt{3}}{2} i=e^{2iz}(-\\frac{1}{2}+\\frac{\\sqrt{3}}{2} i-1)", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2201_11.png", "latex": "-\\frac{1}{2}-\\frac{\\sqrt{3}}{2} i=e^{2iz}(\\frac{\\sqrt{3}}{2} i-\\frac{3}{2})", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2201_12.png", "latex": "\\frac{e^{2iz}-1}{e^{2iz}+1}=(-\\frac{1}{2}+\\frac{\\sqrt{3}}{2} i)", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2201_13.png", "latex": "e^{2iz}=\\frac{-1-\\sqrt{3} i}{\\sqrt{3} i-3}=\\frac{i(i-\\sqrt{3})}{\\sqrt{3}(i-\\sqrt{3})}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2201_14.png", "latex": "=\\frac{1}{\\sqrt{3}}i", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2202_01.png", "latex": "\\frac{e^{iz}-e^{-iz}}{2i}=\\frac{5}{4}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2202_02.png", "latex": "e^{iz}-e^{-iz}=\\frac{5}{2} i", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2202_03.png", "latex": "w^{2}-\\frac{5}{2} iw-1=0", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2202_04.png", "latex": "\\frac{\\frac{5}{2} i\\pm\\sqrt{(\\frac{5}{2} i)^{2}+4}}{2}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2202_05.png", "latex": "e^{iz}=2i", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2202_06.png", "latex": "e^{iz}=\\frac{1}{2} i", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2202_07.png", "latex": "z=-i(\\log(\\frac{1}{2} i))", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2202_08.png", "latex": "z=-i(\\log(2i))", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2202_09.png", "latex": "\\frac{\\frac{5}{2} i\\pm\\sqrt{-\\frac{25}{4}+4}}{2}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2202_10.png", "latex": "=-i(\\ln(\\frac{1}{2})+i(\\frac{\\pi}{2}+2n\\pi))", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2202_11.png", "latex": "=-i(\\ln2+i(\\frac{\\pi}{2}+2k\\pi))", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2202_12.png", "latex": "=-i\\ln(\\frac{1}{2})+\\frac{\\pi}{2}+2n\\pi", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2202_13.png", "latex": "=-i\\ln2+\\frac{\\pi}{2}+2k\\pi", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2202_14.png", "latex": "\\frac{\\frac{5}{2} i\\pm i\\sqrt{\\frac{9}{4}}}{2}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2202_15.png", "latex": "=\\frac{5}{4} i\\pm\\frac{3}{4} i", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2203_01.png", "latex": "\\frac{e^{iz}+e^{-iz}}{2}=\\frac{5}{3}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2203_02.png", "latex": "e^{iz}+e^{-iz}=\\frac{10}{3}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2203_03.png", "latex": "w^{2}+1=\\frac{10}{3} w", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2203_04.png", "latex": "w^{2}-\\frac{10}{3} w+1=0", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2203_05.png", "latex": "\\frac{\\frac{10}{3}\\pm\\sqrt{(\\frac{100}{9})-4}}{2}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2204_01.png", "latex": "\\cos(z)=2k\\pi i", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2204_02.png", "latex": "\\frac{e^{iz}+e^{-iz}}{2}=2k\\pi i", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2204_03.png", "latex": "e^{iz}+e^{-iz}=4k\\pi i", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2204_04.png", "latex": "w^{2}-4k\\pi iw+1=0", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2204_05.png", "latex": "\\frac{4ik\\pi\\pm\\sqrt{-16k^{2}\\pi^{2}-4}}{2}=\\frac{4ik\\pi\\pm\\sqrt{-4(4k^{2}\\pi^{2}+1)}}{2}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2204_06.png", "latex": "w=\\sqrt{4k^{2}\\pi^{2}+1}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2204_07.png", "latex": "=2ik\\pi\\pm i\\sqrt{4k^{2}\\pi^{2}+1}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2204_08.png", "latex": "e^{iz}=2ik\\pi+iw", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2204_09.png", "latex": "z=-i(\\ln(2ik\\pi+iw)+i(\\frac{\\pi}{2}+2n\\pi))", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2204_10.png", "latex": "=-i\\ln(2ik\\pi+iw)+\\frac{\\pi}{2}+2n\\pi", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2205_01.png", "latex": "\\cos(e^{z})=\\frac{1}{2}.", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2205_02.png", "latex": "\\pm\\frac{\\pi}{3}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2205_03.png", "latex": "e^{z}=\\pm\\frac{\\pi}{3}+2k\\pi", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2205_04.png", "latex": "z=-i(\\ln(\\frac{\\pi}{3}+2k\\pi)+i(2n\\pi))", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2205_05.png", "latex": "=-i\\ln(\\frac{\\pi}{3}+2k\\pi)+2n\\pi", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2206_01.png", "latex": "4e^{it}|_{-\\frac{\\pi}{2}}^{\\pi}+-i4e^{it}|_{-\\frac{\\pi}{2}}^{\\pi}+4it|_{-\\frac{\\pi}{2}}^{\\pi}", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2206_02.png", "latex": "(4-4i)+(-i4+4)+(4i\\pi+4i\\frac{\\pi}{2})", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2206_03.png", "latex": "4-4i-4i+4+4i\\pi+2\\pi i", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/IMG_2206_04.png", "latex": "-8i+8+6\\pi i", "source": "PersonalFormulas20261112"}
+{"image": "formulas_20261112/13_sqrt7.png", "latex": "\\sqrt{7}", "source": "PersonalFormulas20261112"}
