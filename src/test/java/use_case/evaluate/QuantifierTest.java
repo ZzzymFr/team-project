@@ -96,7 +96,8 @@ class QuantifierTest {
             assertEquals("true", Calc.once("\\forall n\\in\\mathbb{N}, \\exists m\\in\\mathbb{N}, m>n^2"));
             assertEquals("true", Calc.once("\\forall x\\in\\mathbb{Z}, \\exists y\\in\\mathbb{Z}, y=x^2"));
         });
-        assertTimeout(Duration.ofSeconds(2), () -> {
+        // burns the whole step budget, ~1s cold, flaky at 2s under load
+        assertTimeout(Duration.ofSeconds(5), () -> {
             String answer = Calc.once("\\forall x\\in\\mathbb{Z}, \\forall y\\in\\mathbb{Z}, \\exists z\\in\\mathbb{Z}, z=x+y");
             assertTrue(answer.equals("true") || answer.startsWith("Uncalculable"), answer);
         });
