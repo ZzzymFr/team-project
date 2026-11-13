@@ -8,6 +8,7 @@ import interface_adapter.evaluate.EvaluateController;
 import interface_adapter.graph.GraphController;
 import interface_adapter.graph.GraphViewModel;
 import view.FormulaCapture;
+import view.answer.AnswerLayout;
 import view.answer.Formula;
 import view.stack.Fonts;
 
@@ -59,7 +60,6 @@ public class AnswerCanvasPage extends CanvasPage {
     private PopupGraphing graphing;   // one board only: Graph in the popup
     private PopupHover hover;         // mouse on an unanswered "=" brings the popup back
     private final Map<Long, Read> reads = new HashMap<>();  // last read per formula
-    private int reading;              // recognize jobs still out
     private Predicate<String> graphable = latex -> false;
     private final PopupGate gate = new PopupGate();
 
@@ -208,8 +208,13 @@ public class AnswerCanvasPage extends CanvasPage {
     }
 
     private void hidePopup() {
-        shown = null;
         hover.forget();
+        closePopup();
+    }
+
+    // just take it down, hover keeps its state
+    private void closePopup() {
+        shown = null;
         if (popup.isVisible()) {
             popup.setVisible(false);
             getCanvasArea().repaint();
@@ -270,13 +275,11 @@ public class AnswerCanvasPage extends CanvasPage {
     }
 
     private void recognize(FormulaCapture capture, long gen) {
-        reading++;
         worker.recognize(() -> recognizeFormula(capture.getImage()),
                 (latex, problem) -> recognized(capture, gen, latex, problem));
     }
 
     private void recognized(FormulaCapture capture, long gen, String latex, String problem) {
-        reading--;
         if (!getSharedCanvas().isCurrent(capture.getId(), capture.getRevision())) {
             return;  // ink changed while we were reading it
         }
@@ -285,7 +288,9 @@ public class AnswerCanvasPage extends CanvasPage {
             return;  // user moved on
         }
         if (!gate.allows(formula(capture.getId()), latex)) {
-            hover.forget();
+            if (hover.offered() == capture.getId()) {
+                hover.forget();  // hovered one has no "=" after all
+            }
             FormulaCapture next = nextWaiting();  // no "=" yet, quietly try the next one
             if (next != null) {
                 recognize(next, gen);
@@ -415,9 +420,27 @@ public class AnswerCanvasPage extends CanvasPage {
 
     private final class HoverHost implements PopupHover.Host {
         @Override
-        public boolean canOffer() {
-            return inFront() && !popup.isVisible() && !pauseTimer.isRunning() && reading == 0
-                    && !getSharedCanvas().isBusy();
+        public boolean canOffer(long id) {
+            boolean showingIt = popup.isVisible() && shown != null && shown.getId() == id;
+            return inFront() && !showingIt && !inkComingFor(id) && !getSharedCanvas().isBusy();
+        }
+
+        // wait only if the pending pause will change this formula, other ink doesn't matter
+        private boolean inkComingFor(long id) {
+            if (!pauseTimer.isRunning()) {
+                return false;
+            }
+            Formula f = formula(id);
+            Rectangle box = getSharedCanvas().formulaBounds(id);
+            if (targetPick || targetId == id || f == null || box == null) {
+                return true;
+            }
+            for (Stroke s : session) {
+                if (AnswerLayout.joins(box, f.getCharHeight(), AnswerLayout.bounds(List.of(s)))) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         // read it again only if the ink changed since
@@ -430,6 +453,7 @@ public class AnswerCanvasPage extends CanvasPage {
             }
             Read r = reads.get(id);
             generation++;
+            closePopup();  // some other formula's popup gives way
             if (r != null && r.revision == capture.getRevision()) {
                 present(capture, r.latex, r.problem);
             } else {

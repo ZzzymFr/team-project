@@ -8,6 +8,7 @@ import use_case.evaluate.EvaluateOutputBoundary;
 import use_case.evaluate.ExprOutputData;
 import use_case.evaluate.FormulaShape;
 import use_case.evaluate.IntervalOutputData;
+import use_case.evaluate.InvalidOutputData;
 import use_case.evaluate.UncalculableOutputData;
 import use_case.evaluate.ValueOutputData;
 
@@ -63,7 +64,7 @@ public class EvaluatePresenter implements EvaluateOutputBoundary {
     public void prepareExpressionView(ExprOutputData expression) {
         List<TextRun> runs = ExprWriter.runs(expression);
         if (TextRun.plain(runs).length() > MAX_ANSWER_LENGTH) {
-            prepareFailView(UncalculableText.answerTooLong());
+            fail(UncalculableText.answerTooLong());
             return;
         }
         publish("= " + ExprWriter.latex(expression), AnswerFormatter.canvasRuns(kind, runs), "", false);
@@ -71,12 +72,16 @@ public class EvaluatePresenter implements EvaluateOutputBoundary {
 
     @Override
     public void prepareUncalculableView(UncalculableOutputData why) {
-        prepareFailView(UncalculableText.of(why.getReason(), why.getDetail()));
+        fail(UncalculableText.of(why.getReason(), why.getDetail()));
     }
 
     @Override
-    public void prepareFailView(String errorMessage) {
-        publish("", null, errorMessage, false);
+    public void prepareInvalidView(InvalidOutputData why) {
+        fail(InvalidText.of(why.getProblem(), why.getDetails()));
+    }
+
+    private void fail(String errorText) {
+        publish("", null, errorText, false);
     }
 
     private void showResult(String text) {

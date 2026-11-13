@@ -69,8 +69,8 @@ final class NoiseFreeOutput implements EvaluateOutputBoundary {
     }
 
     @Override
-    public void prepareFailView(String errorMessage) {
-        next.prepareFailView(errorMessage);
+    public void prepareInvalidView(InvalidOutputData why) {
+        next.prepareInvalidView(why);
     }
 
     // 2 different tiny ones side by side are real, not noise

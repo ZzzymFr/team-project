@@ -22,6 +22,7 @@ import java.util.Objects;
 public final class AnswerInk {
     private static final float REF = 240f;  // font size the centre lines get traced at
     private static final int PAD = 2;
+    private static final double TWIG = 1.0;  // twigs up to this x pen width get cut
     private static final int CACHE_SIZE = 64;
     private static final Map<Key, Path2D> LINES = new LinkedHashMap<>(16, 0.75f, true) {
         @Override
@@ -129,7 +130,9 @@ public final class AnswerInk {
         if (b.isEmpty()) {
             return line;
         }
-        boolean[] on = Skeleton.thin(raster(outline, b, w, h), w, h);
+        boolean[] filled = raster(outline, b, w, h);
+        boolean[] thin = Skeleton.thin(filled, w, h);
+        boolean[] on = Skeleton.prune(thin, w, h, (int) Math.round(TWIG * thickness(filled, thin)));
         double ox = b.getX() - PAD + 0.5;
         double oy = b.getY() - PAD + 0.5;
         for (int y = 0; y < h; y++) {
@@ -159,6 +162,17 @@ public final class AnswerInk {
             }
         }
         return line;
+    }
+
+    // rough pen width of the glyphs: ink area / centre line length
+    private static double thickness(boolean[] filled, boolean[] thin) {
+        int area = 0;
+        int line = 0;
+        for (int i = 0; i < filled.length; i++) {
+            area += filled[i] ? 1 : 0;
+            line += thin[i] ? 1 : 0;
+        }
+        return line == 0 ? 0 : (double) area / line;
     }
 
     private static boolean link(Path2D line, double ox, double oy, int x1, int y1, int x2, int y2) {

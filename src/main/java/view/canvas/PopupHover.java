@@ -24,7 +24,7 @@ final class PopupHover {
 
     // the answer page
     interface Host {
-        boolean canOffer();                  // nothing else going on
+        boolean canOffer(long formulaId);    // free to show this one now
         void offer(long formulaId);          // put the popup up for it (may read it first)
         void withdraw();                     // take it down
         boolean wanted(Formula f);           // may it pop up at all
@@ -56,6 +56,11 @@ final class PopupHover {
             @Override
             public void mouseExited(MouseEvent e) {
                 moved(null);  // onto the popup, or out of the canvas
+            }
+
+            @Override
+            public void mouseReleased(MouseEvent e) {
+                moved(e.getPoint());  // resting after a drag counts too
             }
         });
     }
@@ -91,7 +96,11 @@ final class PopupHover {
     }
 
     private void rested() {
-        if (under < 0 || offered >= 0 || !host.canOffer()) {
+        if (under < 0 || offered >= 0) {
+            return;
+        }
+        if (!host.canOffer(under)) {
+            showTimer.restart();  // busy rn, keep trying while the mouse sits there
             return;
         }
         offered = under;
@@ -114,6 +123,7 @@ final class PopupHover {
         offered = -1;
         under = -1;
         host.withdraw();
+        moved(onCanvas);  // may be on another "=" already
     }
 
     // area coords, null if unknown (headless)

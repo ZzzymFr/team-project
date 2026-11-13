@@ -9,7 +9,6 @@ import pdf_editor.domain.PdfDocument;
 import pdf_editor.domain.PdfMaterial;
 import pdf_editor.view.FormulaEditDialog;
 import pdf_editor.view.PdfPageCanvas;
-import pdf_editor.view.RichNoteEditor;
 import view.board.BoardTheme;
 import view.board.Icons;
 import view.board.PdfWorkspacePort;

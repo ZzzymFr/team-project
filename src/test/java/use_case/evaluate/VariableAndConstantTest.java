@@ -20,8 +20,8 @@ class VariableAndConstantTest {
         assertEquals("r = 1", Calc.once("2\\pi r=2\\pi"));
         assertEquals("x_2 = 3", Calc.once("2x_2=6"));
         assertEquals("\\vec{v} = 2", Calc.once("3\\vec{v}=6"));
-        assertTrue(Calc.once("\\alpha\\beta=1").contains("more than one unknown"));
-        assertTrue(Calc.once("x_1x_2=1").contains("more than one unknown"));
+        assertTrue(Calc.once("\\alpha\\beta=1").contains("Too many unknowns"));
+        assertTrue(Calc.once("x_1x_2=1").contains("Too many unknowns"));
     }
 
     @Test

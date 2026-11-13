@@ -27,7 +27,7 @@ import java.awt.image.BufferedImage;
 /**
  * A page of the app: its own function area at the top, and the shared handwriting canvas below.
  *
- * <p>Subclasses ({@link GraphCanvasPage}, {@link PdfCanvasPage}, {@link AnswerCanvasPage}) put their
+ * <p>Subclasses (e.g. {@link AnswerCanvasPage}) put their
  * controls in the function area with {@link #setFunctionArea}. They all write on the same
  * {@link SharedCanvas}, so switching pages keeps the ink. To work with what was written, a subclass
  * calls {@link #captureFormula()} (the image) or {@link #recognizeFormula()} (the LaTeX).

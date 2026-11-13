@@ -2,6 +2,7 @@ package entity.node;
 
 import entity.Context;
 import entity.MathSyntaxException;
+import entity.SyntaxProblem;
 import entity.UncalculableException;
 import entity.UncalculableReason;
 import entity.UserFunction;
@@ -101,12 +102,11 @@ public class CallNode extends Node {
         context.spendStep();
         UserFunction function = context.getFunction(name);
         if (function == null) {
-            throw new MathSyntaxException("Unknown variable \"" + name + "\".");
+            throw new MathSyntaxException(SyntaxProblem.UNKNOWN_VARIABLE, name);
         }
         List<String> parameters = function.getParameters();
         if (parameters.size() != arguments.size()) {
-            String inputs = parameters.size() == 1 ? " input." : " inputs.";
-            throw new MathSyntaxException(name + " needs " + parameters.size() + inputs);
+            throw new MathSyntaxException(SyntaxProblem.WRONG_INPUTS, name, String.valueOf(parameters.size()));
         }
         if (derivativeOrder < 0 || derivativeOrder > DerivativeCalculator.MAX_ORDER
                 || derivativeParameter < 0 || derivativeParameter >= parameters.size()) {

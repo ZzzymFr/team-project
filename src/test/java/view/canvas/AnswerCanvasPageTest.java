@@ -276,19 +276,20 @@ class AnswerCanvasPageTest {
         openPage();
         writeWithEquals();
         waitFor(() -> page.visiblePopup() != null && page.visiblePopup().getProblem() != null
-                && page.visiblePopup().getProblem().contains("not connected"), "the reason");
+                && page.visiblePopup().getProblem().equals("Couldn't read the formula."), "the reason");
         assertFalse(popup().hasCalculate());
         assertTrue(answers().isEmpty());
     }
 
     @Test
-    void anErrorFromTheModelShowsInThePopup() throws Exception {
+    void anErrorFromTheModelShowsPlainWords() throws Exception {
         shared.setFormulaRecognizer(image -> {
             throw new UnsatisfiedLinkError("no native lib");
         });
         openPage();
         writeWithEquals();
-        waitFor(() -> page.visiblePopup() != null && "no native lib".equals(page.visiblePopup().getProblem()), "the reason");
+        waitFor(() -> page.visiblePopup() != null
+                && "Couldn't read the formula.".equals(page.visiblePopup().getProblem()), "plain words, no guts");
         assertFalse(popup().hasCalculate());
     }
 
@@ -375,9 +376,9 @@ class AnswerCanvasPageTest {
             return "1+1=";
         });
         openPage();
-        GraphCanvasPage[] graph = new GraphCanvasPage[1];
+        CanvasPage[] graph = new CanvasPage[1];
         onEdt(() -> {
-            graph[0] = new GraphCanvasPage(shared);
+            graph[0] = new CanvasPage(shared) { };
             shared.attachTo(graph[0]);
         });
         write();
@@ -397,7 +398,7 @@ class AnswerCanvasPageTest {
         openPage();
         write();
         waitPopup("1+1=");
-        onEdt(() -> shared.attachTo(new GraphCanvasPage(shared)));
+        onEdt(() -> shared.attachTo(new CanvasPage(shared) { }));
         assertNull(popup());
     }
 
@@ -516,6 +517,139 @@ class AnswerCanvasPageTest {
         assertNull(popup());
         assertEquals(1, calls.get(), "not read again");
         assertTrue(answerIs("2"));
+    }
+
+    // mouse comes to rest at (x, y), no button down
+    private void hover(int x, int y) throws Exception {
+        onEdt(() -> canvas.dispatchEvent(new MouseEvent(canvas, MouseEvent.MOUSE_MOVED, 0, 0, x, y, 0, false)));
+    }
+
+    private void writeWithEqualsAt(int x, int y) throws Exception {
+        onEdt(() -> {
+            stroke(x, y, x, y + 50);
+            stroke(x + 15, y + 20, x + 45, y + 20);
+            stroke(x + 15, y + 30, x + 45, y + 30);
+        });
+    }
+
+    @Test
+    void hoverWaitsOutABusyMoment() throws Exception {
+        shared.setFormulaRecognizer(image -> image.getHeight() < 60 ? "x" : "1+1=");
+        openPage();
+        writeWithEquals();
+        waitPopup("1+1=");
+        onEdt(() -> canvas.setTool(DrawingCanvas.Tool.ERASER));
+        waitFor(() -> page.visiblePopup() == null, "popup closed");
+
+        onEdt(() -> {
+            canvas.setTool(DrawingCanvas.Tool.PEN);
+            page.setPopupDelay(700);
+        });
+        drag(400, 300, 600, 300);   // some other ink, its pause is still running
+        hover(130, 125);            // rest on A's "=" and don't move again
+        waitPopup("1+1=");
+        assertTrue(popup().getX() < 300, "popup sits by A");
+    }
+
+    @Test
+    void hoverTakesOverAnotherFormulasPopup() throws Exception {
+        shared.setFormulaRecognizer(image -> "1+1=");
+        openPage();
+        writeWithEquals();                  // A
+        waitPopup("1+1=");
+        writeWithEqualsAt(400, 300);        // B
+        waitFor(() -> page.visiblePopup() != null && page.visiblePopup().getX() > 300, "B's popup");
+
+        hover(130, 125);                    // A's "="
+        waitFor(() -> page.visiblePopup() != null && page.visiblePopup().getX() < 300, "A's popup");
+    }
+
+    // y=2x+3x^2 roughly as handwritten, image coords x 0.6
+    private void writeQuadratic() throws Exception {
+        int[][] strokes = {
+            {103, 118, 103, 170, 125, 225}, {160, 118, 150, 190, 110, 280, 57, 340},
+            {190, 185, 245, 185}, {190, 217, 265, 217},
+            {313, 148, 365, 150, 380, 190, 375, 230, 330, 270, 300, 293, 405, 283},
+            {425, 200, 445, 197, 470, 230, 500, 265, 530, 280}, {515, 198, 475, 240, 452, 290},
+            {595, 207, 690, 207}, {657, 153, 657, 293},
+            {752, 140, 830, 145, 845, 185, 800, 205, 845, 235, 830, 265, 720, 272},
+            {868, 205, 905, 212, 940, 240, 978, 282}, {970, 208, 925, 230, 885, 270},
+            {1000, 118, 1020, 125, 1015, 140, 988, 152, 1045, 152},
+        };
+        for (int[] s : strokes) {
+            int[] xy = new int[s.length];
+            for (int i = 0; i < s.length; i++) {
+                xy[i] = (int) Math.round(s[i] * 0.6);
+            }
+            drag(xy);
+            Thread.sleep(40);
+        }
+    }
+
+    @Test
+    void hoverAfterClickingThePopupAway() throws Exception {
+        shared.setFormulaRecognizer(image -> image.getWidth() > 200 ? "y=2x+3x^{2}" : ".");
+        openPage();
+        writeQuadratic();
+        waitPopup("y=2x+3x^{2}");
+        drag(500, 450, 500, 450);           // click empty canvas w/ the pen
+        waitFor(() -> page.visiblePopup() == null, "popup closed");
+        Thread.sleep(400);
+
+        hover(130, 120);                    // on the "="
+        waitPopup("y=2x+3x^{2}");
+    }
+
+    @Test
+    void hoverDoesntWaitForAStrayDotsPause() throws Exception {
+        AtomicInteger dotReads = new AtomicInteger();
+        shared.setFormulaRecognizer(image -> {
+            if (image.getWidth() > 200) {
+                return "y=2x+3x^{2}";
+            }
+            dotReads.incrementAndGet();
+            return "\\cdot";
+        });
+        openPage();
+        writeQuadratic();
+        waitPopup("y=2x+3x^{2}");
+        onEdt(() -> page.setPopupDelay(3000));
+        drag(500, 450, 500, 450);           // click the popup away, leaves a dot
+
+        hover(130, 120);
+        Thread.sleep(800);                  // way before the dot's pause is up
+        AnswerPopup p = popup();
+        assertNotNull(p, "popup right away");
+        assertEquals("y=2x+3x^{2}", p.getLatex());
+        assertEquals(0, dotReads.get());
+    }
+
+    @Test
+    void hoverWaitsWhenNewInkLandsOnThatFormula() throws Exception {
+        shared.setFormulaRecognizer(image -> "1+1=");
+        openPage();
+        writeWithEquals();
+        waitPopup("1+1=");
+        onEdt(() -> page.setPopupDelay(1500));
+        drag(150, 100, 150, 150);           // another stroke right on it
+
+        hover(130, 125);
+        Thread.sleep(700);
+        assertNull(popup(), "not the old read, the ink is changing");
+        waitPopup("1+1=");
+    }
+
+    @Test
+    void hoverWorksWithTheLasso() throws Exception {
+        shared.setFormulaRecognizer(image -> "1+1=");
+        openPage();
+        writeWithEquals();
+        waitPopup("1+1=");
+        onEdt(() -> canvas.setTool(DrawingCanvas.Tool.LASSO));
+        waitFor(() -> page.visiblePopup() == null, "popup closed");
+
+        hover(130, 125);
+        waitPopup("1+1=");
     }
 
     @Test

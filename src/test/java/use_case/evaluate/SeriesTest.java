@@ -59,8 +59,8 @@ class SeriesTest {
         assertEquals("= 6", Calc.once("\\sum_{i=1}^3 i"));
         assertEquals("= 6", Calc.once("\\sum_{x_1=1}^{3}x_1"));
         assertEquals("Uncalculable", Calc.withoutReason(Calc.once("\\sum_{i=1}i")));
-        assertEquals("Expected \"}\".", Calc.once("\\sum_{i=1}^{3"));
-        assertEquals("Unexpected \"}\".", Calc.once("\\sum_{i=}^{3}i"));
+        assertEquals("Invalid formula — Missing \"}\"", Calc.once("\\sum_{i=1}^{3"));
+        assertEquals("Invalid formula — Unexpected \"}\"", Calc.once("\\sum_{i=}^{3}i"));
     }
 
     @Test
@@ -111,7 +111,7 @@ class SeriesTest {
 
     @Test
     void onlyAnEqualsOutsideBracesStartsAnEquation() {
-        assertEquals("Please use only one \"=\".", Calc.once("f(x)=\\sum_{i=1}^{3}i=6"));
+        assertEquals("Invalid formula — Only one \"=\" allowed", Calc.once("f(x)=\\sum_{i=1}^{3}i=6"));
         Calc calc = new Calc();
         assertEquals("Defined f(x) = \\sum_{i=1}^{3}i", calc.show("f(x)=\\sum_{i=1}^{3}i"));
         assertEquals("= 6", calc.show("f(0)"));

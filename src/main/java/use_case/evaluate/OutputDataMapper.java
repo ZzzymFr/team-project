@@ -1,6 +1,7 @@
 package use_case.evaluate;
 
 import entity.Interval;
+import entity.MathSyntaxException;
 import entity.UncalculableException;
 import entity.symbolic.Expr;
 import entity.symbolic.Rational;
@@ -33,6 +34,10 @@ public final class OutputDataMapper {
     public static IntervalOutputData of(Interval interval) {
         return new IntervalOutputData(interval.getLow(), interval.isLowIncluded(), interval.getHigh(),
                 interval.isHighIncluded(), interval.isPoint());
+    }
+
+    public static InvalidOutputData of(MathSyntaxException e) {
+        return new InvalidOutputData(e.getProblem().name(), e.getDetails());
     }
 
     public static UncalculableOutputData of(UncalculableException e) {

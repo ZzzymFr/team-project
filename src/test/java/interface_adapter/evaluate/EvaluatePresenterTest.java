@@ -8,6 +8,7 @@ import entity.value.VectorValue;
 import interface_adapter.MathLabViewModel;
 import interface_adapter.TextRun;
 import use_case.evaluate.FormulaShape;
+import use_case.evaluate.InvalidOutputData;
 import use_case.evaluate.OutputDataMapper;
 import use_case.evaluate.ValueOutputData;
 import org.junit.jupiter.api.BeforeEach;
@@ -165,9 +166,9 @@ class EvaluatePresenterTest {
     @Test
     void showsError() {
         presenter.prepareValuesView(List.of(OutputDataMapper.of(new NumberValue(2))));
-        presenter.prepareFailView("Oops");
+        presenter.prepareInvalidView(new InvalidOutputData("UNEXPECTED", List.of("\\cdot")));
         assertEquals("", viewModel.getState().getResultText());
-        assertEquals("Oops", viewModel.getState().getErrorText());
+        assertEquals("Invalid formula — Unexpected \"·\"", viewModel.getState().getErrorText());
     }
 
     @Test

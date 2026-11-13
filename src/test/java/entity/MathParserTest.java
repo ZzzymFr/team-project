@@ -9,12 +9,14 @@ import entity.value.Value;
 import entity.value.Values;
 import entity.value.VectorValue;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -121,17 +123,20 @@ class MathParserTest {
     }
 
     @Test
-    void keepsExistingErrorMessages() {
-        assertEquals("Unexpected \")\".", assertThrows(MathSyntaxException.class, () -> num("1+2)")).getMessage());
-        assertEquals("The expression ends too early.",
-                assertThrows(MathSyntaxException.class, () -> num("1+")).getMessage());
-        assertEquals("Expected \")\".", assertThrows(MathSyntaxException.class, () -> num("(1+2")).getMessage());
-        assertEquals("The expression is empty.", assertThrows(MathSyntaxException.class, () -> num("")).getMessage());
-        assertEquals("Unknown variable \"x\".", assertThrows(MathSyntaxException.class, () -> num("x+1")).getMessage());
-        assertEquals("\"1.2.3\" is not a valid number.",
-                assertThrows(MathSyntaxException.class, () -> num("1.2.3")).getMessage());
-        assertEquals("\"\\foo\" is not supported.",
-                assertThrows(MathSyntaxException.class, () -> num("\\foo")).getMessage());
+    void errorsSayWhatAndWhere() {
+        problem(SyntaxProblem.UNEXPECTED, List.of(")"), () -> num("1+2)"));
+        problem(SyntaxProblem.ENDS_EARLY, List.of(), () -> num("1+"));
+        problem(SyntaxProblem.EXPECTED, List.of(")"), () -> num("(1+2"));
+        problem(SyntaxProblem.EMPTY, List.of(), () -> num(""));
+        problem(SyntaxProblem.UNKNOWN_VARIABLE, List.of("x"), () -> num("x+1"));
+        problem(SyntaxProblem.BAD_NUMBER, List.of("1.2.3"), () -> num("1.2.3"));
+        problem(SyntaxProblem.NOT_SUPPORTED, List.of("\\foo"), () -> num("\\foo"));
+    }
+
+    private static void problem(SyntaxProblem p, List<String> details, Executable run) {
+        MathSyntaxException e = assertThrows(MathSyntaxException.class, run);
+        assertEquals(p, e.getProblem());
+        assertEquals(details, e.getDetails());
     }
 
     @Test
@@ -224,8 +229,7 @@ class MathParserTest {
         functions.put("f", function("f", "x", "x^2+1", functions));
         double result = Values.toNumber(parse("f(3)+f(0)", functions).evaluate(new Context(functions)));
         assertEquals(11, result, DELTA);
-        assertEquals("Write f(...) to use the function f.",
-                assertThrows(MathSyntaxException.class, () -> parse("f+1", functions)).getMessage());
+        problem(SyntaxProblem.NEEDS_BRACKETS, List.of("f"), () -> parse("f+1", functions));
     }
 
     @Test
@@ -234,8 +238,6 @@ class MathParserTest {
         functions.put("f", new UserFunction("f", Collections.singletonList("x"), new NumberNode(0, 0), "0"));
         functions.put("f", function("f", "x", "f(x)+1", functions));
         Node call = parse("f(1)", functions);
-        MathSyntaxException error = assertThrows(MathSyntaxException.class,
-                () -> call.evaluate(new Context(functions)));
-        assertEquals("The function f keeps calling itself, so it cannot be calculated.", error.getMessage());
+        problem(SyntaxProblem.CALLS_ITSELF, List.of("f"), () -> call.evaluate(new Context(functions)));
     }
 }

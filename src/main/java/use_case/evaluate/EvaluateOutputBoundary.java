@@ -22,5 +22,5 @@ public interface EvaluateOutputBoundary {
 
     void prepareUncalculableView(UncalculableOutputData why);
 
-    void prepareFailView(String errorMessage);
+    void prepareInvalidView(InvalidOutputData why);
 }

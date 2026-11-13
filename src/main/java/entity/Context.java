@@ -53,16 +53,17 @@ public final class Context {
     }
 
     public Context forFunctionBody() {
-        return enterFunctionBody("A function");
+        return enterFunctionBody(null);
     }
 
     public Context forFunctionBody(String functionName) {
-        return enterFunctionBody("The function " + functionName);
+        return enterFunctionBody(functionName);
     }
 
-    private Context enterFunctionBody(String subject) {
+    private Context enterFunctionBody(String name) {  // null = dont know which
         if (depth >= MAX_FUNCTION_DEPTH) {
-            throw new MathSyntaxException(subject + " keeps calling itself, so it cannot be calculated.");
+            throw name == null ? new MathSyntaxException(SyntaxProblem.CALLS_ITSELF)
+                    : new MathSyntaxException(SyntaxProblem.CALLS_ITSELF, name);
         }
         return new Context(functions, null, signMask, depth + 1, budget, derivative);
     }
@@ -74,7 +75,7 @@ public final class Context {
     public double getVariable(String name) {
         Binding binding = find(name);
         if (binding == null) {
-            throw new MathSyntaxException("Unknown variable \"" + name + "\".");
+            throw new MathSyntaxException(SyntaxProblem.UNKNOWN_VARIABLE, name);
         }
         return binding.value;
     }
