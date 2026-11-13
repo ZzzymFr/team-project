@@ -28,6 +28,10 @@ import use_case.graph_check.GraphCheckInteractor;
 import use_case.graph_function.GraphFunctionInteractor;
 import view.DrawingCanvas;
 import view.board.BoardTheme;
+import view.board.CanvasWorkspaceDialogs;
+import workspace.use_case.CanvasWorkspace;
+import workspace.data_access.FileCanvasRepository;
+import pdf_editor.view.CanvasHistoryEditMenu;
 import view.board.BoardWindow;
 import view.board.FloatingToolbar;
 import view.board.HistoryPanel;
@@ -51,6 +55,8 @@ public class StackedAppBuilder {
     private final HistoryInteractor history = new HistoryInteractor(
             new FileHistoryRepository(FileHistoryRepository.defaultDirectory()));
     private final PdfStudioLauncher pdfStudio = new PdfStudioLauncher(history);
+    private final CanvasWorkspace canvases = new CanvasWorkspace(
+            new FileCanvasRepository(FileCanvasRepository.defaultDirectory()));
 
     {
         pdfStudio.setSourceCanvas(sharedCanvas);
@@ -101,16 +107,21 @@ public class StackedAppBuilder {
         };
         drawing.setBackground(BoardTheme.CANVAS);
         drawing.setGridVisible(false);
+        drawing.setMathAssetRenderer((latex, result, width, height) ->
+                pdf_editor.data_access.MaterialRenderer.render(
+                        new pdf_editor.domain.PdfMaterial("Canvas History", latex, result, null, 0, 0) { },
+                        width, height));
         CanvasPdfDragController.install(drawing);
+        CanvasHistoryEditMenu.install(drawing, (latex, result) ->
+                pdf_editor.data_access.MaterialRenderer.render(
+                        new pdf_editor.domain.PdfMaterial("Edited Math", latex, result, null, 0, 0) { },
+                        800, 190));
         CanvasLibrarySelectionMenu.install(drawing,
                 new SelectionToLibrary(sharedCanvas::recognizeFormula, pdfStudio.getLibrary()),
                 new SelectedInkRegistry(drawing, pdfStudio.getLibrary()));
         AnswerCanvasPage page = new AnswerCanvasPage(sharedCanvas, evaluate, mathViewModel, results,
                 graph, graphViewModel, graphCheck::canGraph, BoardTheme.CANVAS, ToolbarSpot.TOP_Y);
         sharedCanvas.attachTo(page);
-        FloatingToolbar toolbar = new FloatingToolbar(drawing, page.boardArea());
-        page.addBoardOverlay(toolbar.component());
-
         PdfPanel pdfPanel = pdfStudio.createPanel();
         // Use the live selection (lasso or whole ink), not an outdated startup screenshot.
         pdfPanel.setCanvasCapture(() -> {
@@ -122,10 +133,18 @@ public class StackedAppBuilder {
                     pdfStudio.getLibrary().addInk("Canvas screenshot", image);
                     pdfPanel.editor().showLibrary();
                 }));
+        // Save/Open are separate use-case commands; the board knows only the callbacks.
+        java.util.concurrent.atomic.AtomicReference<CanvasWorkspaceDialogs> dialogs = new java.util.concurrent.atomic.AtomicReference<>();
         BoardWindow board = new BoardWindow(page, drawing,
                 host -> new HistoryPanel(historyViewModel, host, historyPresenter::undoDelete),
-                pdfPanel, historyPresenter::delete);
-        pdfStudio.onOpen(() -> { board.setPdfOverlay(false); board.setPdfOpen(true); });
+                pdfPanel, historyPresenter::delete,
+                () -> dialogs.get().save(), () -> dialogs.get().open());
+        dialogs.set(new CanvasWorkspaceDialogs(canvases, drawing, board));
+        FloatingToolbar toolbar = new FloatingToolbar(drawing, board);
+        board.addFloatingToolbar(toolbar.component());
+        pdfPanel.setFullscreenAction(() -> board.setPdfFullscreen(!board.isPdfFullscreen()));
+        pdfStudio.onOpen(() -> board.setPdfOpen(true));
+        dialogs.get().restoreLatestAtStartup();
 
         JFrame frame = new JFrame("Math Lab");
         JRootPane root = frame.getRootPane();
@@ -137,9 +156,14 @@ public class StackedAppBuilder {
         int shortcut = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
         root.registerKeyboardAction(e -> drawing.undo(), KeyStroke.getKeyStroke(KeyEvent.VK_Z, shortcut),
                 JComponent.WHEN_IN_FOCUSED_WINDOW);
+        root.registerKeyboardAction(e -> board.setPdfFullscreen(false),
+                KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), JComponent.WHEN_IN_FOCUSED_WINDOW);
         frame.setContentPane(board);
         frame.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
         frame.setSize(1280, 790);
+        frame.addWindowListener(new java.awt.event.WindowAdapter() {
+            @Override public void windowOpened(java.awt.event.WindowEvent e) { toolbar.relayout(); }
+        });
         frame.addWindowListener(new java.awt.event.WindowAdapter() {
             @Override public void windowClosed(java.awt.event.WindowEvent e) { pdfPanel.close(); }
         });

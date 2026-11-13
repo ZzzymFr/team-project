@@ -29,7 +29,7 @@ public final class InlineNoteEditor extends JTextPane {
         this.zoom = zoom;
         this.textChanged = Objects.requireNonNull(textChanged);
         setStyledDocument(NoteTextDocumentFactory.createEditable(note, zoom).getStyledDocument());
-        setFont(new Font("Segoe UI", Font.PLAIN, Math.max(1, (int) Math.round(note.noteSize() * zoom))));
+        setFont(new Font("Times New Roman", Font.PLAIN, Math.max(1, (int) Math.round(note.noteSize() * zoom))));
         setOpaque(true);
         setBackground(Color.WHITE);
         // PPT-like text frame: border marks the box, with the same inner text margins as export.
@@ -64,6 +64,12 @@ public final class InlineNoteEditor extends JTextPane {
         });
     }
     public void toggleStyle(Object style) { NoteTextFormatting.toggle(this, style); }
+    public void fontFamily(String family) {
+        if (family == null || family.isBlank()) throw new IllegalArgumentException("Font required");
+        SimpleAttributeSet attrs = new SimpleAttributeSet();
+        StyleConstants.setFontFamily(attrs, family);
+        NoteTextFormatting.apply(this, attrs);
+    }
     public void fontSize(int size) {
         if (size < 8 || size > 72) throw new IllegalArgumentException("Font size out of range");
         SimpleAttributeSet attrs = new SimpleAttributeSet();

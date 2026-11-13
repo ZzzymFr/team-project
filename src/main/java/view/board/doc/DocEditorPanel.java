@@ -59,16 +59,20 @@ public final class DocEditorPanel extends JPanel implements PdfWorkspacePort {
     private Supplier<BufferedImage> canvasCapture = () -> null;
     private Runnable regionCapture = this::insertCanvasInk;
     private boolean updatingZoom;
+    private Runnable toggleFullscreen = () -> { };
+    public void setFullscreenAction(Runnable callback) { toggleFullscreen = Objects.requireNonNull(callback); }
+
 
     public DocEditorPanel(PdfEditorController controller) {
         super(new BorderLayout());
         this.controller = Objects.requireNonNull(controller);
         this.library = controller.library();
-        setBackground(Color.WHITE);
+        setBackground(DESK);
         paper = new PdfPageCanvas(controller, new PdfPageCanvas.Listener() {
             @Override public void contextMenu(MouseEvent e) { contextMenu(e); }
             @Override public void editNote() { DocEditorPanel.this.editNote(); }
             @Override public void editFormula() { DocEditorPanel.this.editFormula(); }
+            @Override public void typeInDocument() { DocEditorPanel.this.typeOnPage(); }
         });
         paper.setBackground(DESK);
         pageScroll = new JScrollPane(new CenteredDesk(paper));
@@ -112,46 +116,62 @@ public final class DocEditorPanel extends JPanel implements PdfWorkspacePort {
     public PdfEditorController documentController() { return controller; }
     public boolean isLibraryVisible() { return libraryPanel.isVisible(); }
 
+    /** Floating Apple-like controls: rounded capsules rather than full-width white strips. */
+    private static final class Capsule extends JPanel {
+        Capsule(java.awt.LayoutManager layout) {
+            super(layout);
+            setOpaque(false);
+            setBorder(BorderFactory.createEmptyBorder(5, 8, 5, 8));
+        }
+        @Override protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setColor(new Color(0,0,0,12));
+            g2.fillRoundRect(1, 3, getWidth()-2, getHeight()-3, 28, 28);
+            g2.setColor(new Color(255,255,255,252));
+            g2.fillRoundRect(0, 0, getWidth()-1, getHeight()-3, 28, 28);
+            g2.setColor(new Color(210,216,227));
+            g2.drawRoundRect(0, 0, getWidth()-1, getHeight()-3, 28, 28);
+            g2.dispose();
+            super.paintComponent(g);
+        }
+    }
+
     private JComponent buildHeader() {
         JPanel top = new JPanel(new BorderLayout());
-        top.setBackground(Color.WHITE);
-        JPanel nameRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 8));
+        top.setBackground(DESK);
+        JPanel nameRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 9));
         nameRow.setOpaque(false);
-        nameRow.setBorder(BorderFactory.createEmptyBorder(BoardTheme.TOP + 4, 8, 0, 60));
-        title.setFont(BoardTheme.font(15f));
-        // A small native vector document glyph (no external image or licensing dependency).
-        JComponent documentGlyph = DocumentGlyphs.component(24, Icons::document);
-        documentGlyph.setToolTipText("Math Lab document");
-        nameRow.add(documentGlyph);
-        nameRow.add(title);
+        nameRow.setBorder(BorderFactory.createEmptyBorder(BoardTheme.TOP + 2, 10, 1, 0));
+        Capsule document = new Capsule(new FlowLayout(FlowLayout.LEFT, 8, 2));
+        title.setFont(BoardTheme.font(14f));
+        document.add(DocumentGlyphs.component(23, Icons::document));
+        document.add(title);
+        nameRow.add(document);
         top.add(nameRow, BorderLayout.NORTH);
 
-        JPanel tabsRow = new JPanel(new BorderLayout());
-        tabsRow.setBackground(Color.WHITE);
-        tabsRow.setBorder(BorderFactory.createEmptyBorder(0, 12, 0, 10));
-        JPanel names = new JPanel(new WrapLayout(FlowLayout.LEFT, 2, 2));
-        names.setOpaque(false);
+        JPanel tabsRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 7, 3));
+        tabsRow.setOpaque(false);
+        JPanel names = new Capsule(new WrapLayout(FlowLayout.CENTER, 2, 1));
         tabs.add(new Tab("Home", homeRibbon()));
         tabs.add(new Tab("Insert", insertRibbon()));
         tabs.add(new Tab("Layout", layoutRibbon()));
         tabs.add(new Tab("View", viewRibbon()));
         for (Tab tab : tabs) names.add(tab.button);
+        tabsRow.add(names);
         JButton export = new RoundedActionButton("Export PDF", this::export, true);
         export.setToolTipText("Save your document as a PDF file");
-        // Keep Export immediately after View, away from the floating PDF capsule.
-        names.add(Box.createHorizontalStrut(5));
-        names.add(export);
-        tabsRow.add(names, BorderLayout.CENTER);
+        tabsRow.add(export);
         top.add(tabsRow, BorderLayout.CENTER);
-        ribbonHolder.setBorder(BorderFactory.createMatteBorder(1, 0, 1, 0, DIVIDER));
-        ribbonHolder.setBackground(Color.WHITE);
+        ribbonHolder.setOpaque(false);
+        ribbonHolder.setBorder(BorderFactory.createEmptyBorder(3, 9, 5, 9));
         top.add(ribbonHolder, BorderLayout.SOUTH);
         return top;
     }
 
     private JPanel ribbon() {
         JPanel row = new JPanel(new WrapLayout(FlowLayout.LEFT, 4, 4));
-        row.setBackground(Color.WHITE);
+        row.setOpaque(false);
         row.setBorder(BorderFactory.createEmptyBorder(2, 8, 2, 8));
         return row;
     }
@@ -161,6 +181,7 @@ public final class DocEditorPanel extends JPanel implements PdfWorkspacePort {
     }
     private JPanel homeRibbon() {
         JPanel row = ribbon();
+        command(row, RibbonButton.labeled(DocIcons::comment, "Type"), this::typeOnPage);
         command(row, RibbonButton.icon(Icons::undo, "Undo"), this::undo);
         command(row, RibbonButton.icon(DocIcons::redo, "Redo"), this::redo);
         command(row, RibbonButton.letter("B", Font.BOLD, false, false, "Bold selected note"), () -> setNoteStyle("bold"));
@@ -176,6 +197,17 @@ public final class DocEditorPanel extends JPanel implements PdfWorkspacePort {
             if (size != null) applyNoteFontSize(size);
         });
         row.add(sizes);
+        JComboBox<String> families = new JComboBox<>(new String[]{"Times New Roman", "Arial", "Calibri", "Georgia", "Courier New", "Segoe UI"});
+        families.setToolTipText("Font family for document text");
+        families.setFont(BoardTheme.font(12f));
+        families.setFocusable(false);
+        families.addActionListener(e -> {
+            String chosen = (String) families.getSelectedItem();
+            if (chosen == null) return;
+            if (paper.isEditingNote()) paper.setInlineFontFamily(chosen);
+            else controller.changeSelectedNoteFont(chosen);
+        });
+        row.add(families);
         command(row, RibbonButton.labeled(DocIcons::formula, "Edit math"), this::editFormula);
         command(row, RibbonButton.labeled(DocIcons::comment, "Edit note"), this::editNote);
         return row;
@@ -203,6 +235,7 @@ public final class DocEditorPanel extends JPanel implements PdfWorkspacePort {
     private JPanel viewRibbon() {
         JPanel row = ribbon();
         command(row, RibbonButton.labeled(Icons::preview, "Preview"), this::preview);
+        command(row, RibbonButton.labeled(Icons::fullScreen, "Full screen"), () -> toggleFullscreen.run());
         command(row, RibbonButton.labeled(DocIcons::fitPage, "Fit page"), this::fitWhenOpened);
         command(row, RibbonButton.letter("−", Font.PLAIN, false, false, "Zoom out"), () -> zoom(paper.zoom() / 1.15));
         command(row, RibbonButton.letter("+", Font.PLAIN, false, false, "Zoom in"), () -> zoom(paper.zoom() * 1.15));
@@ -210,8 +243,8 @@ public final class DocEditorPanel extends JPanel implements PdfWorkspacePort {
     }
     private JComponent buildStatus() {
         JPanel bar = new JPanel(new BorderLayout(8, 0));
-        bar.setBackground(Color.WHITE);
-        bar.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, DIVIDER),
+        bar.setBackground(DESK);
+        bar.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0),
                 BorderFactory.createEmptyBorder(4, 10, 4, 10)));
         pageCount.setFont(BoardTheme.font(12f)); pageCount.setForeground(MUTED);
         JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0)); left.setOpaque(false);
@@ -423,6 +456,20 @@ public final class DocEditorPanel extends JPanel implements PdfWorkspacePort {
     private void undo() {paper.finishInlineEdit();controller.undo();updateStatus();}
     private void redo() {paper.finishInlineEdit();controller.redo();updateStatus();}
     private void autoLayout() {controller.autoLayout();updateStatus();}
+    /** Normal document body starts at 1-inch margins. Text boxes stay a separate Insert tool. */
+    public void typeOnPage() {
+        paper.finishInlineEdit();
+        PdfDocument.Placement body = controller.placements().stream()
+                .filter(p -> p.isNote() && Math.abs(p.x()-72)<.5 && Math.abs(p.y()-72)<.5
+                        && p.width() >= 440).findFirst().orElse(null);
+        if (body == null) {
+            body = controller.addNoteAt(72, 72);
+            controller.beginTransform();
+            controller.transform(72, 72, 451, 690);
+        } else controller.select(body.id());
+        updateStatus();
+        paper.editNoteInline();
+    }
     private void addNote() {paper.finishInlineEdit();controller.addNote();updateStatus();editNote();}
     private void insertFormula() {
         String latex = JOptionPane.showInputDialog(this, "LaTeX formula", "Insert formula", JOptionPane.PLAIN_MESSAGE);
@@ -596,7 +643,10 @@ public final class DocEditorPanel extends JPanel implements PdfWorkspacePort {
         }
         private void select() {
             for (Tab tab : tabs) tab.button.setSelected(tab == this);
-            ribbonHolder.removeAll();ribbonHolder.add(ribbon, BorderLayout.CENTER);
+            ribbonHolder.removeAll();
+            Capsule capsule = new Capsule(new BorderLayout());
+            capsule.add(ribbon, BorderLayout.CENTER);
+            ribbonHolder.add(capsule, BorderLayout.CENTER);
             ribbonHolder.revalidate();ribbonHolder.repaint();
         }
     }

@@ -84,6 +84,13 @@ public final class PdfEditorController {
                 note.noteSpans(), note.noteText(), note.noteSize(), fontSize));
         return true;
     }
+    public boolean changeSelectedNoteFont(String family) {
+        PdfDocument.Placement note = selected();
+        if (note == null || !note.isNote()) return false;
+        editor.updateRichNote(page, selectedId, pdf_editor.use_case.NoteFormatting.family(
+                note.noteSpans(), note.noteText(), note.noteSize(), family));
+        return true;
+    }
     public boolean deleteSelected() {
         if (selected() == null) return false;
         boolean changed = editor.delete(page, selectedId);
