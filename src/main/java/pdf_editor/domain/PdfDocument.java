@@ -10,9 +10,14 @@ public final class PdfDocument {
     public static final float PAGE_WIDTH = 595f;
     public static final float PAGE_HEIGHT = 842f;
 
-    public record NoteSpan(String text, boolean bold, boolean italic, boolean underline, int size) {
+    public record NoteSpan(String text, boolean bold, boolean italic, boolean underline, int size, String fontFamily) {
+        public NoteSpan(String text, boolean bold, boolean italic, boolean underline, int size) {
+            this(text, bold, italic, underline, size, "Times New Roman");
+        }
         public NoteSpan {
             Objects.requireNonNull(text, "text");
+            Objects.requireNonNull(fontFamily, "fontFamily");
+            if (fontFamily.isBlank() || fontFamily.length() > 100) throw new IllegalArgumentException("Invalid font family");
             if (size < 1) throw new IllegalArgumentException("Font size must be positive");
         }
     }

@@ -23,6 +23,7 @@ public final class PdfPageCanvas extends JPanel {
         void contextMenu(MouseEvent event);
         void editNote();
         void editFormula();
+        default void typeInDocument() { }
     }
     private static final int MARGIN = 28;
     private final PdfEditorController controller;
@@ -58,6 +59,7 @@ public final class PdfPageCanvas extends JPanel {
     private float oldX, oldY, oldW, oldH;
     private boolean resizing;
     private boolean dragStarted;
+    private boolean editingBeforePress;
     private InlineNoteEditor inlineNote;
     private String editingId;
     private int liveEditorHeight;
@@ -94,6 +96,7 @@ public final class PdfPageCanvas extends JPanel {
     }
     public boolean isEditingNote() { return inlineNote != null; }
     public void toggleInlineStyle(Object style) { if (inlineNote != null) inlineNote.toggleStyle(style); }
+    public void setInlineFontFamily(String family) { if (inlineNote != null) inlineNote.fontFamily(family); }
     public void setInlineFontSize(int size) { if (inlineNote != null) inlineNote.fontSize(size); }
     public void finishInlineEdit() {
         // Re-measure synchronously before commit, even when a pending document event
@@ -171,7 +174,8 @@ public final class PdfPageCanvas extends JPanel {
         });
         MouseAdapter mouse = new MouseAdapter() {
             @Override public void mousePressed(MouseEvent e) {
-                // A single click on empty paper exits the current text box (PPT behaviour).
+                // Keep PPT text-box exit behaviour; don't immediately create a body on that click.
+                editingBeforePress = inlineNote != null;
                 finishInlineEdit();
                 controller.selectAt(toPageX(e.getX()), toPageY(e.getY()));
                 PdfDocument.Placement p = controller.selected();
@@ -202,10 +206,18 @@ public final class PdfPageCanvas extends JPanel {
                 if (e.isPopupTrigger()) listener.contextMenu(e);
             }
             @Override public void mouseClicked(MouseEvent e) {
+                if (SwingUtilities.isLeftMouseButton(e) && e.getClickCount() == 1 && !editingBeforePress) {
+                    var chosen = controller.selected();
+                    float x=toPageX(e.getX()), y=toPageY(e.getY());
+                    if (x>=0 && y>=0 && x<PdfDocument.PAGE_WIDTH && y<PdfDocument.PAGE_HEIGHT) {
+                        if (chosen == null) listener.typeInDocument();
+                        else if (chosen.isNote() && chosen.width() >= 440 && Math.abs(chosen.x()-72)<.5f)
+                            listener.editNote();
+                    }
+                }
                 if (e.getClickCount() == 2 && SwingUtilities.isLeftMouseButton(e)) {
                     if (controller.selected() == null) {
-                        controller.addNoteAt(toPageX(e.getX()), toPageY(e.getY()));
-                        listener.editNote();
+                        listener.typeInDocument();
                     } else if (controller.selected().isNote()) listener.editNote();
                     else if (!controller.selected().material().isGraph()) listener.editFormula();
                 }

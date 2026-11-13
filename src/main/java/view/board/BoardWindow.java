@@ -44,6 +44,8 @@ public class BoardWindow extends JPanel implements HistoryPanel.DragHost {
     private final JComponent titleStrip;
     private boolean historyOpen;
     private boolean pdfOpen;
+    private boolean pdfFullscreen;
+    private JComponent floatingToolbar;
     private double historyRatio = 0.24;  // kept while the app runs
     private double pdfRatio = 0.56;
     private boolean pdfOverlay;
@@ -60,6 +62,14 @@ public class BoardWindow extends JPanel implements HistoryPanel.DragHost {
     public BoardWindow(JComponent page, DrawingCanvas canvas,
                        java.util.function.Function<HistoryPanel.DragHost, HistoryPanel> history,
                        JComponent pdf, Function<String, Boolean> deleteHistory) {
+        this(page, canvas, history, pdf, deleteHistory, () -> {}, () -> {});
+    }
+
+    /** Composition-root commands own Save/Open, not the layout view. */
+    public BoardWindow(JComponent page, DrawingCanvas canvas,
+                       java.util.function.Function<HistoryPanel.DragHost, HistoryPanel> history,
+                       JComponent pdf, Function<String, Boolean> deleteHistory,
+                       Runnable saveCanvas, Runnable openCanvas) {
         super(null);
         this.page = page;
         this.canvas = canvas;
@@ -88,12 +98,15 @@ public class BoardWindow extends JPanel implements HistoryPanel.DragHost {
             setHistoryOpen(!historyOpen);
             return historyOpen;
         });
+        historyBar.action("Save", Icons::save, saveCanvas, () -> true);
+        historyBar.action("Open", Icons::openFolder, openCanvas, () -> true);
         historyBar.finish();
         historyClose = bar(15f);
         historyClose.action(null, Icons::close, () -> setHistoryOpen(false), () -> true);
         historyClose.finish();
         pdfBar = bar(15f);
-        pdfBar.action("PDF", Icons::document, this::showPdfChoices, () -> true);
+        // Default to real split view, with no second overlay mode in the UI.
+        pdfBar.action("PDF", Icons::document, () -> {pdfOverlay = false; setPdfOpen(true);}, () -> true);
         pdfBar.finish();
         pdfClose = bar(15f);
         pdfClose.action(null, Icons::close, () -> setPdfOpen(false), () -> true);
@@ -141,6 +154,7 @@ public class BoardWindow extends JPanel implements HistoryPanel.DragHost {
     }
 
     public void setPdfOpen(boolean open) {
+        if (!open) pdfFullscreen = false;
         boolean firstOpen = open && !pdfOpen;
         pdfOpen = open;
         relayout();
@@ -149,6 +163,19 @@ public class BoardWindow extends JPanel implements HistoryPanel.DragHost {
         }
     }
 
+    public boolean isPdfFullscreen() { return pdfFullscreen; }
+    /** Full PDF focus mode, escaped with Esc or the View ribbon control. */
+    public void setPdfFullscreen(boolean fullscreen) {
+        if (fullscreen) pdfOpen = true;
+        pdfFullscreen = fullscreen;
+        relayout();
+        if (fullscreen && pdf instanceof PdfWorkspacePort port) SwingUtilities.invokeLater(port::fitWhenOpened);
+    }
+    public void addFloatingToolbar(JComponent toolbar) {
+        floatingToolbar = java.util.Objects.requireNonNull(toolbar);
+        add(toolbar, 0); // Swing index 0 paints over both panes
+        revalidate();repaint();
+    }
     public boolean isPdfOverlay() { return pdfOverlay; }
     /** Overlay keeps the canvas at full width behind the PDF pane; split reserves its own width. */
     public void setPdfOverlay(boolean overlay) { pdfOverlay = overlay; relayout(); }
@@ -197,6 +224,22 @@ public class BoardWindow extends JPanel implements HistoryPanel.DragHost {
         int w = getWidth();
         int h = getHeight();
         int half = SplitDivider.HIT / 2;
+        if (pdfFullscreen) {
+            history.setVisible(false);historyDivider.setVisible(false);
+            pdf.setVisible(true);pdfDivider.setVisible(false);
+            page.setVisible(false);
+            historyBar.setVisible(false);historyClose.setVisible(false);
+            pdfBar.setVisible(false);pdfClose.setVisible(false);
+            if (floatingToolbar != null) floatingToolbar.setVisible(false);
+            if (titleStrip != null) titleStrip.setVisible(false);
+            pdf.setBounds(0, 0, w, h);
+            ghost.setBounds(0, 0, w, h);
+            return;
+        }
+        page.setVisible(true);
+        historyBar.setVisible(true);pdfBar.setVisible(true);
+        if (floatingToolbar != null) floatingToolbar.setVisible(true);
+        if (titleStrip != null) titleStrip.setVisible(true);
         history.setVisible(historyOpen);
         historyDivider.setVisible(historyOpen);
         pdf.setVisible(pdfOpen);
@@ -293,7 +336,16 @@ public class BoardWindow extends JPanel implements HistoryPanel.DragHost {
                 return panel.dropHistoryItem(item, screenTopLeft);
             }
         }
-        return dropped(picture, screenTopLeft);
+        ghost.clear();
+        Point onCanvas = new Point(screenTopLeft);
+        SwingUtilities.convertPointFromScreen(onCanvas, canvas);
+        Point onPage = new Point(screenTopLeft);
+        SwingUtilities.convertPointFromScreen(onPage, page);
+        if (!canvas.isShowing() || onPage.x < 0 || onPage.x >= page.getWidth()
+                || onPage.y < 0 || onPage.y >= page.getHeight()) return false;
+        canvas.addHistoryAsset(picture, item.isGraph() ? "" : item.getLatex(),
+                item.isGraph() ? "" : item.getAnswer(), onCanvas);
+        return true;
     }
 
     // ---- dragging a history row onto the canvas
