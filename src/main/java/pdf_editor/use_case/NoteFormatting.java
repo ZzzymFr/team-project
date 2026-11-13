@@ -20,17 +20,25 @@ public final class NoteFormatting {
             case UNDERLINE -> source.stream().allMatch(PdfDocument.NoteSpan::underline);
         };
         return source.stream().map(s -> switch (style) {
-            case BOLD -> new PdfDocument.NoteSpan(s.text(), !active, s.italic(), s.underline(), s.size());
-            case ITALIC -> new PdfDocument.NoteSpan(s.text(), s.bold(), !active, s.underline(), s.size());
-            case UNDERLINE -> new PdfDocument.NoteSpan(s.text(), s.bold(), s.italic(), !active, s.size());
+            case BOLD -> new PdfDocument.NoteSpan(s.text(), !active, s.italic(), s.underline(), s.size(), s.fontFamily());
+            case ITALIC -> new PdfDocument.NoteSpan(s.text(), s.bold(), !active, s.underline(), s.size(), s.fontFamily());
+            case UNDERLINE -> new PdfDocument.NoteSpan(s.text(), s.bold(), s.italic(), !active, s.size(), s.fontFamily());
         }).toList();
     }
     public static List<PdfDocument.NoteSpan> resize(List<PdfDocument.NoteSpan> spans,
                                                        String fallbackText, int originalSize, int size) {
         if (size < 8 || size > 72) throw new IllegalArgumentException("Font size must be between 8 and 72");
         return initial(spans, fallbackText, originalSize).stream()
-                .map(s -> new PdfDocument.NoteSpan(s.text(), s.bold(), s.italic(), s.underline(), size))
+                .map(s -> new PdfDocument.NoteSpan(s.text(), s.bold(), s.italic(), s.underline(), size, s.fontFamily()))
                 .toList();
+    }
+    public static List<PdfDocument.NoteSpan> family(List<PdfDocument.NoteSpan> spans,
+                                                      String fallbackText, int size, String font) {
+        if (font == null || font.isBlank() || font.length() > 100)
+            throw new IllegalArgumentException("Invalid font family");
+        return initial(spans, fallbackText, size).stream()
+                .map(s -> new PdfDocument.NoteSpan(s.text(), s.bold(), s.italic(),
+                        s.underline(), s.size(), font)).toList();
     }
     private static List<PdfDocument.NoteSpan> initial(List<PdfDocument.NoteSpan> spans,
                                                        String text, int size) {

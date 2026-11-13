@@ -18,12 +18,13 @@ public final class NoteTextDocumentFactory {
     private NoteTextDocumentFactory() { }
     public static JTextPane createPane(PdfDocument.Placement note) {
         JTextPane pane = new JTextPane();
-        pane.setFont(new Font("Segoe UI", Font.PLAIN, 16));
+        pane.setFont(new Font("Times New Roman", Font.PLAIN, 16));
         pane.setMargin(new java.awt.Insets(6, 7, 6, 7));
         StyledDocument doc = pane.getStyledDocument();
         try {
             if (note.noteSpans().isEmpty()) {
                 SimpleAttributeSet attrs = new SimpleAttributeSet();
+                StyleConstants.setFontFamily(attrs, "Times New Roman");
                 StyleConstants.setFontSize(attrs, note.noteSize());
                 StyleConstants.setBold(attrs, (note.noteStyle() & Font.BOLD) != 0);
                 StyleConstants.setItalic(attrs, (note.noteStyle() & Font.ITALIC) != 0);
@@ -70,7 +71,8 @@ public final class NoteTextDocumentFactory {
                 AttributeSet attr = element.getAttributes();
                 spans.add(new PdfDocument.NoteSpan(doc.getText(i, end - i),
                         StyleConstants.isBold(attr), StyleConstants.isItalic(attr),
-                        StyleConstants.isUnderline(attr), Math.max(8, (int) Math.round(StyleConstants.getFontSize(attr) / zoom))));
+                        StyleConstants.isUnderline(attr), Math.max(8, (int) Math.round(StyleConstants.getFontSize(attr) / zoom)),
+                        StyleConstants.getFontFamily(attr)));
                 i = end;
             }
         } catch (BadLocationException e) { throw new IllegalStateException(e); }
@@ -78,7 +80,7 @@ public final class NoteTextDocumentFactory {
     }
     private static SimpleAttributeSet attributes(PdfDocument.NoteSpan span) {
         SimpleAttributeSet attrs = new SimpleAttributeSet();
-        StyleConstants.setFontFamily(attrs, "Segoe UI");
+        StyleConstants.setFontFamily(attrs, span.fontFamily());
         StyleConstants.setFontSize(attrs, span.size());
         StyleConstants.setBold(attrs, span.bold());
         StyleConstants.setItalic(attrs, span.italic());

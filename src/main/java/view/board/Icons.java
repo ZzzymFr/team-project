@@ -34,6 +34,27 @@ public final class Icons {
         g.draw(p);
     }
 
+    public static void save(Graphics2D g) {
+        prep(g);
+        g.draw(new RoundRectangle2D.Double(-8,-8,16,16,2,2));
+        g.draw(new Rectangle2D.Double(-4,-8,8,6));
+        g.draw(new Rectangle2D.Double(-4,2,8,6));
+    }
+    public static void openFolder(Graphics2D g) {
+        prep(g);
+        Path2D p = new Path2D.Double();
+        p.moveTo(-9,-6);p.lineTo(-2,-6);p.lineTo(0,-3);p.lineTo(9,-3);
+        p.lineTo(9,7);p.lineTo(-9,7);p.closePath();g.draw(p);
+        g.draw(new Line2D.Double(-9,-3,9,-3));
+    }
+    public static void fullScreen(Graphics2D g) {
+        prep(g);
+        g.draw(new Line2D.Double(-8,-3,-8,-8));g.draw(new Line2D.Double(-8,-8,-3,-8));
+        g.draw(new Line2D.Double(3,-8,8,-8));g.draw(new Line2D.Double(8,-8,8,-3));
+        g.draw(new Line2D.Double(-8,3,-8,8));g.draw(new Line2D.Double(-8,8,-3,8));
+        g.draw(new Line2D.Double(3,8,8,8));g.draw(new Line2D.Double(8,8,8,3));
+    }
+
     public static void document(Graphics2D g) {
         prep(g);
         Path2D p = new Path2D.Double();
